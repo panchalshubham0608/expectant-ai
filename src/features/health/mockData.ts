@@ -21,19 +21,46 @@ export const healthScoreData: HealthScore = {
 
 export const motherProfileData: MotherProfile = {
   name: 'Arianna Smith',
-  age: 32,
-  weeksPregnant: 20,
-  dueDate: 'March 28, 2027',
+  dateOfBirth: '1994-03-15',
+  lmp: '2026-05-10',
+  dueDate: '2027-03-28',
   location: 'San Francisco, CA',
   avatar: 'AS',
-  nextAction: 'Complete next wellness check by July 26',
 };
 
 export const measurementsData: Measurement[] = [
-  { label: 'Weight', value: '138 lbs', change: '+3.5 lbs' },
-  { label: 'Blood Pressure', value: '118/76', change: 'Stable' },
-  { label: 'Heart Rate', value: '78 bpm', change: '+2 bpm' },
-  { label: 'Baby Growth', value: '295 g', change: '+20 g' },
+  {
+    id: 'm-1',
+    label: 'Weight',
+    value: '62.6 kg',
+    previousValue: '61.0 kg',
+    change: '+1.6 kg',
+    lastMeasuredDate: '2026-07-18',
+  },
+  {
+    id: 'm-2',
+    label: 'Blood Pressure',
+    value: '118/76',
+    previousValue: '120/78',
+    change: 'Stable',
+    lastMeasuredDate: '2026-07-18',
+  },
+  {
+    id: 'm-3',
+    label: 'Heart Rate',
+    value: '78 bpm',
+    previousValue: '76 bpm',
+    change: '+2 bpm',
+    lastMeasuredDate: '2026-07-18',
+  },
+  {
+    id: 'm-4',
+    label: 'Baby Growth',
+    value: '295 g',
+    previousValue: '275 g',
+    change: '+20 g',
+    lastMeasuredDate: '2026-07-18',
+  },
 ];
 
 export const medicalRecordsData: MedicalRecord[] = [

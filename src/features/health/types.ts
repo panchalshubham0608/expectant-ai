@@ -7,18 +7,20 @@ export interface HealthScore {
 
 export interface MotherProfile {
   name: string;
-  age: number;
-  weeksPregnant: number;
+  dateOfBirth: string;
+  lmp: string;
   dueDate: string;
   location: string;
   avatar: string;
-  nextAction: string;
 }
 
 export interface Measurement {
+  id: string;
   label: string;
   value: string;
+  previousValue?: string;
   change: string;
+  lastMeasuredDate: string;
 }
 
 export interface MedicalRecord {

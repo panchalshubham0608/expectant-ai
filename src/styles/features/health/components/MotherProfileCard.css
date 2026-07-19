@@ -42,11 +42,59 @@
     @apply font-medium text-slate-900;
   }
 
-  .mother-profile-card__notice {
+  .mother-profile-card__lmp {
     @apply mt-2 text-sm text-slate-600;
+  }
+
+  .mother-profile-card__lmp strong {
+    @apply font-medium text-slate-900;
   }
 
   .mother-profile-card__button {
     @apply inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50;
+  }
+
+  .mother-profile-card__form {
+    @apply space-y-4;
+  }
+
+  .mother-profile-card__form-title {
+    @apply text-lg font-semibold text-slate-900;
+  }
+
+  .mother-profile-card__form-group {
+    @apply flex flex-col gap-2;
+  }
+
+  .mother-profile-card__form-row {
+    @apply grid grid-cols-2 gap-3;
+  }
+
+  .mother-profile-card__form-label {
+    @apply text-sm font-medium text-slate-700;
+  }
+
+  .mother-profile-card__form-input {
+    @apply rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-50;
+  }
+
+  .mother-profile-card__form-actions {
+    @apply flex gap-3 pt-2;
+  }
+
+  .mother-profile-card__form-button {
+    @apply inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition;
+  }
+
+  .mother-profile-card__form-button--save {
+    @apply bg-emerald-600 text-white hover:bg-emerald-700;
+  }
+
+  .mother-profile-card__form-button--cancel {
+    @apply bg-slate-200 text-slate-700 hover:bg-slate-300;
+  }
+
+  .mother-profile-card__detail {
+    @apply mt-1 text-sm text-slate-600;
   }
 }

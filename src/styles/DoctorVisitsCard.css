@@ -21,6 +21,31 @@
     @apply flex h-11 w-11 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700;
   }
 
+  .doctor-visits-card__controls {
+    @apply mt-4 flex gap-3;
+  }
+
+  .doctor-visits-card__btn {
+    @apply inline-flex items-center gap-2 rounded-2xl bg-emerald-600 text-white px-3 py-2 text-sm font-medium;
+  }
+
+  .doctor-visits-card__btn--secondary {
+    @apply bg-slate-100 text-slate-800;
+  }
+
+  .doctor-visits-card__add {
+    @apply mt-4 rounded-2xl bg-slate-50 p-4 space-y-3;
+  }
+
+  .doctor-visits-card__add input,
+  .doctor-visits-card__add textarea {
+    @apply w-full rounded-xl border border-slate-200 px-3 py-2 text-sm;
+  }
+
+  .doctor-visits-card__add-actions {
+    @apply mt-2 flex gap-2;
+  }
+
   .doctor-visits-card__list {
     @apply mt-5 space-y-4;
   }
@@ -43,5 +68,18 @@
 
   .doctor-visit__note {
     @apply mt-3 text-sm text-slate-600;
+  }
+
+  .doctor-visit__actions {
+    @apply mt-3;
+  }
+
+  /* Modal overlay for completion */
+  .doctor-visits-card__overlay {
+    @apply fixed inset-0 bg-black/40 flex items-center justify-center z-50;
+  }
+
+  .doctor-visits-card__complete-modal {
+    @apply bg-white rounded-2xl p-4 w-full max-w-md shadow-lg;
   }
 }
