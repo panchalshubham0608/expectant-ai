@@ -1,24 +1,7 @@
-function Journal(){
+import ChatWindow from '../components/journal/ChatWindow';
 
-return (
-<div>
-
-<h1 className="text-2xl font-semibold">
-Journal
-</h1>
-
-<div className="mt-5 rounded-xl bg-white p-4">
-
-<textarea
-className="w-full outline-none"
-placeholder="Tell me how today went..."
-/>
-
-</div>
-
-</div>
-);
-
+function Journal() {
+  return <ChatWindow />;
 }
 
 export default Journal;

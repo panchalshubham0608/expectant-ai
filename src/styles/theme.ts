@@ -1,8 +1,8 @@
 export const theme = {
   colors: {
-    background: "",
-    primary: "",
-    card: "",
-    text: "",
-  }
-}
+    background: '',
+    primary: '',
+    card: '',
+    text: '',
+  },
+};
