@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+
+@layer components {
+  .health-page {
+    @apply space-y-6 pb-28;
+  }
+
+  .health-header {
+    @apply rounded-3xl bg-white p-5 shadow-sm;
+  }
+
+  .health-header__row {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .health-header__title {
+    @apply text-3xl font-semibold text-slate-900;
+  }
+
+  .health-header__subtitle {
+    @apply mt-2 text-sm text-slate-600;
+  }
+
+  .health-header__badge {
+    @apply inline-flex items-center rounded-3xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700;
+  }
+
+  .health-grid {
+    @apply grid gap-5;
+  }
+
+  @media (min-width: 768px) {
+    .health-grid--two-col-md {
+      grid-template-columns: 1.4fr 1fr;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .health-grid--two-col-sm {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .health-grid--two-col-lg {
+      grid-template-columns: 1.2fr 0.8fr;
+    }
+  }
+}

@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+
+@layer components {
+  .ai-insights-card {
+    @apply rounded-3xl bg-white p-5 shadow-sm;
+  }
+
+  .ai-insights-card__header {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .ai-insights-card__label {
+    @apply text-sm text-gray-500;
+  }
+
+  .ai-insights-card__title {
+    @apply mt-1 text-xl font-semibold text-slate-900;
+  }
+
+  .ai-insights-card__meta {
+    @apply flex h-11 w-11 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700;
+  }
+
+  .ai-insights-card__list {
+    @apply mt-5 space-y-4;
+  }
+
+  .insight-card {
+    @apply rounded-3xl bg-slate-50 p-4;
+  }
+
+  .insight-card__title {
+    @apply font-semibold text-slate-900;
+  }
+
+  .insight-card__description {
+    @apply mt-2 text-sm text-slate-600;
+  }
+}

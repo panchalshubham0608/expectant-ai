@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+
+@layer components {
+  .measurements-card {
+    @apply rounded-3xl bg-white p-5 shadow-sm;
+  }
+
+  .measurements-card__header {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .measurements-card__label {
+    @apply text-sm text-gray-500;
+  }
+
+  .measurements-card__title {
+    @apply mt-1 text-xl font-semibold text-slate-900;
+  }
+
+  .measurements-card__meta {
+    @apply rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700;
+  }
+
+  .measurements-card__grid {
+    @apply mt-5 grid gap-3 sm:grid-cols-2;
+  }
+
+  .measurement-item {
+    @apply rounded-3xl bg-slate-50 p-4;
+  }
+
+  .measurement-item__label {
+    @apply text-sm text-slate-500;
+  }
+
+  .measurement-item__value {
+    @apply mt-2 text-lg font-semibold text-slate-900;
+  }
+
+  .measurement-item__change {
+    @apply mt-1 text-sm text-slate-600;
+  }
+}

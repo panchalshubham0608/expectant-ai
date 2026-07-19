@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+@layer components {
+  .timeline-card {
+    @apply rounded-3xl bg-white p-5 shadow-sm;
+  }
+
+  .timeline-card__header {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .timeline-card__label {
+    @apply text-sm text-gray-500;
+  }
+
+  .timeline-card__title {
+    @apply mt-1 text-xl font-semibold text-slate-900;
+  }
+
+  .timeline-card__meta {
+    @apply flex h-11 w-11 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700;
+  }
+
+  .timeline-card__list {
+    @apply mt-6 space-y-5;
+  }
+
+  .timeline-event {
+    @apply relative pl-8;
+  }
+
+  .timeline-event__marker {
+    @apply absolute left-0 top-2 h-2.5 w-2.5 rounded-full bg-emerald-600;
+  }
+
+  .timeline-event__line {
+    @apply absolute left-1.5 top-7 h-full w-px bg-slate-200;
+  }
+
+  .timeline-event__entry {
+    @apply rounded-3xl bg-slate-50 p-4;
+  }
+
+  .timeline-event__row {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .timeline-event__week {
+    @apply text-sm font-semibold text-slate-900;
+  }
+
+  .timeline-event__status {
+    @apply rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm;
+  }
+
+  .timeline-event__title {
+    @apply mt-2 text-sm text-slate-600;
+  }
+
+  .timeline-event__date {
+    @apply mt-1 text-xs text-slate-500;
+  }
+}

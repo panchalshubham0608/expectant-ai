@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+
+@layer components {
+  .health-score-card {
+    @apply rounded-3xl bg-white p-5 shadow-sm;
+  }
+
+  .health-score-card__header {
+    @apply flex items-center justify-between gap-4;
+  }
+
+  .health-score-card__value {
+    @apply mt-2 text-3xl font-semibold text-slate-900;
+  }
+
+  .health-score-card__hero {
+    @apply flex h-24 w-24 items-center justify-center rounded-full bg-emerald-50 text-emerald-700;
+  }
+
+  .health-score-card__trend {
+    @apply mt-5 rounded-2xl bg-slate-50 p-4;
+  }
+
+  .health-score-card__trend-row {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .health-score-card__trend-badge {
+    @apply inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700;
+  }
+
+  .health-score-card__text {
+    @apply mt-3 text-sm text-slate-600;
+  }
+
+  .health-score-card__details {
+    @apply mt-5 space-y-3 text-sm text-slate-600;
+  }
+
+  .health-score-card__detail {
+    @apply flex items-center gap-2;
+  }
+
+  .health-score-card__dot {
+    @apply h-2.5 w-2.5 rounded-full bg-emerald-500;
+  }
+}

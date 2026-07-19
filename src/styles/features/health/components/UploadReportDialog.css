@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+@layer components {
+  .upload-report-dialog {
+    @apply rounded-3xl bg-white p-5 shadow-sm;
+  }
+
+  .upload-report-dialog__header {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .upload-report-dialog__label {
+    @apply text-sm text-gray-500;
+  }
+
+  .upload-report-dialog__title {
+    @apply mt-1 text-xl font-semibold text-slate-900;
+  }
+
+  .upload-report-dialog__icon {
+    @apply flex h-11 w-11 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700;
+  }
+
+  .upload-report-dialog__copy {
+    @apply mt-5 text-sm text-slate-600;
+  }
+
+  .upload-report-dialog__button {
+    @apply mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800;
+  }
+}

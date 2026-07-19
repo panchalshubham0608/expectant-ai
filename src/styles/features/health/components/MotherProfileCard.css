@@ -1,0 +1,52 @@
+@import 'tailwindcss';
+
+@layer components {
+  .mother-profile-card {
+    @apply rounded-3xl bg-white p-5 shadow-sm;
+  }
+
+  .mother-profile-card__body {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .mother-profile-card__profile {
+    @apply flex items-center gap-4;
+  }
+
+  .mother-profile-card__avatar {
+    @apply flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-100 text-2xl font-semibold text-emerald-700;
+  }
+
+  .mother-profile-card__label {
+    @apply text-sm text-gray-500;
+  }
+
+  .mother-profile-card__title {
+    @apply mt-1 text-xl font-semibold text-slate-900;
+  }
+
+  .mother-profile-card__meta {
+    @apply mt-5 rounded-3xl bg-slate-50 p-4 text-sm text-slate-700;
+  }
+
+  .mother-profile-card__meta-row {
+    @apply flex items-center gap-2;
+  }
+
+  .mother-profile-card__due {
+    @apply mt-3 text-sm text-slate-600;
+  }
+
+  .mother-profile-card__due strong,
+  .mother-profile-card__due .font-medium {
+    @apply font-medium text-slate-900;
+  }
+
+  .mother-profile-card__notice {
+    @apply mt-2 text-sm text-slate-600;
+  }
+
+  .mother-profile-card__button {
+    @apply inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50;
+  }
+}

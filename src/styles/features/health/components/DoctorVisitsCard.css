@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+
+@layer components {
+  .doctor-visits-card {
+    @apply rounded-3xl bg-white p-5 shadow-sm;
+  }
+
+  .doctor-visits-card__header {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .doctor-visits-card__label {
+    @apply text-sm text-gray-500;
+  }
+
+  .doctor-visits-card__title {
+    @apply mt-1 text-xl font-semibold text-slate-900;
+  }
+
+  .doctor-visits-card__meta {
+    @apply flex h-11 w-11 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700;
+  }
+
+  .doctor-visits-card__list {
+    @apply mt-5 space-y-4;
+  }
+
+  .doctor-visit {
+    @apply rounded-3xl bg-slate-50 p-4;
+  }
+
+  .doctor-visit__provider {
+    @apply font-semibold text-slate-900;
+  }
+
+  .doctor-visit__specialty {
+    @apply mt-1 text-sm text-slate-600;
+  }
+
+  .doctor-visit__date {
+    @apply inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm;
+  }
+
+  .doctor-visit__note {
+    @apply mt-3 text-sm text-slate-600;
+  }
+}
