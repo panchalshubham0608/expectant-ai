@@ -5,7 +5,7 @@ import { Home, MessageCircle, BarChart3, ShoppingBasket, HeartPulse } from 'luci
 const items = [
   {
     name: 'Home',
-    path: '/',
+    path: '/dashboard',
     icon: Home,
   },
   {
