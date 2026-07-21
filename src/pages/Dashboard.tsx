@@ -11,33 +11,33 @@ type Profile = {
 };
 
 const profiles: Profile[] = [
-  //   {
-  //     id: 'profile-1',
-  //     name: 'Arianna Smith',
-  //     avatar: 'AS',
-  //     week: '8',
-  //     dueDate: 'Mar 28, 2027',
-  //     location: 'San Francisco, CA',
-  //     pregnancyStage: 'First trimester',
-  //   },
-  //   {
-  //     id: 'profile-2',
-  //     name: 'Maya Patel',
-  //     avatar: 'MP',
-  //     week: '22',
-  //     dueDate: 'Jan 12, 2027',
-  //     location: 'Austin, TX',
-  //     pregnancyStage: 'Second trimester',
-  //   },
-  //   {
-  //     id: 'profile-3',
-  //     name: 'Nina Lopez',
-  //     avatar: 'NL',
-  //     week: '34',
-  //     dueDate: 'Nov 08, 2026',
-  //     location: 'Denver, CO',
-  //     pregnancyStage: 'Third trimester',
-  //   },
+  {
+    id: 'profile-1',
+    name: 'Arianna Smith',
+    avatar: 'AS',
+    week: '8',
+    dueDate: 'Mar 28, 2027',
+    location: 'San Francisco, CA',
+    pregnancyStage: 'First trimester',
+  },
+  {
+    id: 'profile-2',
+    name: 'Maya Patel',
+    avatar: 'MP',
+    week: '22',
+    dueDate: 'Jan 12, 2027',
+    location: 'Austin, TX',
+    pregnancyStage: 'Second trimester',
+  },
+  {
+    id: 'profile-3',
+    name: 'Nina Lopez',
+    avatar: 'NL',
+    week: '34',
+    dueDate: 'Nov 08, 2026',
+    location: 'Denver, CO',
+    pregnancyStage: 'Third trimester',
+  },
 ];
 
 function Dashboard() {

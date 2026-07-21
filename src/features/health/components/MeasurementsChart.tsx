@@ -97,7 +97,7 @@ export default function MeasurementsChart({ series, onClose }: MeasurementsChart
                     cy={yScale(p.value)}
                     r={4}
                     fill={colors[idx % colors.length]}
-                    onMouseEnter={(e) =>
+                    onMouseEnter={() =>
                       setHover({
                         x: xScale(p.date),
                         y: yScale(p.value),
@@ -113,7 +113,7 @@ export default function MeasurementsChart({ series, onClose }: MeasurementsChart
           })}
 
           {/* x labels */}
-          {allDates.map((d, i) => (
+          {allDates.map((d) => (
             <text key={d} x={xScale(d)} y={height - 6} fontSize={10} textAnchor="middle">
               {formatDateLabel(d)}
             </text>

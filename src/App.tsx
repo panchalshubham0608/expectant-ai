@@ -4,6 +4,7 @@ import AppLayout from './components/layout/AppLayout';
 
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
+import ProfileDetail from './pages/ProfileDetail';
 import Journal from './pages/Journal';
 import Insights from './pages/Insights';
 import Pantry from './pages/Pantry';
@@ -15,11 +16,12 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route element={<AppLayout />}>
-          <Route path="/journal" element={<Journal />} />
-          <Route path="/insights" element={<Insights />} />
-          <Route path="/pantry" element={<Pantry />} />
-          <Route path="/health" element={<Health />} />
+        <Route path="/profile/:id" element={<AppLayout />}>
+          <Route index element={<ProfileDetail />} />
+          <Route path="journal" element={<Journal />} />
+          <Route path="insights" element={<Insights />} />
+          <Route path="pantry" element={<Pantry />} />
+          <Route path="health" element={<Health />} />
         </Route>
       </Routes>
     </BrowserRouter>

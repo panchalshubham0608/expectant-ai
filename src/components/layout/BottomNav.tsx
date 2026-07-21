@@ -1,36 +1,39 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useParams } from 'react-router-dom';
 
 import { Home, MessageCircle, BarChart3, ShoppingBasket, HeartPulse } from 'lucide-react';
 
-const items = [
-  {
-    name: 'Home',
-    path: '/dashboard',
-    icon: Home,
-  },
-  {
-    name: 'Journal',
-    path: '/journal',
-    icon: MessageCircle,
-  },
-  {
-    name: 'Insights',
-    path: '/insights',
-    icon: BarChart3,
-  },
-  {
-    name: 'Pantry',
-    path: '/pantry',
-    icon: ShoppingBasket,
-  },
-  {
-    name: 'Health',
-    path: '/health',
-    icon: HeartPulse,
-  },
-];
-
 function BottomNav() {
+  const { id } = useParams();
+  const basePath = id ? `/profile/${id}` : '/dashboard';
+
+  const items = [
+    {
+      name: 'Home',
+      path: basePath,
+      icon: Home,
+    },
+    {
+      name: 'Journal',
+      path: `${basePath}/journal`,
+      icon: MessageCircle,
+    },
+    {
+      name: 'Insights',
+      path: `${basePath}/insights`,
+      icon: BarChart3,
+    },
+    {
+      name: 'Pantry',
+      path: `${basePath}/pantry`,
+      icon: ShoppingBasket,
+    },
+    {
+      name: 'Health',
+      path: `${basePath}/health`,
+      icon: HeartPulse,
+    },
+  ];
+
   return (
     <nav
       className="
