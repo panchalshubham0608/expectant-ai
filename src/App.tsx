@@ -9,19 +9,22 @@ import Journal from './pages/Journal';
 import Insights from './pages/Insights';
 import Pantry from './pages/Pantry';
 import Health from './pages/Health';
+import RequireAuth from './auth/RequireAuth';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile/:id" element={<AppLayout />}>
-          <Route index element={<ProfileDetail />} />
-          <Route path="journal" element={<Journal />} />
-          <Route path="insights" element={<Insights />} />
-          <Route path="pantry" element={<Pantry />} />
-          <Route path="health" element={<Health />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/profile/:id" element={<AppLayout />}>
+            <Route index element={<ProfileDetail />} />
+            <Route path="journal" element={<Journal />} />
+            <Route path="insights" element={<Insights />} />
+            <Route path="pantry" element={<Pantry />} />
+            <Route path="health" element={<Health />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>

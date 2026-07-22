@@ -11,11 +11,13 @@ import {
   Menu,
   UsersRound,
 } from 'lucide-react';
+import { useAuth } from '../../auth/useAuth';
 
 function BottomNav() {
   const { id } = useParams();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const basePath = id ? `/profile/${id}` : '/dashboard';
 
   const items = [
@@ -98,7 +100,10 @@ function BottomNav() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/')}
+                  onClick={async () => {
+                    await signOut();
+                    navigate('/');
+                  }}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                 >
                   <LogOut size={17} />

@@ -1,4 +1,12 @@
-# React + TypeScript + Vite
+# Expectant AI
+
+## Firebase Google sign-in
+
+1. In Firebase Console, create a web app and enable **Authentication → Sign-in method → Google**.
+2. Copy `.env.example` to `.env` and add the Firebase web configuration values.
+3. Add your local and deployed domains to Firebase Authentication's **Authorized domains** list.
+
+The app keeps its original mock navigation when Firebase is not configured. Once configured, dashboard and profile routes require an authenticated Google user.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

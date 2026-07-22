@@ -1,6 +1,30 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/useAuth';
 
 function Home() {
+  const [error, setError] = useState('');
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const navigate = useNavigate();
+  const { signInWithGoogle } = useAuth();
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setIsSigningIn(true);
+    try {
+      await signInWithGoogle();
+      navigate('/dashboard');
+    } catch (authError) {
+      setError(
+        authError instanceof Error
+          ? authError.message
+          : 'Unable to sign in with Google. Please try again.',
+      );
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#eefbf2] via-[#faf9f6] to-[#ffffff] text-gray-900">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(72,187,120,0.18),_transparent_40%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.14),_transparent_32%)]" />
@@ -20,15 +44,18 @@ function Home() {
             </p>
           </div>
 
-          <Link
-            to="/dashboard"
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isSigningIn}
             className="flex w-full items-center justify-center gap-3 rounded-3xl bg-green-700 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-green-700/20 transition hover:bg-green-800"
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm font-bold text-green-700">
               G
             </span>
-            Continue with Google
-          </Link>
+            {isSigningIn ? 'Signing in…' : 'Continue with Google'}
+          </button>
+          {error && <p className="text-center text-sm leading-6 text-red-600">{error}</p>}
         </div>
       </main>
     </div>
