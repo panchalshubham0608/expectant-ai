@@ -12,7 +12,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import type { Unsubscribe } from 'firebase/firestore';
+import type { DocumentData, DocumentSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { getAuth } from 'firebase/auth';
 import type { Profile, ProfileInput } from './types';
@@ -27,6 +27,35 @@ const profilesCollection = (userId: string) => {
 
 const toProfile = (id: string, data: ProfileInput): Profile => ({ id, ...data });
 
+const getUpdatableProfileDocSnap = async (
+  profileId: string,
+  creatorId?: string,
+): Promise<DocumentSnapshot<DocumentData>> => {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('User not authenticated.');
+  }
+
+  const userId = creatorId || user.uid;
+  const { email: userEmail } = user;
+
+  const conditions = [where('creatorId', '==', userId)];
+  if (userEmail) {
+    conditions.push(where('sharedWith', 'array-contains', userEmail.toLowerCase()));
+  }
+
+  const q = query(profilesCollection(userId), or(...conditions));
+  const snapshot = await getDocs(q);
+  const docSnap = snapshot.docs.find((d) => d.id === profileId);
+
+  if (!docSnap) {
+    throw new Error('Profile not found or access denied.');
+  }
+
+  return docSnap;
+};
+
 export const createProfile = async (userId: string, profile: ProfileInput) => {
   const reference = await addDoc(profilesCollection(userId), {
     ...profile,
@@ -40,18 +69,7 @@ export const createProfile = async (userId: string, profile: ProfileInput) => {
 
 // userId is kept in the signature to prevent breaking existing usages in other files
 export const updateProfile = async (userId: string, profileId: string, profile: Partial<ProfileInput>) => {
-  const auth = getAuth();
-  const userEmail = auth.currentUser?.email;
-
-  const conditions = [where('creatorId', '==', userId)];
-  if (userEmail) conditions.push(where('sharedWith', 'array-contains', userEmail.toLowerCase()));
-
-  const q = query(profilesCollection(userId), or(...conditions));
-  const snapshot = await getDocs(q);
-  const docSnap = snapshot.docs.find((d) => d.id === profileId);
-
-  if (!docSnap) throw new Error('Profile not found or access denied.');
-
+  const docSnap = await getUpdatableProfileDocSnap(profileId, userId);
   return updateDoc(docSnap.ref, {
     ...profile,
     updatedAt: serverTimestamp(),
@@ -59,20 +77,7 @@ export const updateProfile = async (userId: string, profileId: string, profile: 
 };
 
 export const shareProfile = async (profileId: string, email: string) => {
-  const auth = getAuth();
-  const userId = auth.currentUser?.uid;
-  const userEmail = auth.currentUser?.email;
-  if (!userId) throw new Error('User not authenticated.');
-
-  const conditions = [where('creatorId', '==', userId)];
-  if (userEmail) conditions.push(where('sharedWith', 'array-contains', userEmail.toLowerCase()));
-
-  const q = query(profilesCollection(userId), or(...conditions));
-  const snapshot = await getDocs(q);
-  const docSnap = snapshot.docs.find((d) => d.id === profileId);
-
-  if (!docSnap) throw new Error('Profile not found or access denied.');
-
+  const docSnap = await getUpdatableProfileDocSnap(profileId);
   return updateDoc(docSnap.ref, {
     sharedWith: arrayUnion(email.toLowerCase()),
     updatedAt: serverTimestamp(),
@@ -80,20 +85,7 @@ export const shareProfile = async (profileId: string, email: string) => {
 };
 
 export const unshareProfile = async (profileId: string, email: string) => {
-  const auth = getAuth();
-  const userId = auth.currentUser?.uid;
-  const userEmail = auth.currentUser?.email;
-  if (!userId) throw new Error('User not authenticated.');
-
-  const conditions = [where('creatorId', '==', userId)];
-  if (userEmail) conditions.push(where('sharedWith', 'array-contains', userEmail.toLowerCase()));
-
-  const q = query(profilesCollection(userId), or(...conditions));
-  const snapshot = await getDocs(q);
-  const docSnap = snapshot.docs.find((d) => d.id === profileId);
-
-  if (!docSnap) throw new Error('Profile not found or access denied.');
-
+  const docSnap = await getUpdatableProfileDocSnap(profileId);
   return updateDoc(docSnap.ref, {
     sharedWith: arrayRemove(email.toLowerCase()),
     updatedAt: serverTimestamp(),
