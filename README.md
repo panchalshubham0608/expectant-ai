@@ -5,8 +5,20 @@
 1. In Firebase Console, create a web app and enable **Authentication → Sign-in method → Google**.
 2. Copy `.env.example` to `.env` and add the Firebase web configuration values.
 3. Add your local and deployed domains to Firebase Authentication's **Authorized domains** list.
+4. Create a **Cloud Firestore** database in the Firebase Console before creating profiles.
 
-The app keeps its original mock navigation when Firebase is not configured. Once configured, dashboard and profile routes require an authenticated Google user.
+Profiles are stored at `users/{userId}/profiles`. Configure Firestore Security Rules so users can read and write only their own profile subcollection. Once Firebase is configured, dashboard and profile routes require an authenticated Google user.
+
+```firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/profiles/{profileId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

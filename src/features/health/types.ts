@@ -5,18 +5,6 @@ export interface HealthScore {
   details: string[];
 }
 
-export interface MotherProfile {
-  name: string;
-  dateOfBirth: string;
-  lmp: string;
-  dueDate: string;
-  location: string;
-  avatar: string;
-  bloodGroup?: string;
-  emergencyContact?: string;
-  careProvider?: string;
-}
-
 export interface Measurement {
   id: string;
   label: string;

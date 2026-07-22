@@ -4,7 +4,6 @@ import type {
   HealthScore,
   MedicalRecord,
   Measurement,
-  MotherProfile,
   TimelineEvent,
 } from './types';
 
@@ -17,18 +16,6 @@ export const healthScoreData: HealthScore = {
     'Blood pressure within healthy range',
     'Balanced meal planning on track',
   ],
-};
-
-export const motherProfileData: MotherProfile = {
-  name: 'Arianna Smith',
-  dateOfBirth: '1994-03-15',
-  lmp: '2026-05-10',
-  dueDate: '2027-03-28',
-  location: 'San Francisco, CA',
-  avatar: 'AS',
-  bloodGroup: 'O+',
-  careProvider: 'Dr. Elena Rivera',
-  emergencyContact: 'Jordan Smith • (415) 555-0148',
 };
 
 export const measurementsData: Measurement[] = [

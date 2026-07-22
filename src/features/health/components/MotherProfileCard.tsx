@@ -1,61 +1,51 @@
 import '../../../styles/features/health/components/MotherProfileCard.css';
 import { Droplets, Edit3, MapPin, Phone, Stethoscope } from 'lucide-react';
 import { useState } from 'react';
-import ProfileFormDialog, {
-  type ProfileFormData,
-} from '../../../components/profile/ProfileFormDialog';
-import type { MotherProfile } from '../types';
+import ProfileFormDialog from '../../../components/profile/ProfileFormDialog';
+import type { Profile, ProfileInput } from '../../profiles/types';
 
 interface MotherProfileCardProps {
-  profile: MotherProfile;
+  profile: Profile;
+  onSave: (profile: ProfileInput) => Promise<void>;
 }
 
-const calculateAge = (dateOfBirth: string): number => {
+const calculateAge = (dateOfBirth: string) => {
   const today = new Date();
-  const birth = new Date(dateOfBirth);
+  const birth = new Date(`${dateOfBirth}T00:00:00`);
   let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+  if (
+    today.getMonth() < birth.getMonth() ||
+    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
+  )
+    age--;
   return age;
 };
 
-const formatDate = (dateStr: string): string =>
-  new Intl.DateTimeFormat('en-IN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'Asia/Kolkata',
-  }).format(new Date(`${dateStr}T00:00:00`));
+const formatDate = (date: string) =>
+  new Intl.DateTimeFormat('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }).format(
+    new Date(`${date}T00:00:00`),
+  );
+const getInitials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
 
-const asFormData = (profile: MotherProfile): ProfileFormData => ({
-  fullName: profile.name,
-  dateOfBirth: profile.dateOfBirth,
-  lastMenstrualPeriod: profile.lmp,
-  expectedDueDate: profile.dueDate,
-  location: profile.location,
-  bloodGroup: profile.bloodGroup ?? '',
-  emergencyContact: profile.emergencyContact ?? '',
-  careProvider: profile.careProvider ?? '',
-});
-
-export default function MotherProfileCard({ profile }: MotherProfileCardProps) {
+export default function MotherProfileCard({ profile, onSave }: MotherProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [profileData, setProfileData] = useState<MotherProfile>(profile);
-  const age = calculateAge(profileData.dateOfBirth);
+  const [saveError, setSaveError] = useState('');
 
-  const handleSave = (form: ProfileFormData) => {
-    setProfileData((current) => ({
-      ...current,
-      name: form.fullName,
-      dateOfBirth: form.dateOfBirth,
-      lmp: form.lastMenstrualPeriod,
-      dueDate: form.expectedDueDate,
-      location: form.location,
-      bloodGroup: form.bloodGroup,
-      emergencyContact: form.emergencyContact,
-      careProvider: form.careProvider,
-    }));
-    setIsEditing(false);
+  const handleSave = async (form: ProfileInput) => {
+    setSaveError('');
+    try {
+      await onSave(form);
+      setIsEditing(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save profile changes.');
+    }
   };
 
   return (
@@ -63,11 +53,10 @@ export default function MotherProfileCard({ profile }: MotherProfileCardProps) {
       <section className="mother-profile-card">
         <div className="mother-profile-card__body">
           <div className="mother-profile-card__profile">
-            <div className="mother-profile-card__avatar">{profileData.avatar}</div>
+            <div className="mother-profile-card__avatar">{getInitials(profile.fullName)}</div>
             <div>
-              <p className="mother-profile-card__label">Patient Profile</p>
-              <h2 className="mother-profile-card__title">{profileData.name}</h2>
-              <p className="mother-profile-card__detail">Age {age}</p>
+              <h2 className="mother-profile-card__title">{profile.fullName}</h2>
+              <p className="mother-profile-card__detail">Age {calculateAge(profile.dateOfBirth)}</p>
             </div>
           </div>
           <button
@@ -82,43 +71,43 @@ export default function MotherProfileCard({ profile }: MotherProfileCardProps) {
         <div className="mother-profile-card__meta">
           <div className="mother-profile-card__meta-row">
             <MapPin size={16} />
-            <span>{profileData.location}</span>
+            <span>{profile.location}</span>
           </div>
           <p className="mother-profile-card__due">
-            Due date: <strong>{formatDate(profileData.dueDate)}</strong>
+            Due date: <strong>{formatDate(profile.expectedDueDate)}</strong>
           </p>
           <p className="mother-profile-card__lmp">
-            LMP: <strong>{formatDate(profileData.lmp)}</strong>
+            LMP: <strong>{formatDate(profile.lastMenstrualPeriod)}</strong>
           </p>
         </div>
-        {(profileData.bloodGroup || profileData.careProvider || profileData.emergencyContact) && (
+        {(profile.bloodGroup || profile.careProvider || profile.emergencyContact) && (
           <div className="mother-profile-card__care-details">
             <p className="mother-profile-card__care-title">Care details</p>
             <div className="mother-profile-card__care-grid">
-              {profileData.bloodGroup && (
+              {profile.bloodGroup && (
                 <div className="mother-profile-card__care-item">
                   <Droplets size={16} />
                   <div>
                     <span>Blood group</span>
-                    <strong>{profileData.bloodGroup}</strong>
+                    <strong>{profile.bloodGroup}</strong>
                   </div>
                 </div>
               )}
-              {profileData.careProvider && (
+              {profile.careProvider && (
                 <div className="mother-profile-card__care-item">
                   <Stethoscope size={16} />
                   <div>
                     <span>Care provider</span>
-                    <strong>{profileData.careProvider}</strong>
+                    <strong>{profile.careProvider}</strong>
                   </div>
                 </div>
               )}
-              {profileData.emergencyContact && (
+              {profile.emergencyContact && (
                 <div className="mother-profile-card__care-item">
                   <Phone size={16} />
                   <div>
                     <span>Emergency contact</span>
-                    <strong>{profileData.emergencyContact}</strong>
+                    <strong>{profile.emergencyContact}</strong>
                   </div>
                 </div>
               )}
@@ -129,10 +118,13 @@ export default function MotherProfileCard({ profile }: MotherProfileCardProps) {
       {isEditing && (
         <ProfileFormDialog
           mode="edit"
-          initialValues={asFormData(profileData)}
+          initialValues={profile}
           onClose={() => setIsEditing(false)}
           onSubmit={handleSave}
         />
+      )}
+      {saveError && (
+        <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</p>
       )}
     </>
   );

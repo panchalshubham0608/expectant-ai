@@ -1,48 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
-import ProfileFormDialog, { type ProfileFormData } from '../components/profile/ProfileFormDialog';
-
-type Profile = {
-  id: string;
-  name: string;
-  avatar: string;
-  week: string;
-  dueDate: string;
-  location: string;
-  pregnancyStage: string;
-};
-
-const profiles: Profile[] = [
-  {
-    id: 'profile-1',
-    name: 'Arianna Smith',
-    avatar: 'AS',
-    week: '8',
-    dueDate: 'Mar 28, 2027',
-    location: 'San Francisco, CA',
-    pregnancyStage: 'First trimester',
-  },
-  {
-    id: 'profile-2',
-    name: 'Maya Patel',
-    avatar: 'MP',
-    week: '22',
-    dueDate: 'Jan 12, 2027',
-    location: 'Austin, TX',
-    pregnancyStage: 'Second trimester',
-  },
-  {
-    id: 'profile-3',
-    name: 'Nina Lopez',
-    avatar: 'NL',
-    week: '34',
-    dueDate: 'Nov 08, 2026',
-    location: 'Denver, CO',
-    pregnancyStage: 'Third trimester',
-  },
-];
+import ProfileFormDialog from '../components/profile/ProfileFormDialog';
+import { createProfile, subscribeToProfiles } from '../features/profiles/profileService';
+import type { Profile, ProfileInput } from '../features/profiles/types';
 
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(
@@ -58,40 +20,63 @@ const getInitials = (name: string) =>
     .join('')
     .toUpperCase();
 
-function Dashboard() {
-  const navigate = useNavigate();
-  const { signOut } = useAuth();
-  const [profileList, setProfileList] = useState(profiles);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const hasProfiles = profileList.length > 0;
-
-  const createProfile = (form: ProfileFormData) => {
-    const today = new Date();
-    const lmp = new Date(`${form.lastMenstrualPeriod}T00:00:00`);
-    const pregnancyWeek = Math.max(
-      1,
-      Math.min(42, Math.floor((today.getTime() - lmp.getTime()) / 604800000)),
-    );
-    const pregnancyStage =
+const getPregnancyDetails = (lastMenstrualPeriod: string) => {
+  const pregnancyWeek = Math.max(
+    1,
+    Math.min(
+      42,
+      Math.floor((Date.now() - new Date(`${lastMenstrualPeriod}T00:00:00`).getTime()) / 604800000),
+    ),
+  );
+  return {
+    week: pregnancyWeek,
+    stage:
       pregnancyWeek < 14
         ? 'First trimester'
         : pregnancyWeek < 28
           ? 'Second trimester'
-          : 'Third trimester';
+          : 'Third trimester',
+  };
+};
 
-    setProfileList((current) => [
-      ...current,
-      {
-        id: `profile-${Date.now()}`,
-        name: form.fullName,
-        avatar: getInitials(form.fullName),
-        week: String(pregnancyWeek),
-        dueDate: formatDate(form.expectedDueDate),
-        location: form.location,
-        pregnancyStage,
+function Dashboard() {
+  const navigate = useNavigate();
+  const { signOut, user } = useAuth();
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(Boolean(user));
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    return subscribeToProfiles(
+      user.uid,
+      (nextProfiles) => {
+        setProfiles(nextProfiles);
+        setIsLoading(false);
       },
-    ]);
-    setIsCreateDialogOpen(false);
+      (nextError) => {
+        setError(nextError.message);
+        setIsLoading(false);
+      },
+    );
+  }, [user]);
+
+  const handleCreate = async (form: ProfileInput) => {
+    if (!user) return;
+    setError('');
+    try {
+      await createProfile(user.uid, form);
+      setIsCreateDialogOpen(false);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'Unable to create the profile. Please try again.',
+      );
+    }
   };
 
   const handleLogout = async () => {
@@ -113,43 +98,54 @@ function Dashboard() {
               started.
             </p>
           </div>
-          {hasProfiles && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsCreateDialogOpen(true)}
-                className="inline-flex items-center justify-center rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-800"
-              >
-                + Create profile
-              </button>
+
+          {error && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+          {isLoading ? (
+            <div className="rounded-3xl bg-white p-6 text-sm text-gray-500 shadow-sm">
+              Loading profiles…
             </div>
-          )}
-          {hasProfiles ? (
-            <div className="space-y-4">
-              {profileList.map((profile) => (
-                <Link
-                  key={profile.id}
-                  to={`/profile/${profile.id}`}
-                  className="block rounded-3xl border border-transparent bg-white p-5 text-left shadow-sm transition hover:border-gray-200 hover:shadow-md"
+          ) : profiles.length > 0 ? (
+            <>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateDialogOpen(true)}
+                  className="inline-flex items-center justify-center rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-800"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-100 text-lg font-semibold text-green-700">
-                      {profile.avatar}
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold">{profile.name}</h2>
-                      <p className="text-sm text-gray-500">{profile.pregnancyStage}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2 text-sm text-gray-600">
-                    <span className="rounded-full bg-gray-100 px-3 py-1">Week {profile.week}</span>
-                    <span className="rounded-full bg-gray-100 px-3 py-1">
-                      Due {profile.dueDate}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  + Create profile
+                </button>
+              </div>
+              <div className="space-y-4">
+                {profiles.map((profile) => {
+                  const pregnancy = getPregnancyDetails(profile.lastMenstrualPeriod);
+                  return (
+                    <Link
+                      key={profile.id}
+                      to={`/profile/${profile.id}`}
+                      className="block rounded-3xl border border-transparent bg-white p-5 text-left shadow-sm transition hover:border-gray-200 hover:shadow-md"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-100 text-lg font-semibold text-green-700">
+                          {getInitials(profile.fullName)}
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-semibold">{profile.fullName}</h2>
+                          <p className="text-sm text-gray-500">{pregnancy.stage}</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2 text-sm text-gray-600">
+                        <span className="rounded-full bg-gray-100 px-3 py-1">
+                          Week {pregnancy.week}
+                        </span>
+                        <span className="rounded-full bg-gray-100 px-3 py-1">
+                          Due {formatDate(profile.expectedDueDate)}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
           ) : (
             <div className="rounded-3xl border border-dashed border-gray-300 bg-white/80 px-6 py-10 text-center shadow-sm">
               <p className="text-lg font-semibold text-gray-900">No pregnancy profiles yet</p>
@@ -160,8 +156,9 @@ function Dashboard() {
               <div className="mt-6 flex justify-center">
                 <button
                   type="button"
+                  disabled={!user}
                   onClick={() => setIsCreateDialogOpen(true)}
-                  className="inline-flex items-center justify-center rounded-full bg-green-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-800"
+                  className="inline-flex items-center justify-center rounded-full bg-green-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   + Create profile
                 </button>
@@ -174,7 +171,7 @@ function Dashboard() {
         <ProfileFormDialog
           mode="create"
           onClose={() => setIsCreateDialogOpen(false)}
-          onSubmit={createProfile}
+          onSubmit={handleCreate}
         />
       )}
       <button

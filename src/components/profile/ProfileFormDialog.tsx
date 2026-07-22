@@ -1,19 +1,11 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { X } from 'lucide-react';
+import type { ProfileInput } from '../../features/profiles/types';
 
-export type ProfileFormData = {
-  fullName: string;
-  dateOfBirth: string;
-  lastMenstrualPeriod: string;
-  location: string;
-  bloodGroup: string;
-  expectedDueDate: string;
-  emergencyContact: string;
-  careProvider: string;
-};
+export type { ProfileInput as ProfileFormData } from '../../features/profiles/types';
 
-const emptyProfileForm: ProfileFormData = {
+const emptyProfileForm: ProfileInput = {
   fullName: '',
   dateOfBirth: '',
   lastMenstrualPeriod: '',
@@ -25,10 +17,10 @@ const emptyProfileForm: ProfileFormData = {
 };
 
 type ProfileFormDialogProps = {
-  initialValues?: ProfileFormData;
+  initialValues?: ProfileInput;
   mode: 'create' | 'edit';
   onClose: () => void;
-  onSubmit: (profile: ProfileFormData) => void;
+  onSubmit: (profile: ProfileInput) => void;
 };
 
 const inputClass =
@@ -40,11 +32,11 @@ export default function ProfileFormDialog({
   onClose,
   onSubmit,
 }: ProfileFormDialogProps) {
-  const [form, setForm] = useState<ProfileFormData>(initialValues);
+  const [form, setForm] = useState<ProfileInput>(initialValues);
   const titleId = useId();
   const isEditing = mode === 'edit';
 
-  const update = (field: keyof ProfileFormData, value: string) => {
+  const update = (field: keyof ProfileInput, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
