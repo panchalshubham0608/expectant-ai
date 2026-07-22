@@ -11,4 +11,6 @@ export type ProfileInput = {
 
 export type Profile = ProfileInput & {
   id: string;
+  creatorId: string;
+  sharedWith: string[];
 };

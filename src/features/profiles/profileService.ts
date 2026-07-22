@@ -1,7 +1,9 @@
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
-  doc,
+  getDocs,
   onSnapshot,
   or,
   orderBy,
@@ -9,9 +11,6 @@ import {
   serverTimestamp,
   updateDoc,
   where,
-  arrayUnion,
-  collectionGroup,
-  getDocs,
 } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -80,6 +79,27 @@ export const shareProfile = async (profileId: string, email: string) => {
   });
 };
 
+export const unshareProfile = async (profileId: string, email: string) => {
+  const auth = getAuth();
+  const userId = auth.currentUser?.uid;
+  const userEmail = auth.currentUser?.email;
+  if (!userId) throw new Error('User not authenticated.');
+
+  const conditions = [where('creatorId', '==', userId)];
+  if (userEmail) conditions.push(where('sharedWith', 'array-contains', userEmail.toLowerCase()));
+
+  const q = query(profilesCollection(userId), or(...conditions));
+  const snapshot = await getDocs(q);
+  const docSnap = snapshot.docs.find((d) => d.id === profileId);
+
+  if (!docSnap) throw new Error('Profile not found or access denied.');
+
+  return updateDoc(docSnap.ref, {
+    sharedWith: arrayRemove(email.toLowerCase()),
+    updatedAt: serverTimestamp(),
+  });
+};
+
 export const subscribeToProfiles = (
   userId: string,
   userEmail: string | null | undefined,
@@ -102,7 +122,7 @@ export const subscribeToProfiles = (
 }
 
 export const subscribeToProfile = (
-  userId: string, // Kept for signature compatibility
+  userId: string,
   profileId: string,
   onChange: (profile: Profile | null) => void,
   onError: (error: Error) => void,

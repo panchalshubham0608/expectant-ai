@@ -13,16 +13,16 @@ import {
   Share2,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
-import { shareProfile } from '../../features/profiles/profileService';
+import { useProfile } from '../../features/profiles/useProfile';
+import ShareProfileDialog from '../profile/ShareProfileDialog';
 
 function BottomNav() {
   const { id } = useParams();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [shareEmail, setShareEmail] = useState('');
-  const [isSharing, setIsSharing] = useState(false);
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const { profile } = useProfile(user?.uid, id);
   const basePath = id ? `/profile/${id}` : '/dashboard';
 
   const items = [
@@ -130,58 +130,13 @@ function BottomNav() {
           </div>
         )}
       </div>
-      {isShareDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Share profile</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Enter the email address to share this profile with.
-            </p>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!id || !shareEmail) return;
-                setIsSharing(true);
-                try {
-                  await shareProfile(id, shareEmail.trim());
-                  setIsShareDialogOpen(false);
-                  setShareEmail('');
-                  alert('Profile shared successfully!');
-                } catch (err) {
-                  alert('Failed to share profile.');
-                } finally {
-                  setIsSharing(false);
-                }
-              }}
-              className="mt-4"
-            >
-              <input
-                type="email"
-                required
-                placeholder="Email address"
-                value={shareEmail}
-                onChange={(e) => setShareEmail(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
-              />
-              <div className="mt-5 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsShareDialogOpen(false)}
-                  className="flex-1 rounded-full px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSharing}
-                  className="flex-1 rounded-full bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-800 disabled:opacity-70"
-                >
-                  {isSharing ? 'Sharing...' : 'Share'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {id && (
+        <ShareProfileDialog
+          isOpen={isShareDialogOpen}
+          onClose={() => setIsShareDialogOpen(false)}
+          profileId={id}
+          profile={profile}
+        />
       )}
     </nav>
   );
