@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import ProfileFormDialog, { type ProfileFormData } from '../components/profile/ProfileFormDialog';
 
 type Profile = {
@@ -57,6 +58,7 @@ const getInitials = (name: string) =>
     .toUpperCase();
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [profileList, setProfileList] = useState(profiles);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const hasProfiles = profileList.length > 0;
@@ -89,6 +91,8 @@ function Dashboard() {
     ]);
     setIsCreateDialogOpen(false);
   };
+
+  const handleLogout = () => navigate('/');
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#eefbf2] via-[#faf9f6] to-[#ffffff] text-gray-900">
@@ -168,6 +172,14 @@ function Dashboard() {
           onSubmit={createProfile}
         />
       )}
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="fixed bottom-6 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-lg transition hover:text-gray-900"
+        aria-label="Log out"
+      >
+        <LogOut size={20} />
+      </button>
     </div>
   );
 }

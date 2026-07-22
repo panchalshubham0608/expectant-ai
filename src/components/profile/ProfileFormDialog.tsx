@@ -101,7 +101,6 @@ export default function ProfileFormDialog({
               required
               value={form.fullName}
               onChange={(event) => update('fullName', event.target.value)}
-              placeholder="e.g. Priya Sharma"
               className={inputClass}
             />
           </div>

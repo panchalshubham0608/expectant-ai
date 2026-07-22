@@ -26,6 +26,9 @@ export const motherProfileData: MotherProfile = {
   dueDate: '2027-03-28',
   location: 'San Francisco, CA',
   avatar: 'AS',
+  bloodGroup: 'O+',
+  careProvider: 'Dr. Elena Rivera',
+  emergencyContact: 'Jordan Smith • (415) 555-0148',
 };
 
 export const measurementsData: Measurement[] = [

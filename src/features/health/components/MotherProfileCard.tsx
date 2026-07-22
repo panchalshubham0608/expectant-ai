@@ -1,5 +1,5 @@
 import '../../../styles/features/health/components/MotherProfileCard.css';
-import { Edit3, MapPin } from 'lucide-react';
+import { Droplets, Edit3, MapPin, Phone, Stethoscope } from 'lucide-react';
 import { useState } from 'react';
 import ProfileFormDialog, {
   type ProfileFormData,
@@ -91,6 +91,40 @@ export default function MotherProfileCard({ profile }: MotherProfileCardProps) {
             LMP: <strong>{formatDate(profileData.lmp)}</strong>
           </p>
         </div>
+        {(profileData.bloodGroup || profileData.careProvider || profileData.emergencyContact) && (
+          <div className="mother-profile-card__care-details">
+            <p className="mother-profile-card__care-title">Care details</p>
+            <div className="mother-profile-card__care-grid">
+              {profileData.bloodGroup && (
+                <div className="mother-profile-card__care-item">
+                  <Droplets size={16} />
+                  <div>
+                    <span>Blood group</span>
+                    <strong>{profileData.bloodGroup}</strong>
+                  </div>
+                </div>
+              )}
+              {profileData.careProvider && (
+                <div className="mother-profile-card__care-item">
+                  <Stethoscope size={16} />
+                  <div>
+                    <span>Care provider</span>
+                    <strong>{profileData.careProvider}</strong>
+                  </div>
+                </div>
+              )}
+              {profileData.emergencyContact && (
+                <div className="mother-profile-card__care-item">
+                  <Phone size={16} />
+                  <div>
+                    <span>Emergency contact</span>
+                    <strong>{profileData.emergencyContact}</strong>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
       {isEditing && (
         <ProfileFormDialog
