@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { Droplets, LogOut, MapPin, Phone, Stethoscope } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import ProfileFormDialog from '../components/profile/ProfileFormDialog';
@@ -20,12 +20,14 @@ const getInitials = (name: string) =>
     .join('')
     .toUpperCase();
 
-const getPregnancyDetails = (lastMenstrualPeriod: string) => {
+const getPregnancyDetails = (lastMenstrualPeriod: string, today: Date) => {
   const pregnancyWeek = Math.max(
     1,
     Math.min(
       42,
-      Math.floor((Date.now() - new Date(`${lastMenstrualPeriod}T00:00:00`).getTime()) / 604800000),
+      Math.floor(
+        (today.getTime() - new Date(`${lastMenstrualPeriod}T00:00:00`).getTime()) / 604800000,
+      ),
     ),
   );
   return {
@@ -46,6 +48,7 @@ function Dashboard() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(user));
   const [error, setError] = useState('');
+  const [today] = useState(() => new Date());
 
   useEffect(() => {
     if (!user) {
@@ -117,7 +120,7 @@ function Dashboard() {
               </div>
               <div className="space-y-4">
                 {profiles.map((profile) => {
-                  const pregnancy = getPregnancyDetails(profile.lastMenstrualPeriod);
+                  const pregnancy = getPregnancyDetails(profile.lastMenstrualPeriod, today);
                   return (
                     <Link
                       key={profile.id}
@@ -140,6 +143,36 @@ function Dashboard() {
                         <span className="rounded-full bg-gray-100 px-3 py-1">
                           Due {formatDate(profile.expectedDueDate)}
                         </span>
+                      </div>
+                      <div className="mt-4 border-t border-gray-100 pt-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <MapPin size={16} className="shrink-0 text-green-700" />
+                          <span>{profile.location}</span>
+                        </div>
+                        {(profile.bloodGroup ||
+                          profile.careProvider ||
+                          profile.emergencyContact) && (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {profile.bloodGroup && (
+                              <div className="flex items-center gap-2">
+                                <Droplets size={16} className="shrink-0 text-green-700" />
+                                <span>Blood group: {profile.bloodGroup}</span>
+                              </div>
+                            )}
+                            {profile.careProvider && (
+                              <div className="flex items-center gap-2">
+                                <Stethoscope size={16} className="shrink-0 text-green-700" />
+                                <span>{profile.careProvider}</span>
+                              </div>
+                            )}
+                            {profile.emergencyContact && (
+                              <div className="flex items-center gap-2 sm:col-span-2">
+                                <Phone size={16} className="shrink-0 text-green-700" />
+                                <span>{profile.emergencyContact}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </Link>
                   );
