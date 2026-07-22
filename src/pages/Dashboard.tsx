@@ -56,6 +56,7 @@ function Dashboard() {
     }
     return subscribeToProfiles(
       user.uid,
+      user.email,
       (nextProfiles) => {
         setProfiles(nextProfiles);
         setIsLoading(false);

@@ -7,14 +7,17 @@
 3. Add your local and deployed domains to Firebase Authentication's **Authorized domains** list.
 4. Create a **Cloud Firestore** database in the Firebase Console before creating profiles.
 
-Profiles are stored at `users/{userId}/profiles`. Configure Firestore Security Rules so users can read and write only their own profile subcollection. Once Firebase is configured, dashboard and profile routes require an authenticated Google user.
+Profiles are stored at `users/{userId}/profiles`. Configure Firestore Security Rules so users can read and write their own profiles and profiles shared with them. Once Firebase is configured, dashboard and profile routes require an authenticated Google user.
 
 ```firestore
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId}/profiles/{profileId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+    match /{path=**}/profiles/{profileId} {
+      allow read, write: if request.auth != null && (request.auth.uid == resource.data.creatorId || (resource.data.sharedWith != null && request.auth.token.email in resource.data.sharedWith));
     }
   }
 }
