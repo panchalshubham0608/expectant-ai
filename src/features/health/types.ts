@@ -12,6 +12,9 @@ export interface MotherProfile {
   dueDate: string;
   location: string;
   avatar: string;
+  bloodGroup?: string;
+  emergencyContact?: string;
+  careProvider?: string;
 }
 
 export interface Measurement {
