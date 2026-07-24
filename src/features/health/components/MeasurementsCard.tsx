@@ -9,6 +9,7 @@ interface MeasurementsCardProps {
 }
 
 const formatDate = (dateStr: string): string => {
+  if (!dateStr) return '';
   const date = new Date(dateStr);
   return new Intl.DateTimeFormat('en-IN', {
     month: 'short',
@@ -17,11 +18,6 @@ const formatDate = (dateStr: string): string => {
     minute: '2-digit',
     timeZone: 'Asia/Kolkata',
   }).format(date);
-};
-
-const getUnitFromValue = (valueStr: string): string => {
-  const match = valueStr.match(/\s*([a-zA-Z%]+)$/);
-  return match ? match[1] : '';
 };
 
 const isNumericMeasurement = (label: string): boolean => {
@@ -36,30 +32,29 @@ const calculateChange = (
   if (!previousValue || !isNumericMeasurement(label)) return '';
 
   const newNum = parseFloat(newNumericValue);
-  const prevNum = parseFloat(previousValue.match(/(-?\d+\.?\d*)/)?.[1] || '');
+  const prevNum = parseFloat(previousValue);
 
   if (isNaN(newNum) || isNaN(prevNum)) return '';
 
   const diff = newNum - prevNum;
-  const unit = getUnitFromValue(previousValue);
   const sign = diff > 0 ? '+' : '';
   const rounded = diff.toFixed(2);
 
-  return `${sign}${rounded}${unit ? ' ' + unit : ''}`;
+  return `${sign}${rounded}`;
 };
 
 const getTodayDateString = (): string => {
-  const today = new Date('2026-07-19'); // Current date from context
+  const today = new Date(); // Current date from context
   return today.toISOString().split('T')[0];
 };
 
-const getMeasurementUnit = (originalMeasurement: Measurement): string => {
-  return getUnitFromValue(originalMeasurement.value);
-};
-
-const stripUnit = (valueStr: string): string => {
-  return valueStr.match(/(-?\d+\.?\d*)/)?.[1] || '';
-};
+const formatValue = (value: string, label: string): string => {
+  if (isNumericMeasurement(label)) {
+    const num = parseFloat(value);
+    return isNaN(num) ? '0' : Math.round(num * 100) / 100 + ''; // Round to 2 decimal place    
+  }
+  return value;
+}
 
 export default function MeasurementsCard({ measurements }: MeasurementsCardProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -70,12 +65,12 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
   const [formData, setFormData] = useState<Measurement[]>(
     measurements.map((m) => ({
       ...m,
-      value: isNumericMeasurement(m.label) ? stripUnit(m.value) : m.value,
+      value: m.value,
     })),
   );
 
   // Create a map of measurement units for consistent lookup
-  const unitMap = new Map(measurements.map((m) => [m.id, getMeasurementUnit(m)]));
+  const unitMap = new Map(measurements.map((m) => [m.id, m.unit]));
 
   const chartSeries = formData
     .filter((m) => isNumericMeasurement(m.label))
@@ -92,7 +87,7 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
       const prev =
         parseFloat(
           measurements.find((mm) => mm.id === m.id)?.previousValue?.match(/(-?\d+\.?\d*)/)?.[1] ||
-            '',
+          '',
         ) || 0;
       const cur = parseFloat(String(m.value)) || prev;
       const older = Math.max(0, prev - (cur - prev));
@@ -109,15 +104,11 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
       };
     });
 
-  const handleMeasurementChange = (id: string, field: keyof Measurement, value: string) => {
+  const handleMeasurementChange = (id: string, value: string) => {
     setFormData((prev) =>
       prev.map((m) => {
         if (m.id === id) {
-          if (field === 'value' && isNumericMeasurement(m.label)) {
-            const newChange = calculateChange(value, m.previousValue, m.label);
-            return { ...m, [field]: value, change: newChange };
-          }
-          return { ...m, [field]: value };
+          return { ...m, value: value };
         }
         return m;
       }),
@@ -128,9 +119,10 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
     // Update all measurements with the common lastMeasuredDate
     setFormData((prev) =>
       prev.map((m) => ({
-        ...m,
-        lastMeasuredDate,
-      })),
+          ...m,
+          previousValue: measurements.find((mm) => mm.id === m.id)?.value,
+          lastMeasuredDate,
+        }))
     );
     // TODO: Persist changes to backend
     setIsEditing(false);
@@ -140,7 +132,7 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
     setFormData(
       measurements.map((m) => ({
         ...m,
-        value: isNumericMeasurement(m.label) ? stripUnit(m.value) : m.value,
+        value: m.value,
       })),
     );
     setLastMeasuredDate(measurements[0]?.lastMeasuredDate || getTodayDateString());
@@ -167,42 +159,18 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
               <div className="measurements-card__form-row">
                 <div className="measurements-card__form-field">
                   <label className="measurements-card__form-label">
-                    {measurement.label}
-                    {isNumericMeasurement(measurement.label) &&
-                      ` (${unitMap.get(measurement.id) || ''})`}
+                    {measurement.label} {measurement.unit && `(${measurement.unit})`}
                   </label>
                   <input
                     type={isNumericMeasurement(measurement.label) ? 'number' : 'text'}
-                    value={measurement.value}
-                    onChange={(e) =>
-                      handleMeasurementChange(measurement.id, 'value', e.target.value)
+                    value={measurement.value || ''}
+                    onChange={(e) => handleMeasurementChange(measurement.id, e.target.value)
                     }
                     className="measurements-card__form-input"
                     placeholder={
                       isNumericMeasurement(measurement.label) ? 'e.g., 62.6' : 'e.g., 118/76'
                     }
                     step="0.1"
-                  />
-                </div>
-
-                <div className="measurements-card__form-field">
-                  <label className="measurements-card__form-label">Change</label>
-                  <input
-                    type="text"
-                    value={measurement.change}
-                    onChange={(e) =>
-                      !isNumericMeasurement(measurement.label) &&
-                      handleMeasurementChange(measurement.id, 'change', e.target.value)
-                    }
-                    readOnly={isNumericMeasurement(measurement.label)}
-                    className={`measurements-card__form-input ${
-                      isNumericMeasurement(measurement.label)
-                        ? 'measurements-card__form-input--readonly'
-                        : ''
-                    }`}
-                    placeholder={
-                      isNumericMeasurement(measurement.label) ? 'Auto-calculated' : 'e.g., Stable'
-                    }
                   />
                 </div>
               </div>
@@ -274,18 +242,16 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
 
       <div className="measurements-card__grid">
         {formData.map((measurement) => {
-          const unit = unitMap.get(measurement.id) || '';
-          const displayValue =
-            isNumericMeasurement(measurement.label) && unit
-              ? `${measurement.value} ${unit}`
-              : measurement.value;
-
+          const change = calculateChange(measurement.value, measurement.previousValue, measurement.label);
           return (
             <div key={measurement.id} className="measurement-item">
               <p className="measurement-item__label">{measurement.label}</p>
-              <p className="measurement-item__value">{displayValue}</p>
-              <p className="measurement-item__change">{measurement.change}</p>
-              <p className="measurement-item__date">{formatDate(measurement.lastMeasuredDate)}</p>
+              <p className="measurement-item__value">{formatValue(measurement.value, measurement.label)} {measurement.unit}</p>
+              {change &&
+                <p className="measurement-item__change">
+                  {formatValue(change, measurement.label)} {measurement.unit}
+                </p>}
+              {measurement.lastMeasuredDate && <p className="measurement-item__date">{formatDate(measurement.lastMeasuredDate)}</p>}
             </div>
           );
         })}

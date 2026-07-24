@@ -10,7 +10,7 @@ export interface Measurement {
   label: string;
   value: string;
   previousValue?: string;
-  change: string;
+  unit: string;
   lastMeasuredDate: string;
 }
 
