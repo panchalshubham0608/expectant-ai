@@ -1,46 +1,91 @@
 import '../../../styles/DoctorVisitsCard.css';
 import { CalendarCheck, Stethoscope } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DoctorVisit } from '../types';
+
+const LOCAL_STORAGE_KEYS = {
+  provider: 'expectant-ai:doctor-visit-provider',
+  specialty: 'expectant-ai:doctor-visit-specialty',
+};
 
 interface DoctorVisitsCardProps {
   visits: DoctorVisit[];
+  onAddVisit?: (visit: Omit<DoctorVisit, 'id'>) => Promise<void>;
+  onCompleteVisit?: (visitId: string, details: string) => Promise<void>;
 }
 
-type VisitState = DoctorVisit & { completed?: boolean; completedNote?: string };
+type VisitState = DoctorVisit & { completed?: boolean; completedNote?: string | null };
 
-const todayISO = () => new Date('2026-07-19').toISOString().split('T')[0];
+const todayISO = () => new Date().toISOString().split('T')[0];
 
-export default function DoctorVisitsCard({ visits }: DoctorVisitsCardProps) {
+export default function DoctorVisitsCard({ visits, onAddVisit, onCompleteVisit }: DoctorVisitsCardProps) {
   const [visitList, setVisitList] = useState<VisitState[]>(visits.map((v) => ({ ...v })));
   const [showPast, setShowPast] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [newVisit, setNewVisit] = useState({
-    provider: '',
-    specialty: '',
+  const [newVisit, setNewVisit] = useState(() => ({
+    provider: typeof window !== 'undefined' ? window.localStorage.getItem(LOCAL_STORAGE_KEYS.provider) ?? '' : '',
+    specialty: typeof window !== 'undefined' ? window.localStorage.getItem(LOCAL_STORAGE_KEYS.specialty) ?? '' : '',
     date: todayISO(),
     note: '',
-  });
+  }));
   const [completing, setCompleting] = useState<VisitState | null>(null);
   const [completeDetails, setCompleteDetails] = useState('');
 
-  const addVisit = () => {
-    const id = `visit-${Date.now()}`;
-    setVisitList((prev) => [{ id, ...newVisit }, ...prev]);
+  useEffect(() => {
+    setVisitList(visits.map((visit) => ({ ...visit, completed: visit.completed ?? false })));
+  }, [visits]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(LOCAL_STORAGE_KEYS.provider, newVisit.provider);
+    window.localStorage.setItem(LOCAL_STORAGE_KEYS.specialty, newVisit.specialty);
+  }, [newVisit.provider, newVisit.specialty]);
+
+  const addVisit = async () => {
+    if (!newVisit.provider.trim() || !newVisit.specialty.trim() || !newVisit.note.trim()) {
+      return;
+    }
+
+    await onAddVisit?.({ ...newVisit, completed: false, completedNote: null });
     setShowAdd(false);
     setNewVisit({ provider: '', specialty: '', date: todayISO(), note: '' });
   };
 
-  const markCompleted = (visitId: string, details: string) => {
-    setVisitList((prev) =>
-      prev.map((v) => (v.id === visitId ? { ...v, completed: true, completedNote: details } : v)),
-    );
+  const markCompleted = async (visitId: string, details: string) => {
+    await onCompleteVisit?.(visitId, details || 'Completed');
     setCompleting(null);
     setCompleteDetails('');
   };
 
-  const upcoming = visitList.filter((v) => v.date >= todayISO());
-  const past = visitList.filter((v) => v.date < todayISO() || v.completed);
+  const upcoming = visitList.filter((v) => !v.completed && v.date >= todayISO());
+  const past = visitList.filter((v) => v.completed || v.date < todayISO());
+
+  const getStatusClass = (visit: VisitState) => {
+    if (visit.completed) {
+      return 'doctor-visit__status doctor-visit__status--completed';
+    }
+
+    if (visit.date >= todayISO()) {
+      return 'doctor-visit__status doctor-visit__status--upcoming';
+    }
+
+    return 'doctor-visit__status doctor-visit__status--missed';
+  };
+
+  const getStatusLabel = (visit: VisitState) => {
+    if (visit.completed) {
+      return 'Completed';
+    }
+
+    if (visit.date >= todayISO()) {
+      return 'Upcoming';
+    }
+
+    return 'MISSED';
+  };
 
   return (
     <section className="doctor-visits-card">
@@ -104,48 +149,59 @@ export default function DoctorVisitsCard({ visits }: DoctorVisitsCardProps) {
       )}
 
       <div className="doctor-visits-card__list">
-        {(showPast ? past : upcoming).map((visit) => (
-          <div key={visit.id} className="doctor-visit">
-            <div className="doctor-visit__row">
-              <div>
-                <p className="doctor-visit__provider">{visit.provider}</p>
-                <p className="doctor-visit__specialty">{visit.specialty}</p>
-              </div>
-              <span className="doctor-visit__date">
-                <CalendarCheck size={14} />
-                {visit.date}
-              </span>
-            </div>
-            <p className="doctor-visit__note">
-              {visit.note}
-              {visit.completedNote ? ` — Completed: ${visit.completedNote}` : ''}
-            </p>
-            {!visit.completed && visit.date >= todayISO() && (
-              <div className="doctor-visit__actions">
-                <button
-                  onClick={() => {
-                    setCompleting(visit);
-                    setCompleteDetails('');
-                  }}
-                  className="doctor-visits-card__btn"
-                >
-                  Mark completed
-                </button>
-              </div>
-            )}
+        {(showPast ? past : upcoming).length === 0 ? (
+          <div className="doctor-visits-card__empty">
+            No {showPast ? 'past' : 'upcoming'} appointments yet.
           </div>
-        ))}
+        ) : (
+          (showPast ? past : upcoming).map((visit) => (
+            <div key={visit.id} className="doctor-visit">
+              <div className="doctor-visit__row">
+                <div>
+                  <p className="doctor-visit__provider">{visit.provider}</p>
+                  <p className="doctor-visit__specialty">{visit.specialty}</p>
+                </div>
+                <div className="doctor-visit__meta">
+                  <span className={getStatusClass(visit)}>
+                    {getStatusLabel(visit)}
+                  </span>
+                  <span className="doctor-visit__date">
+                    <CalendarCheck size={14} />
+                    {visit.date}
+                  </span>
+                </div>
+              </div>
+              <p className="doctor-visit__note">
+                {visit.note}
+                {visit.completedNote ? ` — Completed: ${visit.completedNote}` : ''}
+              </p>
+              {!visit.completed && visit.date >= todayISO() && (
+                <div className="doctor-visit__actions">
+                  <button
+                    onClick={() => {
+                      setCompleting(visit);
+                      setCompleteDetails('');
+                    }}
+                    className="doctor-visits-card__btn"
+                  >
+                    Mark completed
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
 
       {completing && (
         <div className="doctor-visits-card__overlay" onClick={() => setCompleting(null)}>
           <div className="doctor-visits-card__complete-modal" onClick={(e) => e.stopPropagation()}>
-            <h4 className="text-lg font-semibold">Mark {completing.provider} visit as completed</h4>
+            <h4 className="doctor-visits-card__complete-modal-title">Mark {completing.provider} visit as completed</h4>
             <textarea
               placeholder="Completion details"
               value={completeDetails}
               onChange={(e) => setCompleteDetails(e.target.value)}
-              className="w-full mt-3 rounded-xl border border-slate-200 px-3 py-2"
+              className="doctor-visits-card__complete-modal-textarea"
             />
             <div className="doctor-visits-card__add-actions mt-3">
               <button

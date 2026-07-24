@@ -22,11 +22,11 @@
   }
 
   .doctor-visits-card__controls {
-    @apply mt-4 flex gap-3;
+    @apply mt-4 flex flex-wrap gap-3;
   }
 
   .doctor-visits-card__btn {
-    @apply inline-flex items-center gap-2 rounded-2xl bg-emerald-600 text-white px-3 py-2 text-sm font-medium;
+    @apply inline-flex items-center gap-2 rounded-2xl bg-emerald-600 text-white px-3 py-2 text-sm font-medium transition hover:bg-emerald-700;
   }
 
   .doctor-visits-card__btn--secondary {
@@ -50,8 +50,20 @@
     @apply mt-5 space-y-4;
   }
 
+  .doctor-visits-card__empty {
+    @apply rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-600;
+  }
+
   .doctor-visit {
-    @apply rounded-3xl bg-slate-50 p-4;
+    @apply rounded-3xl border border-slate-100 bg-slate-50 p-4 shadow-sm;
+  }
+
+  .doctor-visit__row {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .doctor-visit__meta {
+    @apply flex flex-col items-end gap-2;
   }
 
   .doctor-visit__provider {
@@ -60,6 +72,22 @@
 
   .doctor-visit__specialty {
     @apply mt-1 text-sm text-slate-600;
+  }
+
+  .doctor-visit__status {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide;
+  }
+
+  .doctor-visit__status--upcoming {
+    @apply bg-emerald-100 text-emerald-700;
+  }
+
+  .doctor-visit__status--completed {
+    @apply bg-slate-200 text-slate-700;
+  }
+
+  .doctor-visit__status--missed {
+    @apply bg-rose-100 text-rose-700;
   }
 
   .doctor-visit__date {
@@ -76,10 +104,18 @@
 
   /* Modal overlay for completion */
   .doctor-visits-card__overlay {
-    @apply fixed inset-0 bg-black/40 flex items-center justify-center z-50;
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4;
   }
 
   .doctor-visits-card__complete-modal {
-    @apply bg-white rounded-2xl p-4 w-full max-w-md shadow-lg;
+    @apply w-full max-w-md rounded-3xl bg-white p-5 shadow-xl;
+  }
+
+  .doctor-visits-card__complete-modal-title {
+    @apply text-lg font-semibold text-slate-900;
+  }
+
+  .doctor-visits-card__complete-modal-textarea {
+    @apply mt-3 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-500;
   }
 }

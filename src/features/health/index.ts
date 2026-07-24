@@ -12,4 +12,5 @@ export * from './types';
 export * from './measurementsService';
 export * from './reportSummaryService';
 export * from './medicalRecordsService';
+export * from './doctorVisitsService';
 export * from './useMeasurements';

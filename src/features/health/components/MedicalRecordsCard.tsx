@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import '../../../styles/features/health/components/MedicalRecordsCard.css';
-import { FileText, ArrowRight } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { useAuth } from '../../../auth/useAuth';
 import { useParams } from 'react-router-dom';
 import type { MedicalRecord } from '../types';

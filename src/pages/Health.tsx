@@ -9,6 +9,8 @@ import { useProfile } from '../features/profiles/useProfile';
 import { useMeasurements } from '../features/health/useMeasurements';
 import { updateMeasurements } from '../features/health/measurementsService';
 import { subscribeToMedicalReports } from '../features/health/medicalRecordsService';
+import { saveDoctorVisit, subscribeToDoctorVisits, markDoctorVisitCompleted } from '../features/health/doctorVisitsService';
+import type { DoctorVisit } from '../features/health/types';
 import {
   AIInsightsCard,
   DoctorVisitsCard,
@@ -17,7 +19,6 @@ import {
   MeasurementsCard,
   MotherProfileCard,
   aiInsightsData,
-  doctorVisitsData,
   healthScoreData,
   medicalRecordsData,
 } from '../features/health';
@@ -29,16 +30,25 @@ function Health() {
   const { error: measurementsError, isLoading: isLoadingMeasurements, measurements } = useMeasurements(user?.uid, id);
   const [today] = useState(() => new Date());
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>(medicalRecordsData);
+  const [doctorVisits, setDoctorVisits] = useState<DoctorVisit[]>([]);
 
   useEffect(() => {
     if (!user?.uid || !id) {
       return;
     }
 
-    const unsubscribe = subscribeToMedicalReports(user.uid, id, (nextRecords) => {
+    const unsubscribeMedical = subscribeToMedicalReports(user.uid, id, (nextRecords) => {
       setMedicalRecords(nextRecords.length > 0 ? nextRecords : medicalRecordsData);
     }, () => undefined);
-    return unsubscribe;
+
+    const unsubscribeVisits = subscribeToDoctorVisits(user.uid, id, (nextVisits) => {
+      setDoctorVisits(nextVisits);
+    }, () => undefined);
+
+    return () => {
+      unsubscribeMedical();
+      unsubscribeVisits();
+    };
   }, [id, user?.uid]);
 
   const saveProfile = async (nextProfile: ProfileInput) => {
@@ -49,6 +59,16 @@ function Health() {
   const saveMeasurements = async (newMeasurements: Measurement[]) => {
     if (!user || !id) throw new Error('You must be signed in to update this profile.');
     await updateMeasurements(user.uid, id, newMeasurements);
+  };
+
+  const addDoctorVisit = async (visit: Omit<DoctorVisit, 'id'>) => {
+    if (!user || !id) throw new Error('You must be signed in to manage appointments.');
+    await saveDoctorVisit(user.uid, id, visit);
+  };
+
+  const completeDoctorVisit = async (visitId: string, details: string) => {
+    if (!user || !id) throw new Error('You must be signed in to manage appointments.');
+    await markDoctorVisitCompleted(user.uid, id, visitId, details);
   };
 
   const defaultMeasurements: Measurement[] = [
@@ -144,7 +164,7 @@ function Health() {
             measurements={mergedMeasurements}
             onSave={saveMeasurements}
           />
-          <DoctorVisitsCard visits={doctorVisitsData} />
+          <DoctorVisitsCard visits={doctorVisits} onAddVisit={addDoctorVisit} onCompleteVisit={completeDoctorVisit} />
           <MedicalRecordsCard records={medicalRecords} />
           {/* <TimelineCard events={pregnancyTimelineData} /> */}
         </div>

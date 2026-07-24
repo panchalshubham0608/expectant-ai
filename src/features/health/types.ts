@@ -75,6 +75,8 @@ export interface DoctorVisit {
   specialty: string;
   date: string;
   note: string;
+  completed?: boolean;
+  completedNote?: string | null;
 }
 
 export interface AIInsight {
