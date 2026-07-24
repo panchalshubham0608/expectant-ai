@@ -10,4 +10,5 @@ export { default as UploadReportDialog } from './components/UploadReportDialog';
 export * from './mockData';
 export * from './types';
 export * from './measurementsService';
+export * from './reportSummaryService';
 export * from './useMeasurements';

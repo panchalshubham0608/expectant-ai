@@ -25,7 +25,19 @@
     @apply mt-5 text-sm text-slate-600;
   }
 
+  .upload-report-dialog__input {
+    @apply hidden;
+  }
+
   .upload-report-dialog__button {
-    @apply mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800;
+    @apply mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400;
+  }
+
+  .upload-report-dialog__error {
+    @apply mt-3 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700;
+  }
+
+  .upload-report-dialog__summary {
+    @apply mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800;
   }
 }

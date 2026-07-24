@@ -25,7 +25,15 @@ const profilesCollection = (userId: string) => {
   return collection(db, 'users', userId, 'profiles');
 };
 
-const toProfile = (id: string, data: ProfileInput): Profile => ({ id, ...data });
+const toProfile = (
+  id: string,
+  data: ProfileInput & Partial<Pick<Profile, 'creatorId' | 'sharedWith'>>,
+): Profile => ({
+  id,
+  ...data,
+  creatorId: data.creatorId ?? '',
+  sharedWith: data.sharedWith ?? [],
+});
 
 const getUpdatableProfileDocSnap = async (
   profileId: string,

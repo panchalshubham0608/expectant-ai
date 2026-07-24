@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import '../../../styles/features/health/components/MedicalRecordsCard.css';
 import { FileText, ArrowRight } from 'lucide-react';
 import type { MedicalRecord } from '../types';
+import { formatPregnancySummary, type PregnancyReportSummary } from '../reportSummaryService';
 import UploadReportDialog from './UploadReportDialog';
 
 interface MedicalRecordsCardProps {
@@ -8,6 +11,24 @@ interface MedicalRecordsCardProps {
 }
 
 export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps) {
+  const [recordList, setRecordList] = useState(records);
+
+  useEffect(() => {
+    setRecordList(records);
+  }, [records]);
+
+  const handleSummaryGenerated = (summary: PregnancyReportSummary, fileName: string) => {
+    const nextRecord: MedicalRecord = {
+      id: `record-${Date.now()}`,
+      title: fileName || 'Uploaded PDF Report',
+      date: format(new Date(), 'dd MMM yyyy'),
+      status: 'Completed',
+      summary: formatPregnancySummary(summary),
+    };
+
+    setRecordList((currentRecords) => [nextRecord, ...currentRecords]);
+  };
+
   return (
     <section className="medical-records-card">
       <div className="medical-records-card__header">
@@ -19,10 +40,10 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
         <FileText size={20} className="medical-records-card__icon" />
       </div>
 
-      <UploadReportDialog />
+      <UploadReportDialog onSummaryGenerated={handleSummaryGenerated} />
 
       <div className="medical-records-card__list">
-        {records.map((record) => (
+        {recordList.map((record) => (
           <div key={record.id} className="record-card">
             <div className="record-card__row">
               <div>
