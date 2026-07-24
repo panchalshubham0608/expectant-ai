@@ -26,7 +26,11 @@
   }
 
   .record-card {
-    @apply rounded-3xl border border-slate-100 bg-slate-50 p-4;
+    @apply w-full rounded-3xl border border-slate-100 bg-slate-50 p-4 text-left transition hover:border-slate-200 hover:bg-white;
+  }
+
+  .record-card__row {
+    @apply flex items-start justify-between gap-3;
   }
 
   .record-card__title {
@@ -37,8 +41,68 @@
     @apply mt-1 text-sm text-slate-600;
   }
 
+  .record-card__type {
+    @apply mt-1 text-xs font-semibold uppercase tracking-wide text-emerald-700;
+  }
+
   .record-card__summary {
     @apply mt-3 text-sm text-slate-600;
+  }
+
+  .medical-records-card__modal {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 sm:p-6;
+  }
+
+  .medical-records-card__modal-card {
+    @apply h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl sm:p-7;
+  }
+
+  .medical-records-card__modal-header {
+    @apply top-0 z-10 flex items-start justify-between gap-3 rounded-2xl bg-white pb-4;
+  }
+
+  .medical-records-card__modal-meta {
+    @apply mt-1 text-sm text-slate-500;
+  }
+
+  .medical-records-card__close {
+    @apply rounded-2xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200;
+  }
+
+  .medical-records-card__detail-grid {
+    @apply mt-4 grid gap-4 lg:grid-cols-2;
+  }
+
+  .medical-records-card__detail-panel {
+    @apply rounded-3xl border border-slate-100 bg-slate-50 p-4 shadow-sm;
+  }
+
+  .medical-records-card__detail-panel--highlight {
+    @apply bg-emerald-50 ring-1 ring-emerald-100 lg:col-span-2;
+  }
+
+  .medical-records-card__detail-label {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-slate-500;
+  }
+
+  .medical-records-card__detail-value {
+    @apply mt-2 text-sm text-slate-700;
+  }
+
+  .medical-records-card__detail-value--lead {
+    @apply text-base leading-7 text-slate-800;
+  }
+
+  .medical-records-card__detail-actions {
+    @apply mt-4;
+  }
+
+  .medical-records-card__detail-button {
+    @apply inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800;
+  }
+
+  .medical-records-card__detail-list {
+    @apply mt-2 space-y-2 pl-5 text-sm text-slate-700;
   }
 
   .record-status {

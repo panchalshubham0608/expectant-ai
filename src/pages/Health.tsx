@@ -1,13 +1,14 @@
 import { useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import '../styles/pages/Health.css';
 import { useAuth } from '../auth/useAuth';
 import { updateProfile } from '../features/profiles/profileService';
-import type { Measurement } from '../features/health/types';
+import type { Measurement, MedicalRecord } from '../features/health/types';
 import type { ProfileInput } from '../features/profiles/types';
 import { useProfile } from '../features/profiles/useProfile';
 import { useMeasurements } from '../features/health/useMeasurements';
 import { updateMeasurements } from '../features/health/measurementsService';
+import { subscribeToMedicalReports } from '../features/health/medicalRecordsService';
 import {
   AIInsightsCard,
   DoctorVisitsCard,
@@ -15,12 +16,10 @@ import {
   MedicalRecordsCard,
   MeasurementsCard,
   MotherProfileCard,
-  TimelineCard,
   aiInsightsData,
   doctorVisitsData,
   healthScoreData,
   medicalRecordsData,
-  pregnancyTimelineData,
 } from '../features/health';
 
 function Health() {
@@ -29,6 +28,18 @@ function Health() {
   const { error, isLoading, profile } = useProfile(user?.uid, id);
   const { error: measurementsError, isLoading: isLoadingMeasurements, measurements } = useMeasurements(user?.uid, id);
   const [today] = useState(() => new Date());
+  const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>(medicalRecordsData);
+
+  useEffect(() => {
+    if (!user?.uid || !id) {
+      return;
+    }
+
+    const unsubscribe = subscribeToMedicalReports(user.uid, id, (nextRecords) => {
+      setMedicalRecords(nextRecords.length > 0 ? nextRecords : medicalRecordsData);
+    }, () => undefined);
+    return unsubscribe;
+  }, [id, user?.uid]);
 
   const saveProfile = async (nextProfile: ProfileInput) => {
     if (!user || !id) throw new Error('You must be signed in to update this profile.');
@@ -134,8 +145,8 @@ function Health() {
             onSave={saveMeasurements}
           />
           <DoctorVisitsCard visits={doctorVisitsData} />
-          <MedicalRecordsCard records={medicalRecordsData} />
-          <TimelineCard events={pregnancyTimelineData} />
+          <MedicalRecordsCard records={medicalRecords} />
+          {/* <TimelineCard events={pregnancyTimelineData} /> */}
         </div>
       )}
     </div>
