@@ -6,22 +6,17 @@ import type { Measurement } from '../types';
 
 interface MeasurementsCardProps {
   measurements: Measurement[];
+  onSave: (measurements: Measurement[]) => Promise<void>;
 }
 
 const formatDate = (dateStr: string): string => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
-  return new Intl.DateTimeFormat('en-IN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Kolkata',
-  }).format(date);
+  return date.toDateString();
 };
 
 const isNumericMeasurement = (label: string): boolean => {
-  return label !== 'Blood Pressure';
+  return label !== 'Blood Pressure' && label !== 'Gestational Age';
 };
 
 const calculateChange = (
@@ -36,6 +31,7 @@ const calculateChange = (
 
   if (isNaN(newNum) || isNaN(prevNum)) return '';
 
+  if (prevNum === 0) return ''; // Avoid showing first-time measurements as a change
   const diff = newNum - prevNum;
   const sign = diff > 0 ? '+' : '';
   const rounded = diff.toFixed(2);
@@ -56,8 +52,9 @@ const formatValue = (value: string, label: string): string => {
   return value;
 }
 
-export default function MeasurementsCard({ measurements }: MeasurementsCardProps) {
+export default function MeasurementsCard({ measurements, onSave }: MeasurementsCardProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [isChartOpen, setIsChartOpen] = useState(false);
   const [lastMeasuredDate, setLastMeasuredDate] = useState<string>(
     measurements[0]?.lastMeasuredDate || getTodayDateString(),
@@ -115,17 +112,23 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
     );
   };
 
-  const handleSave = () => {
-    // Update all measurements with the common lastMeasuredDate
-    setFormData((prev) =>
-      prev.map((m) => ({
-          ...m,
-          previousValue: measurements.find((mm) => mm.id === m.id)?.value,
-          lastMeasuredDate,
-        }))
-    );
-    // TODO: Persist changes to backend
-    setIsEditing(false);
+  const handleSave = async () => {
+    setSaveError('');
+    const dataToSave = formData.map((m) => {
+      const oldMeasurement = measurements.find((mm) => mm.id === m.id);
+      if (!oldMeasurement || oldMeasurement.value === m.value) return m;
+      return {
+        ...m,
+        previousValue: oldMeasurement.value,
+        lastMeasuredDate,
+      };
+    });
+    try {
+      await onSave(dataToSave);
+      setIsEditing(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save measurements.');
+    }
   };
 
   const handleCancel = () => {
@@ -153,26 +156,24 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
           </div>
         </div>
 
-        <div className="measurements-card__form">
+        <div className="measurements-card__form measurements-card__grid">
           {formData.map((measurement) => (
             <div key={measurement.id} className="measurements-card__form-group">
-              <div className="measurements-card__form-row">
-                <div className="measurements-card__form-field">
-                  <label className="measurements-card__form-label">
-                    {measurement.label} {measurement.unit && `(${measurement.unit})`}
-                  </label>
-                  <input
-                    type={isNumericMeasurement(measurement.label) ? 'number' : 'text'}
-                    value={measurement.value || ''}
-                    onChange={(e) => handleMeasurementChange(measurement.id, e.target.value)
-                    }
-                    className="measurements-card__form-input"
-                    placeholder={
-                      isNumericMeasurement(measurement.label) ? 'e.g., 62.6' : 'e.g., 118/76'
-                    }
-                    step="0.1"
-                  />
-                </div>
+              <div className="measurements-card__form-field">
+                <label className="measurements-card__form-label">
+                  {measurement.label} {measurement.unit && `(${measurement.unit})`}
+                </label>
+                <input
+                  type={isNumericMeasurement(measurement.label) ? 'number' : 'text'}
+                  value={measurement.value || ''}
+                  onChange={(e) => handleMeasurementChange(measurement.id, e.target.value)
+                  }
+                  className="measurements-card__form-input"
+                  placeholder={
+                    isNumericMeasurement(measurement.label) ? 'e.g., 62.6' : 'e.g., 118/76'
+                  }
+                  step="0.1"
+                />
               </div>
             </div>
           ))}
@@ -206,6 +207,9 @@ export default function MeasurementsCard({ measurements }: MeasurementsCardProps
             Cancel
           </button>
         </div>
+        {saveError && (
+          <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</p>
+        )}
       </section>
     );
   }
