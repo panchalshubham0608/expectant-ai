@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { getGeminiApiKey, saveGeminiApiKey } from '../../features/profiles/profileService';
 
 interface ApiKeyDialogProps {
@@ -12,6 +13,7 @@ export default function ApiKeyDialog({ isOpen, onClose, userId, profileId }: Api
   const [apiKey, setApiKey] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
     if (isOpen && userId) {
@@ -59,15 +61,25 @@ export default function ApiKeyDialog({ isOpen, onClose, userId, profileId }: Api
             <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700">
               API Key
             </label>
-            <input
-              type="password"
-              id="apiKey"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-              placeholder="AIzaSy..."
-              required
-            />
+            <div className="relative mt-1">
+              <input
+                type={showKey ? 'text' : 'password'}
+                id="apiKey"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="block w-full rounded-xl border border-gray-300 px-4 py-2 pr-10 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                placeholder="AIzaSy..."
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 focus:outline-none"
+                aria-label={showKey ? 'Hide API key' : 'Show API key'}
+              >
+                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
