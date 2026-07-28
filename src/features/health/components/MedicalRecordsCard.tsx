@@ -10,6 +10,7 @@ import { summarizePdfReport } from '../reportSummaryService';
 import { uploadReportToGoogleDrive } from '../reportsService';
 import UploadReportDialog from './UploadReportDialog';
 import ProcessingModal, { type StepStatus } from './ProcessingModal';
+import MedicalRecordDetails from './MedicalRecordDetails';
 
 interface MedicalRecordsCardProps {
   records: MedicalRecord[];
@@ -112,118 +113,7 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
       </div>
 
       {selectedRecord && (
-        <div className="medical-records-card__modal">
-          <div className="medical-records-card__modal-card">
-            <div className="medical-records-card__modal-header">
-              <div>
-                <p className="medical-records-card__label">Report Details</p>
-                <h3 className="medical-records-card__title">{selectedRecord.title}</h3>
-                <p className="medical-records-card__modal-meta">{selectedRecord.reportDate} · {selectedRecord.reportType}</p>
-              </div>
-              <button type="button" className="medical-records-card__close" onClick={() => setSelectedRecord(null)}>
-                Close
-              </button>
-            </div>
-
-            <div className="medical-records-card__detail-grid">
-              <section className="medical-records-card__detail-panel medical-records-card__detail-panel--highlight">
-                <p className="medical-records-card__detail-label">Summary</p>
-                <p className="medical-records-card__detail-value medical-records-card__detail-value--lead">{selectedRecord.summary.plainEnglish}</p>
-
-                <div className="medical-records-card__detail-actions">
-                  <a
-                    href={selectedRecord.reportUrl || '#'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="medical-records-card__detail-button"
-                  >
-                    View report
-                  </a>
-                </div>
-              </section>
-
-              <section className="medical-records-card__detail-panel">
-                <p className="medical-records-card__detail-label">Metadata</p>
-                <p className="medical-records-card__detail-value">
-                  {selectedRecord.metadata.hospital || 'Hospital not available'} · {selectedRecord.metadata.doctor || 'Doctor not available'} · {selectedRecord.metadata.reportDate || 'Date unavailable'}
-                </p>
-              </section>
-
-              <section className="medical-records-card__detail-panel">
-                <p className="medical-records-card__detail-label">Important findings</p>
-                <ul className="medical-records-card__detail-value medical-records-card__detail-list">
-                  {selectedRecord.summary.importantFindings.length > 0 ? (
-                    selectedRecord.summary.importantFindings.map((item) => <li key={item}>{item}</li>)
-                  ) : (
-                    <li>No important findings listed.</li>
-                  )}
-                </ul>
-              </section>
-
-              <section className="medical-records-card__detail-panel">
-                <p className="medical-records-card__detail-label">Follow-up actions</p>
-                <ul className="medical-records-card__detail-value medical-records-card__detail-list">
-                  {selectedRecord.summary.followUpActions.length > 0 ? (
-                    selectedRecord.summary.followUpActions.map((item) => <li key={item}>{item}</li>)
-                  ) : (
-                    <li>No follow-up actions listed.</li>
-                  )}
-                </ul>
-              </section>
-
-              <section className="medical-records-card__detail-panel">
-                <p className="medical-records-card__detail-label">Questions for doctor</p>
-                <ul className="medical-records-card__detail-value medical-records-card__detail-list">
-                  {selectedRecord.summary.questionsForDoctor.length > 0 ? (
-                    selectedRecord.summary.questionsForDoctor.map((item) => <li key={item}>{item}</li>)
-                  ) : (
-                    <li>No questions listed.</li>
-                  )}
-                </ul>
-              </section>
-
-              <section className="medical-records-card__detail-panel">
-                <p className="medical-records-card__detail-label">Medicines</p>
-                <ul className="medical-records-card__detail-value medical-records-card__detail-list">
-                  {selectedRecord.medicines.length > 0 ? (
-                    selectedRecord.medicines.map((medicine) => (
-                      <li key={`${medicine.name}-${medicine.dose}`}>{medicine.name} · {medicine.dose} · {medicine.frequency} · {medicine.duration}</li>
-                    ))
-                  ) : (
-                    <li>No medicines listed.</li>
-                  )}
-                </ul>
-              </section>
-
-              <section className="medical-records-card__detail-panel">
-                <p className="medical-records-card__detail-label">Diagnoses mentioned</p>
-                <ul className="medical-records-card__detail-value medical-records-card__detail-list">
-                  {selectedRecord.diagnosesMentioned.length > 0 ? (
-                    selectedRecord.diagnosesMentioned.map((item) => <li key={item}>{item}</li>)
-                  ) : (
-                    <li>No diagnoses mentioned.</li>
-                  )}
-                </ul>
-              </section>
-
-              <section className="medical-records-card__detail-panel">
-                <p className="medical-records-card__detail-label">Recommendations</p>
-                <ul className="medical-records-card__detail-value medical-records-card__detail-list">
-                  {selectedRecord.recommendations.length > 0 ? (
-                    selectedRecord.recommendations.map((item) => <li key={item}>{item}</li>)
-                  ) : (
-                    <li>No recommendations listed.</li>
-                  )}
-                </ul>
-              </section>
-
-              <section className="medical-records-card__detail-panel">
-                <p className="medical-records-card__detail-label">Next visit</p>
-                <p className="medical-records-card__detail-value">{selectedRecord.nextVisit || 'No next visit scheduled.'}</p>
-              </section>
-            </div>
-          </div>
-        </div>
+        <MedicalRecordDetails report={selectedRecord} onClose={() => setSelectedRecord(null)} />
       )}
     </section>
   );
