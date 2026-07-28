@@ -13,7 +13,7 @@ import RequireAuth from './auth/RequireAuth';
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/expectant-ai">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route element={<RequireAuth />}>
