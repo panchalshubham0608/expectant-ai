@@ -157,8 +157,8 @@ function Health() {
         </div>
       ) : (
         <div className="health-grid">
-          <AIInsightsCard insights={aiInsightsData} />
-          <HealthScoreCard data={healthScoreData} />
+          {/* <AIInsightsCard insights={aiInsightsData} /> */}
+          {/* <HealthScoreCard data={healthScoreData} /> */}
           <MotherProfileCard profile={profile} onSave={saveProfile} />
           <MeasurementsCard
             measurements={mergedMeasurements}

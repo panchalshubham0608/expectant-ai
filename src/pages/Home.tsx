@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import appIcon from '../assets/expectant-ai.ico';
 
 function Home() {
   const [error, setError] = useState('');
@@ -32,6 +33,7 @@ function Home() {
       <main className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
         <div className="space-y-8 rounded-[2rem] border border-white/70 bg-white/95 p-8 shadow-[0_30px_80px_-45px_rgba(15,23,42,0.35)] backdrop-blur-sm">
           <div className="space-y-4 text-center">
+            <img src={appIcon} alt="Expectant AI Icon" className="mx-auto h-24 w-24" />
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-green-700">
               Expectant AI
             </p>
