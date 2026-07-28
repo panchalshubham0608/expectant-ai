@@ -11,15 +11,18 @@ import {
   Menu,
   UsersRound,
   Share2,
+  Astroid,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
 import { useProfile } from '../../features/profiles/useProfile';
 import ShareProfileDialog from '../profile/ShareProfileDialog';
+import ApiKeyDialog from '../profile/ApiKeyDialog';
 
 function BottomNav() {
   const { id } = useParams();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { profile } = useProfile(user?.uid, id);
@@ -116,6 +119,17 @@ function BottomNav() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsApiKeyDialogOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  <Astroid size={17} />
+                  Gemini Key
+                </button>
+                <button
+                  type="button"
                   onClick={async () => {
                     await signOut();
                     navigate('/');
@@ -136,6 +150,14 @@ function BottomNav() {
           onClose={() => setIsShareDialogOpen(false)}
           profileId={id}
           profile={profile}
+        />
+      )}
+      {user && id && (
+        <ApiKeyDialog
+          isOpen={isApiKeyDialogOpen}
+          onClose={() => setIsApiKeyDialogOpen(false)}
+          userId={user.uid}
+          profileId={id}
         />
       )}
     </nav>

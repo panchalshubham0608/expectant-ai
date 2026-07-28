@@ -3,12 +3,15 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  doc,
+  getDoc,
   getDocs,
   onSnapshot,
   or,
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -24,6 +27,8 @@ const profilesCollection = (userId: string) => {
     );
   return collection(db, 'users', userId, 'profiles');
 };
+
+const keysCollection = (userId: string, profileId: string) => collection(profilesCollection(userId), profileId, 'keys');
 
 const toProfile = (
   id: string,
@@ -148,3 +153,21 @@ export const subscribeToProfile = (
     onError,
   );
 };
+
+export const getGeminiApiKey = async (userId: string, profileId: string): Promise<string | null> => {
+  const keysCollectionRef = keysCollection(userId, profileId);
+  const docRef = doc(keysCollectionRef, 'geminiApiKey');
+
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists() && docSnap.data().geminiApiKey) {
+    return docSnap.data().geminiApiKey;
+  }
+  return null;
+};
+
+export const saveGeminiApiKey = async (userId: string, profileId: string, apiKey: string): Promise<void> => {
+  const keysCollectionRef = keysCollection(userId, profileId);
+  const docRef = doc(keysCollectionRef, 'geminiApiKey');
+  await setDoc(docRef, { geminiApiKey: apiKey }, { merge: true });
+};
+
