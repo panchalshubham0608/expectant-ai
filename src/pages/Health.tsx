@@ -12,14 +12,10 @@ import { subscribeToMedicalReports } from '../features/health/medicalRecordsServ
 import { saveDoctorVisit, subscribeToDoctorVisits, markDoctorVisitCompleted } from '../features/health/doctorVisitsService';
 import type { DoctorVisit } from '../features/health/types';
 import {
-  AIInsightsCard,
   DoctorVisitsCard,
-  HealthScoreCard,
   MedicalRecordsCard,
   MeasurementsCard,
   MotherProfileCard,
-  aiInsightsData,
-  healthScoreData,
   medicalRecordsData,
 } from '../features/health';
 
