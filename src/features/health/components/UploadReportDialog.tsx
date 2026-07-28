@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import '../../../styles/features/health/components/UploadReportDialog.css';
 import { LoaderCircle, UploadCloud } from 'lucide-react';
-import { formatPregnancySummary, summarizePublicReportUrl, type GeminiPregnancyReportResponse } from '../reportSummaryService';
+import { formatPregnancySummary, type GeminiPregnancyReportResponse } from '../reportSummaryService';
 
 interface UploadReportDialogProps {
   onSummaryGenerated?: (summary: GeminiPregnancyReportResponse, fileName: string) => void;
@@ -10,51 +10,62 @@ interface UploadReportDialogProps {
 
 export default function UploadReportDialog({ onSummaryGenerated, onConfirmUpload }: UploadReportDialogProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
-  const [reportUrl, setReportUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [summary, setSummary] = useState<GeminiPregnancyReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const previewSource = useMemo(() => {
-    const trimmed = reportUrl.trim();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    if (!trimmed) {
-      return '';
-    }
-
-    return trimmed.replace(/^https?:\/\//i, 'https://');
-  }, [reportUrl]);
+  // Cleanup the object URL to avoid memory leaks when the component unmounts or pdfUrl changes
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
 
   const handleUploadClick = () => {
-    setIsLinkModalOpen(true);
+    fileInputRef.current?.click();
     setError(null);
   };
 
-  const handleConfirmPreview = async () => {
-    if (!reportUrl.trim()) {
-      setError('Please paste a public report link first.');
-      return;
-    }
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
+    setSelectedFile(file);
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+    }
+    setPdfUrl(URL.createObjectURL(file));
+    setError(null);
+  };
+
+  const handleConfirmUpload = async () => {
     setIsUploading(true);
     setError(null);
 
     try {
-      const generatedSummary = await (onConfirmUpload?.(reportUrl) ?? summarizePublicReportUrl(reportUrl));
-      setSummary(generatedSummary);
-      onSummaryGenerated?.(generatedSummary, reportUrl);
-      setReportUrl('');
-      setIsLinkModalOpen(false);
+      // Placeholder for next steps
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Unable to summarize this report.');
+      setError(caughtError instanceof Error ? caughtError.message : 'Unable to process this report.');
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleCancelPreview = () => {
-    setReportUrl('');
-    setIsLinkModalOpen(false);
+    setSelectedFile(null);
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+      setPdfUrl(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -71,50 +82,66 @@ export default function UploadReportDialog({ onSummaryGenerated, onConfirmUpload
       </div>
 
       <p className="upload-report-dialog__copy">
-        Paste a direct public PDF URL that points to the file itself.
+        Upload a PDF scan or lab result to generate a concise pregnancy-care summary.
       </p>
+
+      <input
+        type="file"
+        accept="application/pdf"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        style={{ display: 'none' }}
+      />
 
       <button
         type="button"
         className="upload-report-dialog__button"
         onClick={handleUploadClick}
       >
-        Add report
+        Upload Report
       </button>
 
-      {isLinkModalOpen && (
+      {selectedFile && (
         <div className="upload-report-dialog__preview-modal">
           <div className="upload-report-dialog__preview-card">
-            <h3 className="upload-report-dialog__preview-title">Use a public report link</h3>
-            <p className="upload-report-dialog__preview-name">Paste a direct PDF link you want analyzed.</p>
-            <input
-              type="url"
-              value={reportUrl}
-              onChange={(event) => setReportUrl(event.target.value)}
-              placeholder="https://drive.google.com/..."
-              className="upload-report-dialog__link-input"
-            />
+            <h3 className="upload-report-dialog__preview-title">Selected Report</h3>
+            <p className="upload-report-dialog__preview-name">{selectedFile.name}</p>
 
-            {previewSource && (
+            {pdfUrl ? (
               <iframe
-                title="Report Preview"
-                src={previewSource}
-                className="upload-report-dialog__preview-frame"
+                src={pdfUrl}
+                title="PDF Preview"
+                className="mt-4 h-[420px] w-full rounded-2xl border-none bg-gray-50 shadow-inner ring-1 ring-gray-200"
               />
+            ) : (
+              <div className="mt-4 flex h-[420px] w-full items-center justify-center rounded-2xl bg-gray-50 ring-1 ring-gray-200">
+                <LoaderCircle size={24} className="animate-spin text-gray-400" />
+              </div>
             )}
 
-            <div className="upload-report-dialog__preview-actions">
-              <button type="button" className="upload-report-dialog__preview-btn upload-report-dialog__preview-btn--secondary" onClick={handleCancelPreview}>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="rounded-full px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                onClick={handleCancelPreview}
+                disabled={isUploading}
+              >
                 Cancel
               </button>
-              <button type="button" className="upload-report-dialog__preview-btn upload-report-dialog__preview-btn--loading" onClick={handleConfirmPreview}>
+              <button
+                type="button"
+                className="flex items-center justify-center gap-2 rounded-full bg-green-700 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-green-800 disabled:opacity-50"
+                onClick={handleConfirmUpload}
+                disabled={isUploading}
+              >
                 {isUploading ? (
                   <>
                     <LoaderCircle size={16} className="animate-spin" />
-                    Analyzing link…
+                    Processing…
                   </>
                 ) : (
-                  'Analyze and Save'
+                  'Upload'
                 )}
               </button>
             </div>
