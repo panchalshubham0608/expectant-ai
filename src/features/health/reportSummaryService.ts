@@ -76,12 +76,12 @@ interface GeminiResponse {
   };
 }
 
-const getGeminiConfig = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const getGeminiConfig = (userApiKey?: string) => {
+  const apiKey = userApiKey || import.meta.env.VITE_GEMINI_API_KEY;
   const model = import.meta.env.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
   if (!apiKey) {
-    throw new Error('Gemini is not configured. Add VITE_GEMINI_API_KEY to your .env file.');
+    throw new Error('Gemini API key is not configured. Please add it from the "More" menu in your profile.');
   }
 
   return { apiKey, model };
@@ -240,12 +240,12 @@ export const formatPregnancySummary = (summary: GeminiPregnancyReportResponse) =
   return sections.filter(Boolean).join('\n\n');
 };
 
-export const summarizePdfReport = async (file: File): Promise<GeminiPregnancyReportResponse> => {
+export const summarizePdfReport = async (file: File, userApiKey?: string): Promise<GeminiPregnancyReportResponse> => {
   if (file.type !== 'application/pdf') {
     throw new Error('Please upload a PDF file.');
   }
 
-  const { apiKey, model } = getGeminiConfig();
+  const { apiKey, model } = getGeminiConfig(userApiKey);
   const pdfData = await encodePdfToBase64(file);
 
   const prompt = `You are an AI assistant that helps organize pregnancy medical records.
@@ -471,12 +471,12 @@ The document is in the attached PDF. Extract only what is explicitly present in 
   return getStructuredSummary(summaryPayload);
 };
 
-export const summarizePublicReportUrl = async (reportUrl: string): Promise<GeminiPregnancyReportResponse> => {
+export const summarizePublicReportUrl = async (reportUrl: string, userApiKey?: string): Promise<GeminiPregnancyReportResponse> => {
   if (!reportUrl.trim()) {
     throw new Error('Please provide a public report link.');
   }
 
-  const { apiKey, model } = getGeminiConfig();
+  const { apiKey, model } = getGeminiConfig(userApiKey);
   const pdfBuffer = await getPdfBytes(reportUrl);
   const bytes = new Uint8Array(pdfBuffer);
   let binary = '';

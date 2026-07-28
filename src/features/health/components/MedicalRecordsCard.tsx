@@ -4,7 +4,10 @@ import { FileText } from 'lucide-react';
 import { useAuth } from '../../../auth/useAuth';
 import { useParams } from 'react-router-dom';
 import type { MedicalRecord } from '../types';
-import { subscribeToMedicalReports } from '../medicalRecordsService';
+import { getGeminiApiKey } from '../../profiles/profileService';
+import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../medicalRecordsService';
+import { summarizePdfReport } from '../reportSummaryService';
+import { uploadReportToGoogleDrive } from '../reportsService';
 import UploadReportDialog from './UploadReportDialog';
 import ProcessingModal, { type StepStatus } from './ProcessingModal';
 
@@ -17,9 +20,9 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
   const { id } = useParams<{ id: string }>();
   const [recordList, setRecordList] = useState(records);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
-  const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(true);
-  const [uploadStep, setUploadStep] = useState<StepStatus>('error');
-  const [analyzeStep, setAnalyzeStep] = useState<StepStatus>('done');
+  const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false);
+  const [uploadStep, setUploadStep] = useState<StepStatus>('pending');
+  const [analyzeStep, setAnalyzeStep] = useState<StepStatus>('pending');
   const [processError, setProcessError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,17 +52,16 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
     setProcessError(null);
 
     try {
-      // Step 1: Upload to Google Drive (Mocked)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      // Real implementation would be: await uploadReportToGoogleDrive(file);
+      const apiKey = await getGeminiApiKey(user.uid, id);
+
+      // Step 1: Upload to Google Drive
+      const reportUrl = await uploadReportToGoogleDrive(file);
       setUploadStep('done');
 
-      // Step 2: Analyze with Gemini (Mocked)
+      // Step 2: Analyze with Gemini
       setAnalyzeStep('processing');
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      // Real implementation would be:
-      // const generatedSummary = await summarizePdfReport(file);
-      // await saveAnalyzedMedicalReport(user.uid, id, 'mock-url', generatedSummary);
+      const generatedSummary = await summarizePdfReport(file, apiKey || undefined);
+      await saveAnalyzedMedicalReport(user.uid, id, reportUrl, generatedSummary);
       setAnalyzeStep('done');
     } catch (error) {
       if (uploadStep === 'processing') setUploadStep('error');

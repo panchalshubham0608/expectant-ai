@@ -7,7 +7,7 @@ const getMedicalRecordsCollection = (userId: string, profileId: string) => {
   if (!db) {
     throw new Error('Firebase is not configured.');
   }
-  return collection(db, 'users', userId, 'profiles', profileId, 'medicalRecords');
+  return collection(db, 'users', userId, 'profiles', profileId, 'reports');
 };
 
 export const saveAnalyzedMedicalReport = async (
