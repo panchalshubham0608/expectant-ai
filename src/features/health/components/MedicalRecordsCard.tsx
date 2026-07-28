@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
-import { format } from 'date-fns';
 import '../../../styles/features/health/components/MedicalRecordsCard.css';
 import { FileText } from 'lucide-react';
 import { useAuth } from '../../../auth/useAuth';
 import { useParams } from 'react-router-dom';
 import type { MedicalRecord } from '../types';
-import { summarizePublicReportUrl, type GeminiPregnancyReportResponse } from '../reportSummaryService';
-import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../medicalRecordsService';
+import { subscribeToMedicalReports } from '../medicalRecordsService';
 import UploadReportDialog from './UploadReportDialog';
+import ProcessingModal, { type StepStatus } from './ProcessingModal';
 
 interface MedicalRecordsCardProps {
   records: MedicalRecord[];
@@ -18,6 +17,10 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
   const { id } = useParams<{ id: string }>();
   const [recordList, setRecordList] = useState(records);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(true);
+  const [uploadStep, setUploadStep] = useState<StepStatus>('error');
+  const [analyzeStep, setAnalyzeStep] = useState<StepStatus>('done');
+  const [processError, setProcessError] = useState<string | null>(null);
 
   useEffect(() => {
     setRecordList(records);
@@ -35,36 +38,34 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
     return unsubscribe;
   }, [id, user?.uid]);
 
-  const handleSummaryGenerated = (summary: GeminiPregnancyReportResponse, fileName: string) => {
-    const nextRecord: MedicalRecord = {
-      id: `record-${Date.now()}`,
-      title: summary.metadata.title || fileName || 'Uploaded PDF Report',
-      reportDate: summary.metadata.reportDate || format(new Date(), 'dd MMM yyyy'),
-      reportType: summary.reportType,
-      summary: summary.summary,
-      metadata: summary.metadata,
-      measurements: summary.measurements,
-      medicines: summary.medicines,
-      diagnosesMentioned: summary.diagnosesMentioned,
-      recommendations: summary.recommendations,
-      nextVisit: summary.nextVisit,
-      confidence: summary.confidence,
-      fileName,
-      reportUrl: summary.metadata.title || fileName || '',
-    };
-
-    setRecordList((currentRecords) => [nextRecord, ...currentRecords]);
-  };
-
-  const handleConfirmUpload = async (reportUrl: string) => {
+  const handleConfirmUpload = async (file: File) => {
     if (!user?.uid || !id) {
       throw new Error('You must be signed in to upload a report.');
     }
 
-    const generatedSummary = await summarizePublicReportUrl(reportUrl);
-    await saveAnalyzedMedicalReport(user.uid, id, reportUrl, generatedSummary);
-    handleSummaryGenerated(generatedSummary, reportUrl);
-    return generatedSummary;
+    setIsProcessingModalOpen(true);
+    setUploadStep('processing');
+    setAnalyzeStep('pending');
+    setProcessError(null);
+
+    try {
+      // Step 1: Upload to Google Drive (Mocked)
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Real implementation would be: await uploadReportToGoogleDrive(file);
+      setUploadStep('done');
+
+      // Step 2: Analyze with Gemini (Mocked)
+      setAnalyzeStep('processing');
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Real implementation would be:
+      // const generatedSummary = await summarizePdfReport(file);
+      // await saveAnalyzedMedicalReport(user.uid, id, 'mock-url', generatedSummary);
+      setAnalyzeStep('done');
+    } catch (error) {
+      if (uploadStep === 'processing') setUploadStep('error');
+      if (analyzeStep === 'processing') setAnalyzeStep('error');
+      setProcessError(error instanceof Error ? error.message : 'An error occurred during processing.');
+    }
   };
 
   return (
@@ -78,7 +79,15 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
         <FileText size={20} className="medical-records-card__icon" />
       </div>
 
-      <UploadReportDialog onSummaryGenerated={handleSummaryGenerated} onConfirmUpload={handleConfirmUpload} />
+      <ProcessingModal
+        isOpen={isProcessingModalOpen}
+        onClose={() => setIsProcessingModalOpen(false)}
+        uploadStep={uploadStep}
+        analyzeStep={analyzeStep}
+        error={processError}
+      />
+
+      <UploadReportDialog onConfirmUpload={handleConfirmUpload} />
 
       <div className="medical-records-card__list">
         {recordList.map((record) => (

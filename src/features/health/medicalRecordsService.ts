@@ -1,110 +1,60 @@
-import { addDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import type { MedicalRecord } from './types';
 import type { GeminiPregnancyReportResponse } from './reportSummaryService';
 
-export interface MedicalReportRecord {
-  id: string;
-  title: string;
-  reportDate: string;
-  reportType: GeminiPregnancyReportResponse['reportType'];
-  summary: GeminiPregnancyReportResponse['summary'];
-  metadata: GeminiPregnancyReportResponse['metadata'];
-  measurements: GeminiPregnancyReportResponse['measurements'];
-  medicines: GeminiPregnancyReportResponse['medicines'];
-  diagnosesMentioned: string[];
-  recommendations: string[];
-  nextVisit: string | null;
-  confidence: number;
-  fileName: string;
-  reportUrl: string;
-}
-
-const medicalReportsCollection = (userId: string, profileId: string) => {
-  if (!db) throw new Error('Firebase is not configured.');
-  return collection(db, 'users', userId, 'profiles', profileId, 'medicalReports');
+const getMedicalRecordsCollection = (userId: string, profileId: string) => {
+  if (!db) {
+    throw new Error('Firebase is not configured.');
+  }
+  return collection(db, 'users', userId, 'profiles', profileId, 'medicalRecords');
 };
 
 export const saveAnalyzedMedicalReport = async (
   userId: string,
   profileId: string,
   reportUrl: string,
-  structuredReport: GeminiPregnancyReportResponse,
-) => {
-  if (!db) {
-    throw new Error('Firebase is not configured.');
-  }
+  summary: GeminiPregnancyReportResponse
+): Promise<string> => {
+  const recordsRef = getMedicalRecordsCollection(userId, profileId);
+  const newRecordRef = doc(recordsRef);
 
-  const reportDate = structuredReport.metadata.reportDate || new Date().toISOString().slice(0, 10);
-  const title = structuredReport.metadata.title || new URL(reportUrl).hostname || 'Uploaded Report';
-
-  const docRef = await addDoc(medicalReportsCollection(userId, profileId), {
-    title,
-    reportDate,
-    reportType: structuredReport.reportType,
-    summary: structuredReport.summary,
-    metadata: structuredReport.metadata,
-    measurements: structuredReport.measurements,
-    medicines: structuredReport.medicines,
-    diagnosesMentioned: structuredReport.diagnosesMentioned,
-    recommendations: structuredReport.recommendations,
-    nextVisit: structuredReport.nextVisit,
-    confidence: structuredReport.confidence,
-    fileName: title,
+  const record: Partial<MedicalRecord> & { createdAt: any } = {
+    id: newRecordRef.id,
+    title: summary.metadata?.title || 'Uploaded Report',
+    reportDate: summary.metadata?.reportDate || new Date().toISOString(),
+    reportType: summary.reportType || 'General',
+    summary: summary.summary,
+    metadata: summary.metadata,
+    measurements: summary.measurements || [],
+    medicines: summary.medicines || [],
+    diagnosesMentioned: summary.diagnosesMentioned || [],
+    recommendations: summary.recommendations || [],
+    nextVisit: summary.nextVisit || '',
+    confidence: summary.confidence || 0,
     reportUrl,
     createdAt: serverTimestamp(),
-  });
+  };
 
-  return {
-    id: docRef.id,
-    title,
-    reportDate,
-    reportType: structuredReport.reportType,
-    summary: structuredReport.summary,
-    metadata: structuredReport.metadata,
-    measurements: structuredReport.measurements,
-    medicines: structuredReport.medicines,
-    diagnosesMentioned: structuredReport.diagnosesMentioned,
-    recommendations: structuredReport.recommendations,
-    nextVisit: structuredReport.nextVisit,
-    confidence: structuredReport.confidence,
-    fileName: title,
-    reportUrl,
-  } satisfies MedicalReportRecord;
+  await setDoc(newRecordRef, record);
+  return newRecordRef.id;
 };
 
 export const subscribeToMedicalReports = (
   userId: string,
   profileId: string,
-  onChange: (records: MedicalReportRecord[]) => void,
-  onError: (error: Error) => void,
+  onChange: (records: MedicalRecord[]) => void,
+  onError: (error: Error) => void
 ) => {
+  const recordsRef = getMedicalRecordsCollection(userId, profileId);
+  const q = query(recordsRef, orderBy('createdAt', 'desc'));
+
   return onSnapshot(
-    medicalReportsCollection(userId, profileId),
+    q,
     (snapshot) => {
-      const records = snapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          title: typeof data.title === 'string' ? data.title : 'Uploaded Report',
-          reportDate:
-            typeof data.reportDate === 'string'
-              ? data.reportDate
-              : new Date().toISOString().slice(0, 10),
-          reportType: data.reportType,
-          summary: data.summary,
-          metadata: data.metadata,
-          measurements: data.measurements,
-          medicines: data.medicines,
-          diagnosesMentioned: Array.isArray(data.diagnosesMentioned) ? data.diagnosesMentioned : [],
-          recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
-          nextVisit: typeof data.nextVisit === 'string' ? data.nextVisit : null,
-          confidence: typeof data.confidence === 'number' ? data.confidence : 0,
-          fileName: typeof data.fileName === 'string' ? data.fileName : 'report.pdf',
-          reportUrl: typeof data.reportUrl === 'string' ? data.reportUrl : '',
-        } satisfies MedicalReportRecord;
-      });
+      const records = snapshot.docs.map((docSnap) => docSnap.data() as MedicalRecord);
       onChange(records);
     },
-    onError,
+    onError
   );
 };

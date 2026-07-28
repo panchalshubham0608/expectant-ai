@@ -1,19 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../../styles/features/health/components/UploadReportDialog.css';
 import { LoaderCircle, UploadCloud } from 'lucide-react';
-import { formatPregnancySummary, type GeminiPregnancyReportResponse } from '../reportSummaryService';
-import { uploadReportToGoogleDrive } from '../reportsService';
 
 interface UploadReportDialogProps {
-  onSummaryGenerated?: (summary: GeminiPregnancyReportResponse, fileName: string) => void;
-  onConfirmUpload?: (reportUrl: string) => Promise<GeminiPregnancyReportResponse>;
+  onConfirmUpload?: (file: File) => void;
 }
 
-export default function UploadReportDialog({ onSummaryGenerated, onConfirmUpload }: UploadReportDialogProps) {
-  const [isUploading, setIsUploading] = useState(false);
+export default function UploadReportDialog({ onConfirmUpload }: UploadReportDialogProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [summary, setSummary] = useState<GeminiPregnancyReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,25 +39,13 @@ export default function UploadReportDialog({ onSummaryGenerated, onConfirmUpload
     setError(null);
   };
 
-  const handleConfirmUpload = async () => {
+  const handleConfirmUpload = () => {
     if (!selectedFile) return;
 
-    setIsUploading(true);
-    setError(null);
-
-    try {
-      const webViewLink = await uploadReportToGoogleDrive(selectedFile);
-
-      if (onConfirmUpload) {
-        await onConfirmUpload(webViewLink);
-      }
-
-      handleCancelPreview();
-    } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Unable to process this report.');
-    } finally {
-      setIsUploading(false);
+    if (onConfirmUpload) {
+      onConfirmUpload(selectedFile);
     }
+    handleCancelPreview();
   };
 
   const handleCancelPreview = () => {
@@ -133,7 +116,6 @@ export default function UploadReportDialog({ onSummaryGenerated, onConfirmUpload
                 type="button"
                 className="rounded-full px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
                 onClick={handleCancelPreview}
-                disabled={isUploading}
               >
                 Cancel
               </button>
@@ -141,16 +123,8 @@ export default function UploadReportDialog({ onSummaryGenerated, onConfirmUpload
                 type="button"
                 className="flex items-center justify-center gap-2 rounded-full bg-green-700 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-green-800 disabled:opacity-50"
                 onClick={handleConfirmUpload}
-                disabled={isUploading}
               >
-                {isUploading ? (
-                  <>
-                    <LoaderCircle size={16} className="animate-spin" />
-                    Processing…
-                  </>
-                ) : (
-                  'Upload'
-                )}
+                Upload
               </button>
             </div>
           </div>
@@ -158,11 +132,6 @@ export default function UploadReportDialog({ onSummaryGenerated, onConfirmUpload
       )}
 
       {error && <p className="upload-report-dialog__error">{error}</p>}
-      {summary && (
-        <div className="upload-report-dialog__summary">
-          <p>{formatPregnancySummary(summary)}</p>
-        </div>
-      )}
     </section>
   );
 }

@@ -66,15 +66,5 @@ export const uploadReportToGoogleDrive = async (file: File): Promise<string> => 
   });
   const uploadData = await uploadRes.json();
 
-  // 5. Make the file accessible so the summary service can read it
-  await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-  });
-
   return uploadData.webViewLink;
 };
