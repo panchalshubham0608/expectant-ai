@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import '../../../styles/features/health/components/UploadReportDialog.css';
 import { LoaderCircle, UploadCloud } from 'lucide-react';
 import { formatPregnancySummary, type GeminiPregnancyReportResponse } from '../reportSummaryService';
+import { uploadReportToGoogleDrive } from '../reportsService';
 
 interface UploadReportDialogProps {
   onSummaryGenerated?: (summary: GeminiPregnancyReportResponse, fileName: string) => void;
@@ -44,12 +45,19 @@ export default function UploadReportDialog({ onSummaryGenerated, onConfirmUpload
   };
 
   const handleConfirmUpload = async () => {
+    if (!selectedFile) return;
+
     setIsUploading(true);
     setError(null);
 
     try {
-      // Placeholder for next steps
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const webViewLink = await uploadReportToGoogleDrive(selectedFile);
+
+      if (onConfirmUpload) {
+        await onConfirmUpload(webViewLink);
+      }
+
+      handleCancelPreview();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Unable to process this report.');
     } finally {
