@@ -7,7 +7,8 @@ import {
   X,
   Pill,
   Paperclip,
-  Activity
+  Activity,
+  Trash2
 } from "lucide-react";
 import type { Appointment } from "../../models/doctorVisit";
 
@@ -26,9 +27,11 @@ const formatDateTime = (dateString: string) => {
 interface AppointmentDetailsModalProps {
   appointment: Appointment;
   onClose: () => void;
+  onMarkComplete: (appointment: Appointment) => void;
+  onDelete: (appointment: Appointment) => void;
 }
 
-export default function AppointmentDetailsModal({ appointment, onClose }: AppointmentDetailsModalProps) {
+export default function AppointmentDetailsModal({ appointment, onClose, onMarkComplete, onDelete }: AppointmentDetailsModalProps) {
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
@@ -51,12 +54,21 @@ export default function AppointmentDetailsModal({ appointment, onClose }: Appoin
             </div>
             <h2 className="text-2xl font-bold text-gray-900">{appointment.reason}</h2>
           </div>
-          <button 
-            onClick={onClose} 
-            className="p-2 -mr-2 -mt-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1 -mr-2 -mt-2">
+            <button 
+              onClick={() => onDelete(appointment)} 
+              className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors"
+              title="Delete appointment"
+            >
+              <Trash2 size={20} />
+            </button>
+            <button 
+              onClick={onClose} 
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -175,6 +187,18 @@ export default function AppointmentDetailsModal({ appointment, onClose }: Appoin
                   </span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {appointment.status === 'scheduled' && (
+            <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => onMarkComplete(appointment)}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-6 rounded-full transition-colors flex items-center gap-2"
+              >
+                <CheckCircle2 size={18} />
+                Mark as Completed
+              </button>
             </div>
           )}
         </div>

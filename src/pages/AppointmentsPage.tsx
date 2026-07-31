@@ -1,15 +1,16 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { 
   Calendar, 
   Clock, 
   MapPin, 
   Plus, 
   CheckCircle2,
-  XCircle
+  XCircle,
+  AlertTriangle
 } from "lucide-react";
 import type { Appointment } from "../models/doctorVisit";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
-import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
+import CompleteAppointmentFormDialog from "../components/appointments/CompleteAppointmentFormDialog";
 
 const MOCK_APPOINTMENTS: Appointment[] = [
   {
@@ -84,12 +85,14 @@ const formatDateTime = (dateString: string) => {
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [completingAppt, setCompletingAppt] = useState<Appointment | null>(null);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
 
-  const upcomingAppointments = appointments.filter(a => a.status === "scheduled");
-  const pastAppointments = appointments.filter(a => a.status !== "scheduled");
+  const upcomingAppointments = appointments.filter(a => a.status === 'scheduled');
+  const pastAppointments = appointments.filter(a => a.status !== 'scheduled');
 
   const displayAppointments = activeTab === "upcoming" ? upcomingAppointments : pastAppointments;
 
@@ -111,6 +114,37 @@ export default function AppointmentsPage() {
       return updated.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
     });
     setIsFormOpen(false);
+  };
+
+  const handleMarkCompleteClick = (appointment: Appointment) => {
+    setSelectedAppt(null);
+    setCompletingAppt(appointment);
+  };
+
+  const handleSaveCompletion = (completionData: Partial<Appointment>) => {
+    if (!completingAppt) return;
+
+    setAppointments(prev => prev.map(appt => 
+      appt.id === completingAppt.id 
+        ? { 
+            ...appt, 
+            ...completionData, 
+          } 
+        : appt
+    ));
+    setCompletingAppt(null);
+  };
+
+  const handleDeleteAppointment = (appointment: Appointment) => {
+    setAppointmentToDelete(appointment);
+  };
+
+  const confirmDelete = () => {
+    if (appointmentToDelete) {
+      setAppointments(prev => prev.filter(a => a.id !== appointmentToDelete.id));
+      setAppointmentToDelete(null);
+      setSelectedAppt(null);
+    }
   };
 
   return (
@@ -217,9 +251,11 @@ export default function AppointmentsPage() {
 
       {/* Appointment Details Modal */}
       {selectedAppt && (
-        <AppointmentDetailsModal
-          appointment={selectedAppt}
-          onClose={() => setSelectedAppt(null)}
+        <AppointmentDetailsModal 
+          appointment={selectedAppt} 
+          onClose={() => setSelectedAppt(null)} 
+          onMarkComplete={handleMarkCompleteClick} 
+          onDelete={handleDeleteAppointment}
         />
       )}
 
@@ -228,6 +264,48 @@ export default function AppointmentsPage() {
           onClose={() => setIsFormOpen(false)} 
           onSubmit={handleAddAppointment} 
         />
+      )}
+
+      {completingAppt && (
+        <CompleteAppointmentFormDialog
+          appointment={completingAppt}
+          onClose={() => setCompletingAppt(null)}
+          onSubmit={handleSaveCompletion}
+        />
+      )}
+
+      {appointmentToDelete && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
+          onClick={() => setAppointmentToDelete(null)}
+        >
+          <div 
+            className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-1 ring-gray-100 p-6 sm:p-8 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 mb-6">
+              <AlertTriangle size={32} className="text-rose-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Delete Appointment?</h2>
+            <p className="text-sm text-gray-500 mb-8">
+              Are you sure you want to delete this appointment? This action cannot be undone.
+            </p>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button 
+                onClick={() => setAppointmentToDelete(null)}
+                className="w-full rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDelete}
+                className="w-full rounded-full bg-rose-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 sm:w-auto"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

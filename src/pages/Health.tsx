@@ -7,7 +7,7 @@ import { useProfile } from '../features/profiles/useProfile';
 import { useMeasurements } from '../features/health/useMeasurements';
 import { updateMeasurements } from '../features/health/measurementsService';
 import { subscribeToMedicalReports } from '../features/health/medicalRecordsService';
-import { saveDoctorVisit, subscribeToDoctorVisits, markDoctorVisitCompleted } from '../features/health/doctorVisitsService';
+// import { subscribeToDoctorVisits } from '../features/health/doctorVisitsService';
 import type { DoctorVisit } from '../features/health/types';
 import {
   DoctorVisitsCard,
@@ -34,13 +34,13 @@ function Health() {
       setMedicalRecords(nextRecords.length > 0 ? nextRecords : medicalRecordsData);
     }, () => undefined);
 
-    const unsubscribeVisits = subscribeToDoctorVisits(user.uid, id, (nextVisits) => {
-      setDoctorVisits(nextVisits);
-    }, () => undefined);
+    // const unsubscribeVisits = subscribeToDoctorVisits(user.uid, id, (nextVisits) => {
+    //   setDoctorVisits(nextVisits);
+    // }, () => undefined);
 
     return () => {
       unsubscribeMedical();
-      unsubscribeVisits();
+      // unsubscribeVisits();
     };
   }, [id, user?.uid]);
 
@@ -51,12 +51,12 @@ function Health() {
 
   const addDoctorVisit = async (visit: Omit<DoctorVisit, 'id'>) => {
     if (!user || !id) throw new Error('You must be signed in to manage appointments.');
-    await saveDoctorVisit(user.uid, id, visit);
+    // await saveDoctorVisit(user.uid, id, visit);
   };
 
   const completeDoctorVisit = async (visitId: string, details: string) => {
     if (!user || !id) throw new Error('You must be signed in to manage appointments.');
-    await markDoctorVisitCompleted(user.uid, id, visitId, details);
+    // await markDoctorVisitCompleted(user.uid, id, visitId, details);
   };
 
   const defaultMeasurements: Measurement[] = [
