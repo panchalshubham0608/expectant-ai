@@ -1,11 +1,14 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import tailwindcss from "@tailwindcss/vite";
 import fs from 'fs';
 import path from 'path';
 
 export default defineConfig({
+  base: "/expectant-ai/",
   plugins: [
+    tailwindcss(),
     react(),
     VitePWA({
       registerType: "autoUpdate",
@@ -32,7 +35,6 @@ export default defineConfig({
       },
     }),
   ],
-  base: "/expectant-ai/",
   server: (() => {
     const devHttps = process.env.DEV_HTTPS === 'true' || process.env.DEV_HTTPS === '1' || process.env.DEV_HTTPS === 'true';
     if (!devHttps) return { host: true };
