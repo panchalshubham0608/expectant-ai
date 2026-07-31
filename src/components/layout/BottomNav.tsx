@@ -12,6 +12,7 @@ import {
   UsersRound,
   Share2,
   Astroid,
+  User,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
 import { useProfile } from '../../features/profiles/useProfile';
@@ -53,6 +54,11 @@ function BottomNav() {
       name: 'Health',
       path: `${basePath}/health`,
       icon: HeartPulse,
+    },
+    {
+      name: 'Profile',
+      path: `${basePath}/me`,
+      icon: User,
     },
   ];
 

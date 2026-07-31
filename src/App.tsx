@@ -10,6 +10,7 @@ import Insights from './pages/Insights';
 import Pantry from './pages/Pantry';
 import Health from './pages/Health';
 import RequireAuth from './auth/RequireAuth';
+import ProfilePage from './pages/ProfilePage';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
             <Route path="insights" element={<Insights />} />
             <Route path="pantry" element={<Pantry />} />
             <Route path="health" element={<Health />} />
+            <Route path="me" element={<ProfilePage />} />
           </Route>
         </Route>
       </Routes>
