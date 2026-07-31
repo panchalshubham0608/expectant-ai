@@ -13,6 +13,7 @@ import {
   Share2,
   Astroid,
   User,
+  Stethoscope,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
 import { useProfile } from '../../features/profiles/useProfile';
@@ -56,9 +57,9 @@ function BottomNav() {
       icon: HeartPulse,
     },
     {
-      name: 'Health',
+      name: 'Visits',
       path: `${basePath}/appointments`,
-      icon: HeartPulse,
+      icon: Stethoscope,
     },
     {
       name: 'Profile',

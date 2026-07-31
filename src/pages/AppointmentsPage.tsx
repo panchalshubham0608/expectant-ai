@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { 
   Calendar, 
   Clock, 
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { Appointment } from "../models/doctorVisit";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
+import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
 
 const MOCK_APPOINTMENTS: Appointment[] = [
   {
@@ -82,13 +83,35 @@ const formatDateTime = (dateString: string) => {
 };
 
 export default function AppointmentsPage() {
+  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const upcomingAppointments = MOCK_APPOINTMENTS.filter(a => a.status === "scheduled");
-  const pastAppointments = MOCK_APPOINTMENTS.filter(a => a.status !== "scheduled");
+  const upcomingAppointments = appointments.filter(a => a.status === "scheduled");
+  const pastAppointments = appointments.filter(a => a.status !== "scheduled");
 
   const displayAppointments = activeTab === "upcoming" ? upcomingAppointments : pastAppointments;
+
+  const handleAddAppointment = (newAppt: Partial<Appointment>) => {
+    const appt: Appointment = {
+      ...newAppt,
+      id: `appt-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      observations: [],
+      diagnoses: [],
+      recommendations: [],
+      prescribedMedications: [],
+      medicalRecordIds: [],
+    } as Appointment;
+    
+    setAppointments(prev => {
+      const updated = [appt, ...prev];
+      return updated.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+    });
+    setIsFormOpen(false);
+  };
 
   return (
     <div className="-mx-4 -mt-6 pb-24">
@@ -101,7 +124,7 @@ export default function AppointmentsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">Appointments</h1>
           <button 
             className="flex items-center gap-1.5 rounded-full bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-all hover:bg-white/30 shadow-sm"
-            onClick={() => console.log("Add appointment clicked")}
+            onClick={() => setIsFormOpen(true)}
           >
             <Plus size={18} />
             <span>New</span>
@@ -197,6 +220,13 @@ export default function AppointmentsPage() {
         <AppointmentDetailsModal
           appointment={selectedAppt}
           onClose={() => setSelectedAppt(null)}
+        />
+      )}
+
+      {isFormOpen && (
+        <AppointmentFormDialog 
+          onClose={() => setIsFormOpen(false)} 
+          onSubmit={handleAddAppointment} 
         />
       )}
     </div>

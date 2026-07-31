@@ -1,77 +1,79 @@
 import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { DoctorVisit } from './types';
+import type { Appointment } from '../../models/doctorVisit';
 
-const doctorVisitsCollection = (userId: string, profileId: string) => {
+const appointmentsCollection = (userId: string, profileId: string) => {
   if (!db) throw new Error('Firebase is not configured.');
   return collection(db, 'users', userId, 'profiles', profileId, 'appointments');
 };
 
-export const saveDoctorVisit = async (
+export const saveAppointment = async (
   userId: string,
   profileId: string,
-  visitInput: Omit<DoctorVisit, 'id'>,
+  appointmentInput: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt'>,
 ) => {
   if (!db) {
     throw new Error('Firebase is not configured.');
   }
 
-  const docRef = await addDoc(doctorVisitsCollection(userId, profileId), {
-    ...visitInput,
-    completed: false,
-    completedNote: null,
+  const docRef = await addDoc(appointmentsCollection(userId, profileId), {
+    ...appointmentInput,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  return {
-    id: docRef.id,
-    ...visitInput,
-    completed: false,
-    completedNote: null,
-  } satisfies DoctorVisit;
+  return docRef.id;
 };
 
-export const markDoctorVisitCompleted = async (
+export const updateAppointment = async (
   userId: string,
   profileId: string,
-  visitId: string,
-  completedNote: string,
+  appointmentId: string,
+  data: Partial<Appointment>,
 ) => {
   if (!db) {
     throw new Error('Firebase is not configured.');
   }
 
-  await updateDoc(doc(db, 'users', userId, 'profiles', profileId, 'appointments', visitId), {
-    completed: true,
-    completedNote,
+  await updateDoc(doc(db, 'users', userId, 'profiles', profileId, 'appointments', appointmentId), {
+    ...data,
     updatedAt: serverTimestamp(),
   });
 };
 
-export const subscribeToDoctorVisits = (
+export const subscribeToAppointments = (
   userId: string,
   profileId: string,
-  onChange: (visits: DoctorVisit[]) => void,
+  onChange: (appointments: Appointment[]) => void,
   onError: (error: Error) => void,
 ) => {
   return onSnapshot(
-    query(doctorVisitsCollection(userId, profileId), orderBy('createdAt', 'desc')),
+    query(appointmentsCollection(userId, profileId), orderBy('scheduledAt', 'desc')),
     (snapshot) => {
-      const visits = snapshot.docs.map((docSnap) => {
+      const appointments = snapshot.docs.map((docSnap) => {
         const data = docSnap.data();
         return {
           id: docSnap.id,
-          provider: typeof data.provider === 'string' ? data.provider : '',
-          specialty: typeof data.specialty === 'string' ? data.specialty : '',
-          date: typeof data.date === 'string' ? data.date : '',
-          note: typeof data.note === 'string' ? data.note : '',
-          completed: typeof data.completed === 'boolean' ? data.completed : false,
-          completedNote: typeof data.completedNote === 'string' ? data.completedNote : null,
-        } satisfies DoctorVisit;
+          scheduledAt: data.scheduledAt ?? "",
+          completedAt: data.completedAt,
+          doctorName: data.doctorName ?? "",
+          specialty: data.specialty,
+          hospital: data.hospital,
+          reason: data.reason ?? "",
+          questions: data.questions ?? [],
+          observations: data.observations ?? [],
+          diagnoses: data.diagnoses ?? [],
+          recommendations: data.recommendations ?? [],
+          prescribedMedications: data.prescribedMedications ?? [],
+          followUpDate: data.followUpDate,
+          medicalRecordIds: data.medicalRecordIds ?? [],
+          status: data.status ?? "scheduled",
+          createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+          updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+        } as Appointment;
       });
 
-      onChange(visits);
+      onChange(appointments);
     },
     onError,
   );
