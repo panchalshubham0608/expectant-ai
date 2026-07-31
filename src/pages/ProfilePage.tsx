@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { 
   User, 
   Calendar, 
@@ -11,34 +11,21 @@ import {
   Phone, 
   Edit3,
   Heart,
-  BarChart3
+  BarChart3,
+  Map
 } from "lucide-react";
-import type { ExpectantProfile } from "../models/profile";
 import { differenceInDays } from "date-fns";
-
-const MOCK_PROFILE: ExpectantProfile = {
-  id: "mock-123",
-  creatorId: "mock-user",
-  fullName: "Jane Doe",
-  dateOfBirth: "1992-04-10",
-  location: "San Francisco, CA",
-  bloodGroup: "O",
-  rhFactor: "+",
-  lastMenstrualPeriod: "2025-10-15",
-  expectedDueDate: "2026-07-22",
-  careProvider: "Dr. Sarah Smith",
-  primaryHospital: "UCSF Medical Center",
-  emergencyContact: "John Doe (555-0199)",
-  status: "active",
-  sharedWith: [],
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+import ProfileFormDialog from "../components/profile/ProfileFormDialog";
+import type { ProfileInput } from "../features/profiles/types";
+import { useParams } from "react-router-dom";
+import { useAuth } from "../auth/useAuth";
+import { useProfile } from "../features/profiles/useProfile";
+import { updateProfile } from "../features/profiles/profileService";
 
 const formatDate = (date: string) => {
   if (!date) return "Not specified";
   try {
-    return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(
       new Date(`${date}T00:00:00`)
     );
   } catch {
@@ -47,8 +34,34 @@ const formatDate = (date: string) => {
 };
 
 export default function ProfilePage() {
-  // Using the mock data for now
-  const profile = MOCK_PROFILE;
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const { error, isLoading, profile } = useProfile(user?.uid, id);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const handleSave = async (updatedProfile: ProfileInput) => {
+    if (!user || !id) return;
+    try {
+      await updateProfile(user.uid, id, updatedProfile);
+      setIsEditOpen(false);
+    } catch (err) {
+      console.error("Failed to update profile", err);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 text-center text-sm text-gray-500">Loading profile...</div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="p-6 text-center text-sm text-red-500">
+        {error || "Profile not found."}
+      </div>
+    );
+  }
 
   let gestationalAgeText = "Not available";
   if (profile.lastMenstrualPeriod) {
@@ -89,7 +102,7 @@ export default function ProfilePage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">Profile</h1>
           <button 
             className="flex items-center gap-1.5 rounded-full bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-all hover:bg-white/30"
-            onClick={() => console.log("Edit profile clicked")}
+            onClick={() => setIsEditOpen(true)}
           >
             <Edit3 size={16} />
             <span>Edit</span>
@@ -117,7 +130,7 @@ export default function ProfilePage() {
              </span>
              <span className="flex items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
                <Droplets size={12} />
-               {profile.bloodGroup}{profile.rhFactor}
+               {profile.bloodGroup}
              </span>
           </div>
         </div>
@@ -183,6 +196,27 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="flex items-start gap-4">
+              <div className="rounded-2xl bg-amber-50 p-3 text-amber-600">
+                <Map size={22} />
+              </div>
+              <div className="overflow-hidden">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Hospital Location</p>
+                <p className="font-semibold text-gray-900 truncate">
+                  {profile.primaryHospitalLocation ? (
+                    profile.primaryHospitalLocation.startsWith("http") ? (
+                      <a href={profile.primaryHospitalLocation} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        View on Maps
+                      </a>
+                    ) : (
+                      profile.primaryHospitalLocation
+                    )
+                  ) : (
+                    "Not specified"
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
               <div className="rounded-2xl bg-rose-50 p-3 text-rose-600">
                 <Phone size={22} />
               </div>
@@ -207,12 +241,21 @@ export default function ProfilePage() {
             </div>
             <div className="rounded-2xl bg-gray-50 p-4">
               <p className="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Blood Group</p>
-              <p className="font-semibold text-gray-900">{profile.bloodGroup}{profile.rhFactor}</p>
+              <p className="font-semibold text-gray-900">{profile.bloodGroup}</p>
             </div>
           </div>
         </div>
 
       </div>
+
+      {isEditOpen && (
+        <ProfileFormDialog
+          mode="edit"
+          initialValues={profile as any}
+          onClose={() => setIsEditOpen(false)}
+          onSubmit={handleSave}
+        />
+      )}
     </div>
   );
 }

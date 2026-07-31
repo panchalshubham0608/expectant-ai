@@ -2,9 +2,7 @@ import { useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import '../styles/pages/Health.css';
 import { useAuth } from '../auth/useAuth';
-import { updateProfile } from '../features/profiles/profileService';
 import type { Measurement, MedicalRecord } from '../features/health/types';
-import type { ProfileInput } from '../features/profiles/types';
 import { useProfile } from '../features/profiles/useProfile';
 import { useMeasurements } from '../features/health/useMeasurements';
 import { updateMeasurements } from '../features/health/measurementsService';
@@ -15,7 +13,6 @@ import {
   DoctorVisitsCard,
   MedicalRecordsCard,
   MeasurementsCard,
-  MotherProfileCard,
   medicalRecordsData,
 } from '../features/health';
 
@@ -46,11 +43,6 @@ function Health() {
       unsubscribeVisits();
     };
   }, [id, user?.uid]);
-
-  const saveProfile = async (nextProfile: ProfileInput) => {
-    if (!user || !id) throw new Error('You must be signed in to update this profile.');
-    await updateProfile(user.uid, id, nextProfile);
-  };
 
   const saveMeasurements = async (newMeasurements: Measurement[]) => {
     if (!user || !id) throw new Error('You must be signed in to update this profile.');
@@ -155,7 +147,6 @@ function Health() {
         <div className="health-grid">
           {/* <AIInsightsCard insights={aiInsightsData} /> */}
           {/* <HealthScoreCard data={healthScoreData} /> */}
-          <MotherProfileCard profile={profile} onSave={saveProfile} />
           <MeasurementsCard
             measurements={mergedMeasurements}
             onSave={saveMeasurements}

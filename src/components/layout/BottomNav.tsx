@@ -57,7 +57,7 @@ function BottomNav() {
     },
     {
       name: 'Profile',
-      path: `${basePath}/me`,
+      path: `${basePath}/expectant`,
       icon: User,
     },
   ];

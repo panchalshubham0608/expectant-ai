@@ -32,12 +32,24 @@ const keysCollection = (userId: string, profileId: string) => collection(profile
 
 const toProfile = (
   id: string,
-  data: ProfileInput & Partial<Pick<Profile, 'creatorId' | 'sharedWith'>>,
+  data: DocumentData,
 ): Profile => ({
   id,
-  ...data,
+  fullName: data.fullName ?? "",
+  dateOfBirth: data.dateOfBirth ?? "",
+  location: data.location ?? "",
+  bloodGroup: data.bloodGroup ?? "",
+  lastMenstrualPeriod: data.lastMenstrualPeriod ?? "",
+  expectedDueDate: data.expectedDueDate ?? "",
+  careProvider: data.careProvider ?? "",
+  primaryHospital: data.primaryHospital ?? "",
+  primaryHospitalLocation: data.primaryHospitalLocation ?? "",
+  emergencyContact: data.emergencyContact ?? "",
+  status: data.status ?? "active",
   creatorId: data.creatorId ?? '',
   sharedWith: data.sharedWith ?? [],
+  createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+  updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
 });
 
 const getUpdatableProfileDocSnap = async (
@@ -119,13 +131,12 @@ export const subscribeToProfiles = (
     query(profilesCollection(userId), or(...conditions), orderBy('createdAt', 'desc')),
     (snapshot) => {
       onChange(
-        snapshot.docs.map((profile) => toProfile(profile.id, profile.data() as ProfileInput)),
+        snapshot.docs.map((profile) => toProfile(profile.id, profile.data())),
       );
     },
     onError,
   );
 }
-
 export const subscribeToProfile = (
   userId: string,
   profileId: string,
@@ -145,7 +156,7 @@ export const subscribeToProfile = (
     (snapshot) => {
       const docSnap = snapshot.docs.find((d) => d.id === profileId);
       if (docSnap) {
-        onChange(toProfile(docSnap.id, docSnap.data() as ProfileInput));
+        onChange(toProfile(docSnap.id, docSnap.data()));
       } else {
         onChange(null);
       }
@@ -170,4 +181,3 @@ export const saveGeminiApiKey = async (userId: string, profileId: string, apiKey
   const docRef = doc(keysCollectionRef, 'geminiApiKey');
   await setDoc(docRef, { geminiApiKey: apiKey }, { merge: true });
 };
-

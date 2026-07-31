@@ -1,16 +1,8 @@
-export type ProfileInput = {
-  fullName: string;
-  dateOfBirth: string;
-  lastMenstrualPeriod: string;
-  location: string;
-  bloodGroup: string;
-  expectedDueDate: string;
-  emergencyContact: string;
-  careProvider: string;
-};
+import type { ExpectantProfile } from "../../models/profile";
 
-export type Profile = ProfileInput & {
-  id: string;
-  creatorId: string;
-  sharedWith: string[];
-};
+export type ProfileInput = Omit<
+  ExpectantProfile,
+  "id" | "creatorId" | "sharedWith" | "createdAt" | "updatedAt"
+>;
+
+export type Profile = ExpectantProfile;

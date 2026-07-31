@@ -30,6 +30,7 @@ export default function ProfileForm({
     expectedDueDate: initialData?.expectedDueDate || "",
     careProvider: initialData?.careProvider || "",
     primaryHospital: initialData?.primaryHospital || "",
+    primaryHospitalLocation: initialData?.primaryHospitalLocation || "",
     emergencyContact: initialData?.emergencyContact || "",
     status: initialData?.status || "active",
   });
@@ -166,6 +167,17 @@ export default function ProfileForm({
               name="primaryHospital"
               value={formData.primaryHospital}
               onChange={handleChange}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Primary Hospital Location (Maps URL or Address)</label>
+            <input
+              type="text"
+              name="primaryHospitalLocation"
+              value={formData.primaryHospitalLocation}
+              onChange={handleChange}
+              placeholder="https://maps.google.com/..."
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
           </div>

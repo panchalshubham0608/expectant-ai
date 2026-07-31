@@ -14,6 +14,9 @@ const emptyProfileForm: ProfileInput = {
   expectedDueDate: '',
   emergencyContact: '',
   careProvider: '',
+  primaryHospital: '',
+  primaryHospitalLocation: '',
+  status: 'active',
 };
 
 type ProfileFormDialogProps = {
@@ -224,6 +227,36 @@ export default function ProfileFormDialog({
                   className={inputClass}
                 />
               </div>
+          <div>
+            <label
+              htmlFor={`${titleId}-primaryHospital`}
+              className="text-sm font-medium text-gray-700"
+            >
+              Primary hospital
+            </label>
+            <input
+              id={`${titleId}-primaryHospital`}
+              value={form.primaryHospital || ''}
+              onChange={(event) => update('primaryHospital', event.target.value)}
+              placeholder="Hospital name"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label
+              htmlFor={`${titleId}-primaryHospitalLocation`}
+              className="text-sm font-medium text-gray-700"
+            >
+              Hospital location
+            </label>
+            <input
+              id={`${titleId}-primaryHospitalLocation`}
+              value={form.primaryHospitalLocation || ''}
+              onChange={(event) => update('primaryHospitalLocation', event.target.value)}
+              placeholder="Maps URL or Address"
+              className={inputClass}
+            />
+          </div>
             </div>
           </div>
 

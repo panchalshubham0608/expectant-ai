@@ -25,7 +25,7 @@ function App() {
             <Route path="insights" element={<Insights />} />
             <Route path="pantry" element={<Pantry />} />
             <Route path="health" element={<Health />} />
-            <Route path="me" element={<ProfilePage />} />
+            <Route path="expectant" element={<ProfilePage />} />
           </Route>
         </Route>
       </Routes>

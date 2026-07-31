@@ -10,7 +10,6 @@ export interface ExpectantProfile {
   dateOfBirth: string;
   location?: string;
   bloodGroup?: string;
-  rhFactor?: string;
 
   // Pregnancy
   lastMenstrualPeriod: string;
@@ -19,6 +18,7 @@ export interface ExpectantProfile {
   // Care
   careProvider?: string;
   primaryHospital?: string;
+  primaryHospitalLocation?: string;
   emergencyContact?: string;
 
   // Status
