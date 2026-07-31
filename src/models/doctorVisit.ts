@@ -1,12 +1,39 @@
-export interface DoctorVisit {
+import type { Medication } from './medication';
+
+export interface Appointment {
   id: string;
-  doctor: string;
-  hospital?: string;
+
+  // Appointment
+  scheduledAt: string;
+  completedAt?: string;
+
+  doctorName: string;
   specialty?: string;
-  visitDate: string;
-  reason?: string;
-  notes?: string;
+  hospital?: string;
+
+  // Purpose
+  reason: string;
+
+  // Before visit
+  questions: string[];
+
+  // During visit
+  observations: string[];
+
+  diagnoses: string[];
+
+  // After visit
   recommendations: string[];
-  nextVisit?: string;
-  reportIds: string[];
+  prescribedMedications: Medication[];
+
+  // Follow-up
+  followUpDate?: string;
+
+  // Reports discussed/generated
+  medicalRecordIds: string[];
+
+  status: "scheduled" | "completed" | "cancelled";
+
+  createdAt: string;
+  updatedAt: string;
 }

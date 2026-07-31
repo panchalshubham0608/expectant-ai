@@ -11,6 +11,7 @@ import Pantry from './pages/Pantry';
 import Health from './pages/Health';
 import RequireAuth from './auth/RequireAuth';
 import ProfilePage from './pages/ProfilePage';
+import AppointmentsPage from './pages/AppointmentsPage';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
             <Route path="insights" element={<Insights />} />
             <Route path="pantry" element={<Pantry />} />
             <Route path="health" element={<Health />} />
+            <Route path="appointments" element={<AppointmentsPage />} />
             <Route path="expectant" element={<ProfilePage />} />
           </Route>
         </Route>

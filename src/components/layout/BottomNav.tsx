@@ -56,6 +56,11 @@ function BottomNav() {
       icon: HeartPulse,
     },
     {
+      name: 'Health',
+      path: `${basePath}/appointments`,
+      icon: HeartPulse,
+    },
+    {
       name: 'Profile',
       path: `${basePath}/expectant`,
       icon: User,
