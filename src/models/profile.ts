@@ -13,6 +13,7 @@ export interface ExpectantProfile {
 
   // Pregnancy
   lastMenstrualPeriod: string;
+  ultrasoundLastMenstrualPeriod?: string;
   expectedDueDate: string;
 
   // Care

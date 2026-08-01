@@ -40,6 +40,7 @@ const toProfile = (
   location: data.location ?? "",
   bloodGroup: data.bloodGroup ?? "",
   lastMenstrualPeriod: data.lastMenstrualPeriod ?? "",
+  ultrasoundLastMenstrualPeriod: data.ultrasoundLastMenstrualPeriod ?? "",
   expectedDueDate: data.expectedDueDate ?? "",
   careProvider: data.careProvider ?? "",
   primaryHospital: data.primaryHospital ?? "",

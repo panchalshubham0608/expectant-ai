@@ -66,10 +66,9 @@ export default function ProfilePage() {
   let gestationalAgeText = "Not available";
   if (profile.lastMenstrualPeriod) {
     try {
-      const lmpDate = new Date(`${profile.lastMenstrualPeriod}T00:00:00`);
+      const lmpDate = new Date(`${profile.ultrasoundLastMenstrualPeriod || profile.lastMenstrualPeriod}T00:00:00`);
       const today = new Date();
       const totalDays = differenceInDays(today, lmpDate);
-
       if (totalDays >= 0) {
         const weeks = Math.floor(totalDays / 7);
         const days = totalDays % 7;

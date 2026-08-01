@@ -49,7 +49,7 @@ function ProfileDetail() {
     Math.min(
       42,
       Math.floor(
-        (today.getTime() - new Date(`${profile.lastMenstrualPeriod}T00:00:00`).getTime()) / 604800000,
+        (today.getTime() - new Date(`${profile.ultrasoundLastMenstrualPeriod || profile.lastMenstrualPeriod}T00:00:00`).getTime()) / 604800000,
       ),
     ),
   );
