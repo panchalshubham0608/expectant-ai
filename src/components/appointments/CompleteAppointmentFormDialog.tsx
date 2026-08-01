@@ -19,7 +19,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
   const [diagnoses, setDiagnoses] = useState('');
   const [recommendations, setRecommendations] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
-  const [prescribedMedications, setPrescribedMedications] = useState<Partial<Medication>[]>([{ name: '', dosage: '', frequency: '' }]);
+  const [prescribedMedications, setPrescribedMedications] = useState<Partial<Medication>[]>([{ name: '', dose: '', frequency: '' }]);
 
   const handleMedicationChange = (index: number, field: keyof Medication, value: string) => {
     const newMeds = [...prescribedMedications];
@@ -28,7 +28,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
   };
 
   const addMedication = () => {
-    setPrescribedMedications([...prescribedMedications, { name: '', dosage: '', frequency: '' }]);
+    setPrescribedMedications([...prescribedMedications, { name: '', dose: '', frequency: '' }]);
   };
 
   const removeMedication = (index: number) => {
@@ -103,7 +103,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
               {prescribedMedications.map((med, index) => (
                 <div key={index} className="relative grid grid-cols-1 sm:grid-cols-3 gap-3 items-center bg-white p-3 rounded-xl border border-purple-100 shadow-sm">
                   <input value={med.name || ''} onChange={(e) => handleMedicationChange(index, 'name', e.target.value)} placeholder="Medication Name" className={inputClass + ' mt-0'} />
-                  <input value={med.dosage || ''} onChange={(e) => handleMedicationChange(index, 'dosage', e.target.value)} placeholder="Dosage (e.g., 200mg)" className={inputClass + ' mt-0'} />
+                  <input value={med.dose || ''} onChange={(e) => handleMedicationChange(index, 'dose', e.target.value)} placeholder="Dosage (e.g., 200mg)" className={inputClass + ' mt-0'} />
                   <div className="flex items-center gap-2">
                     <input value={med.frequency || ''} onChange={(e) => handleMedicationChange(index, 'frequency', e.target.value)} placeholder="Frequency (e.g., daily)" className={inputClass + ' mt-0'} />
                     <button type="button" onClick={() => removeMedication(index)} className="shrink-0 p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors" aria-label="Remove medication">
