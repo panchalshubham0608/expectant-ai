@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/expectant-ai/sw.js', { scope: '/expectant-ai/' })})}
