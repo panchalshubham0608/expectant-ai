@@ -25,7 +25,6 @@ export default function ProfileForm({
     dateOfBirth: initialData?.dateOfBirth || "",
     location: initialData?.location || "",
     bloodGroup: initialData?.bloodGroup || "",
-    rhFactor: initialData?.rhFactor || "",
     lastMenstrualPeriod: initialData?.lastMenstrualPeriod || "",
     expectedDueDate: initialData?.expectedDueDate || "",
     careProvider: initialData?.careProvider || "",
@@ -95,22 +94,9 @@ export default function ProfileForm({
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
             >
               <option value="">Select...</option>
-              {["A", "B", "AB", "O"].map((bg) => (
+              {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
                 <option key={bg} value={bg}>{bg}</option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Rh Factor</label>
-            <select
-              name="rhFactor"
-              value={formData.rhFactor}
-              onChange={handleChange}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
-            >
-              <option value="">Select...</option>
-              <option value="+">Positive (+)</option>
-              <option value="-">Negative (-)</option>
             </select>
           </div>
         </div>

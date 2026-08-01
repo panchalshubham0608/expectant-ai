@@ -1,7 +1,8 @@
-import React, { useId, useState } from 'react';
+import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
-import type { Appointment, Medication } from '../../models/doctorVisit';
+import type { Appointment } from '../../models/doctorVisit';
+import type { Medication } from '../../models/medication';
 
 interface CompleteAppointmentFormDialogProps {
   appointment: Appointment;

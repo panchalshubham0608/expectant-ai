@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { X } from 'lucide-react';
 import type { Appointment } from '../../models/doctorVisit';

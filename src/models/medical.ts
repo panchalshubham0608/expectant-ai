@@ -1,3 +1,6 @@
+import type { Medication } from './medication';
+import type { Measurement } from './measurement';
+
 export type MedicalReportType =
   | "ultrasound"
   | "blood-test"

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { 
   Calendar, 
   Clock, 
@@ -11,6 +11,7 @@ import {
 import type { Appointment } from "../models/doctorVisit";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
 import CompleteAppointmentFormDialog from "../components/appointments/CompleteAppointmentFormDialog";
+import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
 
 const MOCK_APPOINTMENTS: Appointment[] = [
   {

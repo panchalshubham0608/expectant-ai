@@ -23,7 +23,7 @@ function Health() {
   const { error: measurementsError, isLoading: isLoadingMeasurements, measurements } = useMeasurements(user?.uid, id);
   const [today] = useState(() => new Date());
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>(medicalRecordsData);
-  const [doctorVisits, setDoctorVisits] = useState<DoctorVisit[]>([]);
+  const [doctorVisits, _] = useState<DoctorVisit[]>([]);
 
   useEffect(() => {
     if (!user?.uid || !id) {
@@ -50,11 +50,13 @@ function Health() {
   };
 
   const addDoctorVisit = async (visit: Omit<DoctorVisit, 'id'>) => {
+    console.log('Adding doctor visit', visit);
     if (!user || !id) throw new Error('You must be signed in to manage appointments.');
     // await saveDoctorVisit(user.uid, id, visit);
   };
 
   const completeDoctorVisit = async (visitId: string, details: string) => {
+    console.log('Completing doctor visit', visitId, details);
     if (!user || !id) throw new Error('You must be signed in to manage appointments.');
     // await markDoctorVisitCompleted(user.uid, id, visitId, details);
   };
