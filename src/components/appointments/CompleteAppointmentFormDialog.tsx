@@ -9,7 +9,7 @@ import { uploadReportToGoogleDrive } from '../../features/health/reportsService'
 interface CompleteAppointmentFormDialogProps {
   appointment: Appointment;
   onClose: () => void;
-  onSubmit: (data: Partial<Appointment>) => void;
+  onSubmit: (data: Partial<Appointment>) => void | Promise<void>;
 }
 
 const inputClass = 'mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100';
@@ -18,6 +18,7 @@ const textareaClass = `${inputClass} min-h-[100px] resize-y`;
 export default function CompleteAppointmentFormDialog({ appointment, onClose, onSubmit }: CompleteAppointmentFormDialogProps) {
   const titleId = useId();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [observations, setObservations] = useState('');
   const [diagnoses, setDiagnoses] = useState('');
@@ -56,10 +57,14 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
     
     try {
       const uploadedFilesMetadata = [];
+      if (files.length > 0) {
+        setIsUploading(true);
+      }
       for (const file of files) {
         const url = await uploadReportToGoogleDrive(file);
         uploadedFilesMetadata.push({ name: file.name, url });
       }
+      setIsUploading(false);
 
       const data: Partial<Appointment> = {
         observations: observations.split('\n').filter(Boolean),
@@ -72,11 +77,12 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
         attachedFiles: appointment.attachedFiles ? [...appointment.attachedFiles, ...uploadedFilesMetadata] : uploadedFilesMetadata,
       } as any;
 
-      onSubmit(data);
+      await onSubmit(data);
     } catch (error) {
       console.error('Failed to save completion details or upload files:', error);
     } finally {
       setIsSubmitting(false);
+      setIsUploading(false);
     }
   };
 
@@ -187,7 +193,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
             </button>
             <button type="submit" disabled={isSubmitting} className="flex items-center justify-center gap-2 rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-70">
               {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-              {isSubmitting ? 'Saving...' : 'Save Completion Details'}
+              {isUploading ? 'Uploading files...' : isSubmitting ? 'Saving...' : 'Save Completion Details'}
             </button>
           </div>
         </form>

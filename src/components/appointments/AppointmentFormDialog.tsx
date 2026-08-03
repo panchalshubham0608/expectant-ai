@@ -1,7 +1,8 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Plus, Trash2 } from 'lucide-react';
 import type { Appointment } from '../../models/appointment';
+import type { Medication } from '../../models/medication';
 import FileChooser from '../common/FileChooser';
 import { uploadReportToGoogleDrive } from '../../features/health/reportsService';
 
@@ -9,7 +10,7 @@ interface AppointmentFormDialogProps {
   initialValues?: Partial<Appointment>;
   mode?: 'create' | 'edit';
   onClose: () => void;
-  onSubmit: (data: Partial<Appointment>) => void;
+  onSubmit: (data: Partial<Appointment>) => void | Promise<void>;
 }
 
 const formatForDatetimeLocal = (dateString?: string) => {
@@ -31,6 +32,9 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
   const titleId = useId();
   const isEditing = mode === 'edit';
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const isCompleted = initialValues?.status === 'completed';
+
   const [form, setForm] = useState({
     reason: initialValues?.reason || '',
     scheduledAt: formatForDatetimeLocal(initialValues?.scheduledAt),
@@ -38,7 +42,25 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
     specialty: initialValues?.specialty || '',
     hospital: initialValues?.hospital || '',
     questions: initialValues?.questions ? initialValues.questions.join('\n') : '',
+    observations: initialValues?.observations ? initialValues.observations.join('\n') : '',
+    diagnoses: initialValues?.diagnoses ? initialValues.diagnoses.join('\n') : '',
+    recommendations: initialValues?.recommendations ? initialValues.recommendations.join('\n') : '',
+    completedAt: formatForDatetimeLocal(initialValues?.completedAt),
+    followUpDate: formatForDatetimeLocal(initialValues?.followUpDate),
   });
+
+  const [prescribedMedications, setPrescribedMedications] = useState<Partial<Medication>[]>(
+    initialValues?.prescribedMedications?.length ? initialValues.prescribedMedications : [{ name: '', dose: '', frequency: '' }]
+  );
+
+  const handleMedicationChange = (index: number, field: keyof Medication, value: string) => {
+    const newMeds = [...prescribedMedications];
+    newMeds[index] = { ...newMeds[index], [field]: value };
+    setPrescribedMedications(newMeds);
+  };
+
+  const addMedication = () => setPrescribedMedications([...prescribedMedications, { name: '', dose: '', frequency: '' }]);
+  const removeMedication = (index: number) => setPrescribedMedications(prescribedMedications.filter((_, i) => i !== index));
 
   const [files, setFiles] = useState<File[]>([]);
 
@@ -52,10 +74,14 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
     
     try {
       const uploadedFilesMetadata = [];
+      if (files.length > 0) {
+        setIsUploading(true);
+      }
       for (const file of files) {
         const url = await uploadReportToGoogleDrive(file);
         uploadedFilesMetadata.push({ name: file.name, url });
       }
+      setIsUploading(false);
 
       const scheduledAt = form.scheduledAt 
         ? new Date(form.scheduledAt).toISOString()
@@ -66,7 +92,7 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
         .map(q => q.trim())
         .filter(q => q.length > 0);
 
-      onSubmit({
+      const baseData: Partial<Appointment> = {
         ...initialValues,
         reason: form.reason,
         scheduledAt,
@@ -76,11 +102,25 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
         questions,
         status: initialValues?.status || 'scheduled',
         attachedFiles: initialValues?.attachedFiles ? [...initialValues.attachedFiles, ...uploadedFilesMetadata] : uploadedFilesMetadata,
-      } as any);
+      };
+
+      if (isCompleted) {
+        Object.assign(baseData, {
+          observations: form.observations.split('\n').filter(Boolean),
+          diagnoses: form.diagnoses.split('\n').filter(Boolean),
+          recommendations: form.recommendations.split('\n').filter(Boolean),
+          prescribedMedications: prescribedMedications.filter(m => m.name) as Medication[],
+          completedAt: form.completedAt ? new Date(form.completedAt).toISOString() : new Date().toISOString(),
+          followUpDate: form.followUpDate ? new Date(form.followUpDate).toISOString() : undefined,
+        });
+      }
+
+      await onSubmit(baseData as any);
     } catch (error) {
       console.error('Failed to save appointment or upload files:', error);
     } finally {
       setIsSubmitting(false);
+      setIsUploading(false);
     }
   };
 
@@ -138,8 +178,12 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
               required
               value={form.scheduledAt}
               onChange={(event) => update('scheduledAt', event.target.value)}
-              className={inputClass}
+          disabled={isCompleted}
+          className={`${inputClass} ${isCompleted ? 'cursor-not-allowed opacity-60' : ''}`}
             />
+        {isCompleted && (
+          <p className="mt-1 text-xs text-amber-600">Scheduled time cannot be changed for completed appointments.</p>
+        )}
           </div>
 
           <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
@@ -183,6 +227,75 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
             <p className="mt-2 text-xs leading-5 text-gray-500">Put each question on a new line.</p>
           </div>
 
+          {isCompleted && (
+            <div className="border-t border-gray-100 pt-5 mt-5">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Visit Details</h3>
+              
+              <div className="space-y-5">
+                <div>
+                  <label htmlFor={`${titleId}-completedAt`} className="text-sm font-medium text-gray-800">
+                    Completed At
+                  </label>
+                  <input
+                    id={`${titleId}-completedAt`}
+                    type="datetime-local"
+                    required
+                    value={form.completedAt}
+                    onChange={(e) => update('completedAt', e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor={`${titleId}-observations`} className="text-sm font-medium text-gray-800">Observations</label>
+                  <textarea id={`${titleId}-observations`} value={form.observations} onChange={(e) => update('observations', e.target.value)} placeholder="Fetal heart rate was normal..." className={`${inputClass} min-h-[100px] resize-y`} />
+                </div>
+                <div>
+                  <label htmlFor={`${titleId}-diagnoses`} className="text-sm font-medium text-gray-800">Diagnoses</label>
+                  <textarea id={`${titleId}-diagnoses`} value={form.diagnoses} onChange={(e) => update('diagnoses', e.target.value)} placeholder="Healthy ongoing pregnancy..." className={`${inputClass} min-h-[100px] resize-y`} />
+                </div>
+                <div>
+                  <label htmlFor={`${titleId}-recommendations`} className="text-sm font-medium text-gray-800">Recommendations</label>
+                  <textarea id={`${titleId}-recommendations`} value={form.recommendations} onChange={(e) => update('recommendations', e.target.value)} placeholder="Continue prenatal vitamins..." className={`${inputClass} min-h-[100px] resize-y`} />
+                </div>
+
+                <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-4">
+                  <p className="text-sm font-semibold text-gray-800">Prescribed Medications</p>
+                  <div className="mt-4 space-y-3">
+                    {prescribedMedications.map((med, index) => (
+                      <div key={index} className="relative grid grid-cols-1 sm:grid-cols-3 gap-3 items-center bg-white p-3 rounded-xl border border-purple-100 shadow-sm">
+                        <input value={med.name || ''} onChange={(e) => handleMedicationChange(index, 'name', e.target.value)} placeholder="Medication Name" className={inputClass + ' mt-0'} />
+                        <input value={med.dose || ''} onChange={(e) => handleMedicationChange(index, 'dose', e.target.value)} placeholder="Dosage (e.g., 200mg)" className={inputClass + ' mt-0'} />
+                        <div className="flex items-center gap-2">
+                          <input value={med.frequency || ''} onChange={(e) => handleMedicationChange(index, 'frequency', e.target.value)} placeholder="Frequency (e.g., daily)" className={inputClass + ' mt-0'} />
+                          <button type="button" onClick={() => removeMedication(index)} className="shrink-0 p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors" aria-label="Remove medication">
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={addMedication} className="mt-4 flex items-center gap-2 text-sm font-semibold text-purple-700 hover:text-purple-900">
+                    <Plus size={16} /> Add Medication
+                  </button>
+                </div>
+
+                <div>
+                  <label htmlFor={`${titleId}-followUp`} className="text-sm font-medium text-gray-800">
+                    Follow-up Appointment
+                  </label>
+                  <input
+                    id={`${titleId}-followUp`}
+                    type="datetime-local"
+                    value={form.followUpDate}
+                    onChange={(e) => update('followUpDate', e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <FileChooser 
             files={files} 
             onFilesChange={setFiles} 
@@ -196,7 +309,7 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
             </button>
             <button type="submit" disabled={isSubmitting} className="flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-70">
               {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-              {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Appointment'}
+              {isUploading ? 'Uploading files...' : isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Appointment'}
             </button>
           </div>
         </form>
