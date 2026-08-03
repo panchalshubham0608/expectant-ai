@@ -8,7 +8,8 @@ import {
   Pill,
   Paperclip,
   Activity,
-  Trash2
+  Trash2,
+  Edit3
 } from "lucide-react";
 import type { Appointment } from "../../models/doctorVisit";
 
@@ -28,10 +29,11 @@ interface AppointmentDetailsModalProps {
   appointment: Appointment;
   onClose: () => void;
   onMarkComplete: (appointment: Appointment) => void;
+  onEdit: (appointment: Appointment) => void;
   onDelete: (appointment: Appointment) => void;
 }
 
-export default function AppointmentDetailsModal({ appointment, onClose, onMarkComplete, onDelete }: AppointmentDetailsModalProps) {
+export default function AppointmentDetailsModal({ appointment, onClose, onMarkComplete, onEdit, onDelete }: AppointmentDetailsModalProps) {
   const isPastDue = appointment.status === 'scheduled' && new Date(appointment.scheduledAt).getTime() < Date.now();
   const displayStatus = isPastDue ? 'overdue' : appointment.status;
   const isActive = appointment.status !== 'completed' && appointment.status !== 'cancelled';
@@ -60,6 +62,13 @@ export default function AppointmentDetailsModal({ appointment, onClose, onMarkCo
             <h2 className="text-2xl font-bold text-gray-900">{appointment.reason}</h2>
           </div>
           <div className="flex items-center gap-1 -mr-2 -mt-2">
+              <button 
+                onClick={() => onEdit(appointment)} 
+                className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                title="Edit appointment"
+              >
+                <Edit3 size={20} />
+              </button>
             <button 
               onClick={() => onDelete(appointment)} 
               className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors"

@@ -111,6 +111,7 @@ export default function AppointmentsPage() {
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [completingAppt, setCompletingAppt] = useState<Appointment | null>(null);
+  const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
 
   const upcomingAppointments = appointments.filter(a => a.status === 'scheduled' && new Date(a.scheduledAt).getTime() >= Date.now());
@@ -157,6 +158,11 @@ export default function AppointmentsPage() {
     setCompletingAppt(null);
   };
 
+  const handleEditAppointment = (appointment: Appointment) => {
+    setSelectedAppt(null);
+    setEditingAppt(appointment);
+  };
+
   const handleDeleteAppointment = (appointment: Appointment) => {
     setAppointmentToDelete(appointment);
   };
@@ -167,6 +173,14 @@ export default function AppointmentsPage() {
       setAppointmentToDelete(null);
       setSelectedAppt(null);
     }
+  };
+
+  const handleSaveEdit = (updatedData: Partial<Appointment>) => {
+    if (!editingAppt) return;
+    setAppointments(prev => prev.map(appt => 
+      appt.id === editingAppt.id ? { ...appt, ...updatedData } as Appointment : appt
+    ));
+    setEditingAppt(null);
   };
 
   return (
@@ -278,6 +292,7 @@ export default function AppointmentsPage() {
           appointment={selectedAppt} 
           onClose={() => setSelectedAppt(null)} 
           onMarkComplete={handleMarkCompleteClick} 
+          onEdit={handleEditAppointment}
           onDelete={handleDeleteAppointment}
         />
       )}
@@ -294,6 +309,15 @@ export default function AppointmentsPage() {
           appointment={completingAppt}
           onClose={() => setCompletingAppt(null)}
           onSubmit={handleSaveCompletion}
+        />
+      )}
+
+      {editingAppt && (
+        <AppointmentFormDialog
+          mode="edit"
+          initialValues={editingAppt}
+          onClose={() => setEditingAppt(null)}
+          onSubmit={handleSaveEdit}
         />
       )}
 

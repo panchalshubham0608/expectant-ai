@@ -5,23 +5,38 @@ import type { Appointment } from '../../models/doctorVisit';
 import FileChooser from '../common/FileChooser';
 
 interface AppointmentFormDialogProps {
+  initialValues?: Partial<Appointment>;
+  mode?: 'create' | 'edit';
   onClose: () => void;
   onSubmit: (data: Partial<Appointment>) => void;
 }
 
+const formatForDatetimeLocal = (dateString?: string) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const inputClass =
   'mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100';
 
-export default function AppointmentFormDialog({ onClose, onSubmit }: AppointmentFormDialogProps) {
+export default function AppointmentFormDialog({ initialValues, mode = 'create', onClose, onSubmit }: AppointmentFormDialogProps) {
   const titleId = useId();
+  const isEditing = mode === 'edit';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
-    reason: '',
-    scheduledAt: '',
-    doctorName: '',
-    specialty: '',
-    hospital: '',
-    questions: '',
+    reason: initialValues?.reason || '',
+    scheduledAt: formatForDatetimeLocal(initialValues?.scheduledAt),
+    doctorName: initialValues?.doctorName || '',
+    specialty: initialValues?.specialty || '',
+    hospital: initialValues?.hospital || '',
+    questions: initialValues?.questions ? initialValues.questions.join('\n') : '',
   });
 
   const [files, setFiles] = useState<File[]>([]);
@@ -66,13 +81,14 @@ export default function AppointmentFormDialog({ onClose, onSubmit }: Appointment
         .filter(q => q.length > 0);
 
       onSubmit({
+        ...initialValues,
         reason: form.reason,
         scheduledAt,
         doctorName: form.doctorName,
         specialty: form.specialty,
         hospital: form.hospital,
         questions,
-        status: 'scheduled',
+        status: initialValues?.status || 'scheduled',
         // Depending on your Appointment model, you might need to add an 'attachedFiles' field
         // attachedFiles: uploadedFilesMetadata,
       } as any);
@@ -96,10 +112,10 @@ export default function AppointmentFormDialog({ onClose, onSubmit }: Appointment
           <div>
             <p className="text-sm font-medium text-indigo-700">Expectant AI</p>
             <h2 id={titleId} className="mt-1 text-2xl font-semibold text-gray-900">
-              Schedule Visit
+              {isEditing ? 'Edit Visit' : 'Schedule Visit'}
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Track your upcoming appointments and questions for the doctor.
+              {isEditing ? 'Update details for this appointment.' : 'Track your upcoming appointments and questions for the doctor.'}
             </p>
           </div>
           <button
@@ -195,7 +211,7 @@ export default function AppointmentFormDialog({ onClose, onSubmit }: Appointment
             </button>
             <button type="submit" disabled={isSubmitting} className="flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-70">
               {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-              {isSubmitting ? 'Saving...' : 'Save Appointment'}
+              {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Appointment'}
             </button>
           </div>
         </form>
