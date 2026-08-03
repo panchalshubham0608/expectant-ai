@@ -67,10 +67,9 @@ export default function AppointmentsPage() {
     if (!completingAppt || !user?.uid || !profileId) return;
     try {
       await updateAppointment(user.uid, profileId, completingAppt.id, completionData);
+      const updatedAppt = { ...completingAppt, ...completionData } as Appointment;
       setCompletingAppt(null);
-      if (selectedAppt?.id === completingAppt.id) {
-        setSelectedAppt({ ...selectedAppt, ...completionData } as Appointment);
-      }
+      setSelectedAppt(updatedAppt);
     } catch (error) {
       console.error("Failed to complete appointment", error);
     }
@@ -101,10 +100,9 @@ export default function AppointmentsPage() {
     if (!editingAppt || !user?.uid || !profileId) return;
     try {
       await updateAppointment(user.uid, profileId, editingAppt.id, updatedData);
+      const updatedAppt = { ...editingAppt, ...updatedData } as Appointment;
       setEditingAppt(null);
-      if (selectedAppt?.id === editingAppt.id) {
-        setSelectedAppt({ ...selectedAppt, ...updatedData } as Appointment);
-      }
+      setSelectedAppt(updatedAppt);
     } catch (error) {
       console.error("Failed to update appointment", error);
     }
@@ -239,7 +237,10 @@ export default function AppointmentsPage() {
       {completingAppt && (
         <CompleteAppointmentFormDialog
           appointment={completingAppt}
-          onClose={() => setCompletingAppt(null)}
+          onClose={() => {
+            setSelectedAppt(completingAppt);
+            setCompletingAppt(null);
+          }}
           onSubmit={handleSaveCompletion}
         />
       )}
@@ -248,7 +249,10 @@ export default function AppointmentsPage() {
         <AppointmentFormDialog
           mode="edit"
           initialValues={editingAppt}
-          onClose={() => setEditingAppt(null)}
+          onClose={() => {
+            setSelectedAppt(editingAppt);
+            setEditingAppt(null);
+          }}
           onSubmit={handleSaveEdit}
         />
       )}

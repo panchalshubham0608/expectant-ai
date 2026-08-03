@@ -5,6 +5,7 @@ import type { Appointment } from '../../models/appointment';
 import type { Medication } from '../../models/medication';
 import FileChooser from '../common/FileChooser';
 import { uploadReportToGoogleDrive } from '../../features/health/reportsService';
+import FileUploadProgressModal, { type FileStatus } from '../common/FileUploadProgressModal';
 
 interface CompleteAppointmentFormDialogProps {
   appointment: Appointment;
@@ -19,6 +20,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
   const titleId = useId();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [fileStatuses, setFileStatuses] = useState<FileStatus[]>([]);
 
   const [observations, setObservations] = useState('');
   const [diagnoses, setDiagnoses] = useState('');
@@ -58,11 +60,32 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
     try {
       const uploadedFilesMetadata = [];
       if (files.length > 0) {
+        setFileStatuses(files.map(f => ({ name: f.name, status: 'pending' })));
         setIsUploading(true);
       }
-      for (const file of files) {
-        const url = await uploadReportToGoogleDrive(file);
-        uploadedFilesMetadata.push({ name: file.name, url });
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setFileStatuses(prev => {
+          const next = [...prev];
+          next[i].status = 'uploading';
+          return next;
+        });
+        try {
+          const url = await uploadReportToGoogleDrive(file);
+          uploadedFilesMetadata.push({ name: file.name, url });
+          setFileStatuses(prev => {
+            const next = [...prev];
+            next[i].status = 'done';
+            return next;
+          });
+        } catch (error) {
+          setFileStatuses(prev => {
+            const next = [...prev];
+            next[i].status = 'error';
+            return next;
+          });
+          throw error;
+        }
       }
       setIsUploading(false);
 
@@ -114,6 +137,8 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
             <X size={20} />
           </button>
         </div>
+
+        <FileUploadProgressModal isOpen={isUploading} files={fileStatuses} />
 
         <form onSubmit={handleSubmit} className="space-y-6 px-5 py-5 sm:px-6 sm:py-6">
           <div>
@@ -193,7 +218,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
             </button>
             <button type="submit" disabled={isSubmitting} className="flex items-center justify-center gap-2 rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-70">
               {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-              {isUploading ? 'Uploading files...' : isSubmitting ? 'Saving...' : 'Save Completion Details'}
+              {isSubmitting ? 'Saving...' : 'Save Completion Details'}
             </button>
           </div>
         </form>
