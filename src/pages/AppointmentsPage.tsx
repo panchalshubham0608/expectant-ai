@@ -6,92 +6,17 @@ import {
   Plus, 
   CheckCircle2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from "lucide-react";
-import type { Appointment } from "../models/doctorVisit";
+import type { Appointment } from "../models/appointment";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
 import CompleteAppointmentFormDialog from "../components/appointments/CompleteAppointmentFormDialog";
 import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
-
-const MOCK_APPOINTMENTS: Appointment[] = [
-  {
-    id: "appt-1",
-    scheduledAt: "2026-08-15T10:00:00Z",
-    doctorName: "Dr. Sarah Smith",
-    specialty: "OB-GYN",
-    hospital: "UCSF Medical Center",
-    reason: "20-Week Anomaly Scan & Routine Checkup",
-    questions: ["Is it safe to fly in the third trimester?", "What prenatal vitamins do you recommend now?"],
-    observations: [],
-    diagnoses: [],
-    recommendations: [],
-    prescribedMedications: [],
-    medicalRecordIds: [],
-    status: "scheduled",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "appt-2",
-    scheduledAt: "2026-08-28T14:30:00Z",
-    doctorName: "City Lab Diagnostics",
-    specialty: "Pathology",
-    hospital: "Downtown Clinic",
-    reason: "Glucose Tolerance Test (GTT)",
-    questions: [],
-    observations: [],
-    diagnoses: [],
-    recommendations: [],
-    prescribedMedications: [],
-    medicalRecordIds: [],
-    status: "scheduled",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "appt-3",
-    scheduledAt: "2026-06-10T09:15:00Z",
-    doctorName: "Dr. Sarah Smith",
-    specialty: "OB-GYN",
-    hospital: "UCSF Medical Center",
-    reason: "Overdue Appointment",
-    questions: ["Is the baby's growth normal?", "Should I change my diet?"],
-    observations: ["Fetal heart rate is normal (140 bpm)", "Growth is on track", "No visible abnormalities"],
-    diagnoses: ["Healthy ongoing pregnancy"],
-    recommendations: ["Continue current prenatal vitamins", "Drink plenty of water", "Start moderate exercise"],
-    prescribedMedications: [
-      { name: "Prenatal Vitamin", dosage: "1 tablet", frequency: "daily" } as any,
-      { name: "Iron Supplement", dosage: "1 tablet", frequency: "daily" } as any
-    ],
-    medicalRecordIds: ["rec-123", "rec-456"],
-    followUpDate: "2026-08-15T10:00:00Z",
-    status: "scheduled",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "appt-4",
-    scheduledAt: "2026-07-10T09:15:00Z",
-    completedAt: "2026-07-10T10:00:00Z",
-    doctorName: "Dr. Sarah Smith",
-    specialty: "OB-GYN",
-    hospital: "UCSF Medical Center",
-    reason: "First Trimester Screening",
-    questions: ["Is the baby's growth normal?", "Should I change my diet?"],
-    observations: ["Fetal heart rate is normal (140 bpm)", "Growth is on track", "No visible abnormalities"],
-    diagnoses: ["Healthy ongoing pregnancy"],
-    recommendations: ["Continue current prenatal vitamins", "Drink plenty of water", "Start moderate exercise"],
-    prescribedMedications: [
-      { name: "Prenatal Vitamin", dosage: "1 tablet", frequency: "daily" } as any,
-      { name: "Iron Supplement", dosage: "1 tablet", frequency: "daily" } as any
-    ],
-    medicalRecordIds: ["rec-123", "rec-456"],
-    followUpDate: "2026-08-15T10:00:00Z",
-    status: "completed",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-];
+import { useAuth } from "../auth/useAuth";
+import { useParams } from "react-router-dom";
+import { useAppointments } from "../features/health/useAppointments";
+import { saveAppointment, updateAppointment, deleteAppointment } from "../features/health/appointmentService";
 
 const formatDateTime = (dateString: string) => {
   try {
@@ -106,7 +31,11 @@ const formatDateTime = (dateString: string) => {
 };
 
 export default function AppointmentsPage() {
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
+  const { id: profileId } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const { appointments: fetchedAppointments, isLoading } = useAppointments(user?.uid, profileId);
+  const appointments = fetchedAppointments || [];
+
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -119,24 +48,14 @@ export default function AppointmentsPage() {
 
   const displayAppointments = activeTab === "upcoming" ? upcomingAppointments : pastAppointments;
 
-  const handleAddAppointment = (newAppt: Partial<Appointment>) => {
-    const appt: Appointment = {
-      ...newAppt,
-      id: `appt-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      observations: [],
-      diagnoses: [],
-      recommendations: [],
-      prescribedMedications: [],
-      medicalRecordIds: [],
-    } as Appointment;
-    
-    setAppointments(prev => {
-      const updated = [appt, ...prev];
-      return updated.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
-    });
-    setIsFormOpen(false);
+  const handleAddAppointment = async (newAppt: Partial<Appointment>) => {
+    if (!user?.uid || !profileId) return;
+    try {
+      await saveAppointment(user.uid, profileId, newAppt as any);
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Failed to add appointment", error);
+    }
   };
 
   const handleMarkCompleteClick = (appointment: Appointment) => {
@@ -144,18 +63,17 @@ export default function AppointmentsPage() {
     setCompletingAppt(appointment);
   };
 
-  const handleSaveCompletion = (completionData: Partial<Appointment>) => {
-    if (!completingAppt) return;
-
-    setAppointments(prev => prev.map(appt => 
-      appt.id === completingAppt.id 
-        ? { 
-            ...appt, 
-            ...completionData, 
-          } 
-        : appt
-    ));
-    setCompletingAppt(null);
+  const handleSaveCompletion = async (completionData: Partial<Appointment>) => {
+    if (!completingAppt || !user?.uid || !profileId) return;
+    try {
+      await updateAppointment(user.uid, profileId, completingAppt.id, completionData);
+      setCompletingAppt(null);
+      if (selectedAppt?.id === completingAppt.id) {
+        setSelectedAppt({ ...selectedAppt, ...completionData } as Appointment);
+      }
+    } catch (error) {
+      console.error("Failed to complete appointment", error);
+    }
   };
 
   const handleEditAppointment = (appointment: Appointment) => {
@@ -167,20 +85,29 @@ export default function AppointmentsPage() {
     setAppointmentToDelete(appointment);
   };
 
-  const confirmDelete = () => {
-    if (appointmentToDelete) {
-      setAppointments(prev => prev.filter(a => a.id !== appointmentToDelete.id));
-      setAppointmentToDelete(null);
-      setSelectedAppt(null);
+  const confirmDelete = async () => {
+    if (appointmentToDelete && user?.uid && profileId) {
+      try {
+        await deleteAppointment(user.uid, profileId, appointmentToDelete.id);
+        setAppointmentToDelete(null);
+        setSelectedAppt(null);
+      } catch (error) {
+        console.error("Failed to delete appointment", error);
+      }
     }
   };
 
-  const handleSaveEdit = (updatedData: Partial<Appointment>) => {
-    if (!editingAppt) return;
-    setAppointments(prev => prev.map(appt => 
-      appt.id === editingAppt.id ? { ...appt, ...updatedData } as Appointment : appt
-    ));
-    setEditingAppt(null);
+  const handleSaveEdit = async (updatedData: Partial<Appointment>) => {
+    if (!editingAppt || !user?.uid || !profileId) return;
+    try {
+      await updateAppointment(user.uid, profileId, editingAppt.id, updatedData);
+      setEditingAppt(null);
+      if (selectedAppt?.id === editingAppt.id) {
+        setSelectedAppt({ ...selectedAppt, ...updatedData } as Appointment);
+      }
+    } catch (error) {
+      console.error("Failed to update appointment", error);
+    }
   };
 
   return (
@@ -229,7 +156,12 @@ export default function AppointmentsPage() {
 
         {/* Appointments List */}
         <div className="space-y-4">
-          {displayAppointments.length === 0 ? (
+          {isLoading ? (
+            <div className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-gray-100">
+              <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-indigo-500" />
+              <p className="mt-1 text-sm text-gray-500">Loading appointments...</p>
+            </div>
+          ) : displayAppointments.length === 0 ? (
             <div className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-gray-100">
               <Calendar className="mx-auto mb-3 h-12 w-12 text-gray-300" />
               <h3 className="text-lg font-medium text-gray-900">No {activeTab} appointments</h3>

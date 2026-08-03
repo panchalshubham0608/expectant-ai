@@ -4,8 +4,6 @@ import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Home,
   MessageCircle,
-  BarChart3,
-  ShoppingBasket,
   HeartPulse,
   LogOut,
   Menu,

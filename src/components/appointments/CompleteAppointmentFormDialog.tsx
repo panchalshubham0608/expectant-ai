@@ -1,9 +1,10 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { X, Plus, Trash2, Loader2 } from 'lucide-react';
-import type { Appointment } from '../../models/doctorVisit';
+import type { Appointment } from '../../models/appointment';
 import type { Medication } from '../../models/medication';
 import FileChooser from '../common/FileChooser';
+import { uploadReportToGoogleDrive } from '../../features/health/reportsService';
 
 interface CompleteAppointmentFormDialogProps {
   appointment: Appointment;
@@ -49,19 +50,6 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
     setPrescribedMedications(prescribedMedications.filter((_, i) => i !== index));
   };
 
-  const uploadToGoogleDrive = async (file: File) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log(`Uploaded ${file.name} to Google Drive /expectant-ai folder`);
-        resolve({
-          id: `drive-id-${Date.now()}`,
-          name: file.name,
-          url: `https://drive.google.com/file/d/mock-id/view`,
-        });
-      }, 1000); // simulate upload delay
-    });
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -69,8 +57,8 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
     try {
       const uploadedFilesMetadata = [];
       for (const file of files) {
-        const metadata = await uploadToGoogleDrive(file);
-        uploadedFilesMetadata.push(metadata);
+        const url = await uploadReportToGoogleDrive(file);
+        uploadedFilesMetadata.push({ name: file.name, url });
       }
 
       const data: Partial<Appointment> = {
@@ -81,7 +69,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
         followUpDate: followUpDate ? new Date(followUpDate).toISOString() : undefined,
         status: 'completed',
         completedAt: completionDate ? new Date(completionDate).toISOString() : new Date().toISOString(),
-        // attachedFiles: uploadedFilesMetadata,
+        attachedFiles: appointment.attachedFiles ? [...appointment.attachedFiles, ...uploadedFilesMetadata] : uploadedFilesMetadata,
       } as any;
 
       onSubmit(data);

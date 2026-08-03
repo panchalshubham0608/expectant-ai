@@ -1,8 +1,9 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import type { Appointment } from '../../models/doctorVisit';
+import type { Appointment } from '../../models/appointment';
 import FileChooser from '../common/FileChooser';
+import { uploadReportToGoogleDrive } from '../../features/health/reportsService';
 
 interface AppointmentFormDialogProps {
   initialValues?: Partial<Appointment>;
@@ -45,21 +46,6 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  // Mock function for Google Drive upload. 
-  // In a real scenario, this would use the Google Drive API or a backend service.
-  const uploadToGoogleDrive = async (file: File) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log(`Uploaded ${file.name} to Google Drive /expectant-ai folder`);
-        resolve({
-          id: `drive-id-${Date.now()}`,
-          name: file.name,
-          url: `https://drive.google.com/file/d/mock-id/view`,
-        });
-      }, 1000); // simulate upload delay
-    });
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -67,8 +53,8 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
     try {
       const uploadedFilesMetadata = [];
       for (const file of files) {
-        const metadata = await uploadToGoogleDrive(file);
-        uploadedFilesMetadata.push(metadata);
+        const url = await uploadReportToGoogleDrive(file);
+        uploadedFilesMetadata.push({ name: file.name, url });
       }
 
       const scheduledAt = form.scheduledAt 
@@ -89,8 +75,7 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
         hospital: form.hospital,
         questions,
         status: initialValues?.status || 'scheduled',
-        // Depending on your Appointment model, you might need to add an 'attachedFiles' field
-        // attachedFiles: uploadedFilesMetadata,
+        attachedFiles: initialValues?.attachedFiles ? [...initialValues.attachedFiles, ...uploadedFilesMetadata] : uploadedFilesMetadata,
       } as any);
     } catch (error) {
       console.error('Failed to save appointment or upload files:', error);
