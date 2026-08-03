@@ -32,6 +32,10 @@ interface AppointmentDetailsModalProps {
 }
 
 export default function AppointmentDetailsModal({ appointment, onClose, onMarkComplete, onDelete }: AppointmentDetailsModalProps) {
+  const isPastDue = appointment.status === 'scheduled' && new Date(appointment.scheduledAt).getTime() < Date.now();
+  const displayStatus = isPastDue ? 'overdue' : appointment.status;
+  const isActive = appointment.status !== 'completed' && appointment.status !== 'cancelled';
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
@@ -45,11 +49,12 @@ export default function AppointmentDetailsModal({ appointment, onClose, onMarkCo
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                appointment.status === 'completed' ? 'bg-green-100 text-green-700' : 
-                appointment.status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 
+                displayStatus === 'completed' ? 'bg-green-100 text-green-700' : 
+                displayStatus === 'cancelled' ? 'bg-rose-100 text-rose-700' : 
+                displayStatus === 'overdue' ? 'bg-amber-100 text-amber-700' :
                 'bg-indigo-100 text-indigo-700'
               }`}>
-                {appointment.status}
+                {displayStatus}
               </span>
             </div>
             <h2 className="text-2xl font-bold text-gray-900">{appointment.reason}</h2>
@@ -164,9 +169,9 @@ export default function AppointmentDetailsModal({ appointment, onClose, onMarkCo
               {appointment.prescribedMedications.map((m: any, i) => (
                 <li key={i}>
                   <span className="font-medium text-gray-900">{m.name || "Medication"}</span>
-                  {(m.dosage || m.frequency || m.instructions) ? (
+                  {(m.dose || m.frequency) ? (
                     <span className="text-gray-500 ml-1">
-                      - {[m.dosage, m.frequency, m.instructions].filter(Boolean).join(", ")}
+                      - {[m.dose, m.frequency].filter(Boolean).join(", ")}
                     </span>
                   ) : null}
                 </li>
@@ -190,7 +195,7 @@ export default function AppointmentDetailsModal({ appointment, onClose, onMarkCo
             </div>
           )}
 
-          {appointment.status === 'scheduled' && (
+          {isActive && (
             <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
               <button
                 onClick={() => onMarkComplete(appointment)}

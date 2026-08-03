@@ -50,6 +50,27 @@ const MOCK_APPOINTMENTS: Appointment[] = [
   },
   {
     id: "appt-3",
+    scheduledAt: "2026-06-10T09:15:00Z",
+    doctorName: "Dr. Sarah Smith",
+    specialty: "OB-GYN",
+    hospital: "UCSF Medical Center",
+    reason: "Overdue Appointment",
+    questions: ["Is the baby's growth normal?", "Should I change my diet?"],
+    observations: ["Fetal heart rate is normal (140 bpm)", "Growth is on track", "No visible abnormalities"],
+    diagnoses: ["Healthy ongoing pregnancy"],
+    recommendations: ["Continue current prenatal vitamins", "Drink plenty of water", "Start moderate exercise"],
+    prescribedMedications: [
+      { name: "Prenatal Vitamin", dosage: "1 tablet", frequency: "daily" } as any,
+      { name: "Iron Supplement", dosage: "1 tablet", frequency: "daily" } as any
+    ],
+    medicalRecordIds: ["rec-123", "rec-456"],
+    followUpDate: "2026-08-15T10:00:00Z",
+    status: "scheduled",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "appt-4",
     scheduledAt: "2026-07-10T09:15:00Z",
     completedAt: "2026-07-10T10:00:00Z",
     doctorName: "Dr. Sarah Smith",
@@ -92,8 +113,8 @@ export default function AppointmentsPage() {
   const [completingAppt, setCompletingAppt] = useState<Appointment | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
 
-  const upcomingAppointments = appointments.filter(a => a.status === 'scheduled');
-  const pastAppointments = appointments.filter(a => a.status !== 'scheduled');
+  const upcomingAppointments = appointments.filter(a => a.status === 'scheduled' && new Date(a.scheduledAt).getTime() >= Date.now());
+  const pastAppointments = appointments.filter(a => new Date(a.scheduledAt).getTime() < Date.now());
 
   const displayAppointments = activeTab === "upcoming" ? upcomingAppointments : pastAppointments;
 
@@ -229,6 +250,7 @@ export default function AppointmentsPage() {
                     {/* Status Icon */}
                     {appt.status === "completed" && <CheckCircle2 className="text-green-500 shrink-0" size={24} />}
                     {appt.status === "cancelled" && <XCircle className="text-rose-500 shrink-0" size={24} />}
+                    {appt.status === "scheduled" && new Date(appt.scheduledAt).getTime() < Date.now() && <AlertTriangle className="text-amber-500 shrink-0" size={24} />}
                   </div>
 
                   <div className="mt-4 flex flex-col gap-2 pt-4 border-t border-gray-50">

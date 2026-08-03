@@ -1,7 +1,8 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 import type { Appointment } from '../../models/doctorVisit';
+import FileChooser from '../common/FileChooser';
 
 interface AppointmentFormDialogProps {
   onClose: () => void;
@@ -13,6 +14,7 @@ const inputClass =
 
 export default function AppointmentFormDialog({ onClose, onSubmit }: AppointmentFormDialogProps) {
   const titleId = useId();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
     reason: '',
     scheduledAt: '',
@@ -22,31 +24,63 @@ export default function AppointmentFormDialog({ onClose, onSubmit }: Appointment
     questions: '',
   });
 
+  const [files, setFiles] = useState<File[]>([]);
+
   const update = (field: string, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    
-    const scheduledAt = form.scheduledAt 
-      ? new Date(form.scheduledAt).toISOString()
-      : new Date().toISOString();
-
-    const questions = form.questions
-      .split('\n')
-      .map(q => q.trim())
-      .filter(q => q.length > 0);
-
-    onSubmit({
-      reason: form.reason,
-      scheduledAt,
-      doctorName: form.doctorName,
-      specialty: form.specialty,
-      hospital: form.hospital,
-      questions,
-      status: 'scheduled',
+  // Mock function for Google Drive upload. 
+  // In a real scenario, this would use the Google Drive API or a backend service.
+  const uploadToGoogleDrive = async (file: File) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log(`Uploaded ${file.name} to Google Drive /expectant-ai folder`);
+        resolve({
+          id: `drive-id-${Date.now()}`,
+          name: file.name,
+          url: `https://drive.google.com/file/d/mock-id/view`,
+        });
+      }, 1000); // simulate upload delay
     });
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const uploadedFilesMetadata = [];
+      for (const file of files) {
+        const metadata = await uploadToGoogleDrive(file);
+        uploadedFilesMetadata.push(metadata);
+      }
+
+      const scheduledAt = form.scheduledAt 
+        ? new Date(form.scheduledAt).toISOString()
+        : new Date().toISOString();
+
+      const questions = form.questions
+        .split('\n')
+        .map(q => q.trim())
+        .filter(q => q.length > 0);
+
+      onSubmit({
+        reason: form.reason,
+        scheduledAt,
+        doctorName: form.doctorName,
+        specialty: form.specialty,
+        hospital: form.hospital,
+        questions,
+        status: 'scheduled',
+        // Depending on your Appointment model, you might need to add an 'attachedFiles' field
+        // attachedFiles: uploadedFilesMetadata,
+      } as any);
+    } catch (error) {
+      console.error('Failed to save appointment or upload files:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -148,12 +182,20 @@ export default function AppointmentFormDialog({ onClose, onSubmit }: Appointment
             <p className="mt-2 text-xs leading-5 text-gray-500">Put each question on a new line.</p>
           </div>
 
+          <FileChooser 
+            files={files} 
+            onFilesChange={setFiles} 
+            label="Attached Reports"
+            description="Add reports or test results to discuss." 
+          />
+
           <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
             <button type="button" onClick={onClose} className="rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100">
               Cancel
             </button>
-            <button type="submit" className="rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
-              Save Appointment
+            <button type="submit" disabled={isSubmitting} className="flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-70">
+              {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+              {isSubmitting ? 'Saving...' : 'Save Appointment'}
             </button>
           </div>
         </form>

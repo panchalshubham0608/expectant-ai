@@ -1,8 +1,9 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Loader2 } from 'lucide-react';
 import type { Appointment } from '../../models/doctorVisit';
 import type { Medication } from '../../models/medication';
+import FileChooser from '../common/FileChooser';
 
 interface CompleteAppointmentFormDialogProps {
   appointment: Appointment;
@@ -15,11 +16,24 @@ const textareaClass = `${inputClass} min-h-[100px] resize-y`;
 
 export default function CompleteAppointmentFormDialog({ appointment, onClose, onSubmit }: CompleteAppointmentFormDialogProps) {
   const titleId = useId();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [observations, setObservations] = useState('');
   const [diagnoses, setDiagnoses] = useState('');
   const [recommendations, setRecommendations] = useState('');
+  const [completionDate, setCompletionDate] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const day = now.getDate().toString().padStart(2, '0');
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  });
   const [followUpDate, setFollowUpDate] = useState('');
   const [prescribedMedications, setPrescribedMedications] = useState<Partial<Medication>[]>([{ name: '', dose: '', frequency: '' }]);
+
+  const [files, setFiles] = useState<File[]>([]);
 
   const handleMedicationChange = (index: number, field: keyof Medication, value: string) => {
     const newMeds = [...prescribedMedications];
@@ -35,20 +49,47 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
     setPrescribedMedications(prescribedMedications.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    
-    const data: Partial<Appointment> = {
-      observations: observations.split('\n').filter(Boolean),
-      diagnoses: diagnoses.split('\n').filter(Boolean),
-      recommendations: recommendations.split('\n').filter(Boolean),
-      prescribedMedications: prescribedMedications.filter(m => m.name) as Medication[],
-      followUpDate: followUpDate ? new Date(followUpDate).toISOString() : undefined,
-      status: 'completed',
-      completedAt: new Date().toISOString(),
-    };
+  const uploadToGoogleDrive = async (file: File) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log(`Uploaded ${file.name} to Google Drive /expectant-ai folder`);
+        resolve({
+          id: `drive-id-${Date.now()}`,
+          name: file.name,
+          url: `https://drive.google.com/file/d/mock-id/view`,
+        });
+      }, 1000); // simulate upload delay
+    });
+  };
 
-    onSubmit(data);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const uploadedFilesMetadata = [];
+      for (const file of files) {
+        const metadata = await uploadToGoogleDrive(file);
+        uploadedFilesMetadata.push(metadata);
+      }
+
+      const data: Partial<Appointment> = {
+        observations: observations.split('\n').filter(Boolean),
+        diagnoses: diagnoses.split('\n').filter(Boolean),
+        recommendations: recommendations.split('\n').filter(Boolean),
+        prescribedMedications: prescribedMedications.filter(m => m.name) as Medication[],
+        followUpDate: followUpDate ? new Date(followUpDate).toISOString() : undefined,
+        status: 'completed',
+        completedAt: completionDate ? new Date(completionDate).toISOString() : new Date().toISOString(),
+        // attachedFiles: uploadedFilesMetadata,
+      } as any;
+
+      onSubmit(data);
+    } catch (error) {
+      console.error('Failed to save completion details or upload files:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -118,6 +159,27 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
             </button>
           </div>
 
+          <FileChooser 
+            files={files} 
+            onFilesChange={setFiles} 
+            label="Attachments" 
+            description="Add lab reports, ultrasounds, or discharge notes." 
+          />
+
+          <div>
+            <label htmlFor={`${titleId}-completionDate`} className="text-sm font-medium text-gray-800">
+              Completion Date & Time
+            </label>
+            <input
+              id={`${titleId}-completionDate`}
+              type="datetime-local"
+              required
+              value={completionDate}
+              onChange={(e) => setCompletionDate(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+
           <div>
             <label htmlFor={`${titleId}-followUp`} className="text-sm font-medium text-gray-800">
               Follow-up Appointment
@@ -135,8 +197,9 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
             <button type="button" onClick={onClose} className="rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100">
               Cancel
             </button>
-            <button type="submit" className="rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700">
-              Save Completion Details
+            <button type="submit" disabled={isSubmitting} className="flex items-center justify-center gap-2 rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-70">
+              {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+              {isSubmitting ? 'Saving...' : 'Save Completion Details'}
             </button>
           </div>
         </form>
