@@ -42,16 +42,6 @@ function BottomNav() {
       icon: MessageCircle,
     },
     {
-      name: 'Insights',
-      path: `${basePath}/insights`,
-      icon: BarChart3,
-    },
-    {
-      name: 'Pantry',
-      path: `${basePath}/pantry`,
-      icon: ShoppingBasket,
-    },
-    {
       name: 'Health',
       path: `${basePath}/health`,
       icon: HeartPulse,

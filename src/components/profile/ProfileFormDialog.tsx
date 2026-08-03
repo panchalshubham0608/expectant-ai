@@ -9,6 +9,7 @@ const emptyProfileForm: ProfileInput = {
   fullName: '',
   dateOfBirth: '',
   lastMenstrualPeriod: '',
+  ultrasoundLastMenstrualPeriod: '',
   location: '',
   bloodGroup: '',
   expectedDueDate: '',
@@ -35,7 +36,11 @@ export default function ProfileFormDialog({
   onClose,
   onSubmit,
 }: ProfileFormDialogProps) {
-  const [form, setForm] = useState<ProfileInput>(initialValues);
+  const [form, setForm] = useState<ProfileInput>({
+    ...initialValues,
+    ultrasoundLastMenstrualPeriod:
+      initialValues.ultrasoundLastMenstrualPeriod || '',
+  });
   const titleId = useId();
   const isEditing = mode === 'edit';
 
@@ -44,12 +49,15 @@ export default function ProfileFormDialog({
   };
 
   const handleLmpChange = (value: string) => {
-    update('lastMenstrualPeriod', value);
-    if (value && !form.expectedDueDate) {
-      const dueDate = new Date(`${value}T00:00:00`);
-      dueDate.setDate(dueDate.getDate() + 280);
-      update('expectedDueDate', dueDate.toISOString().slice(0, 10));
-    }
+    setForm((current) => {
+      const updates: Partial<ProfileInput> = { lastMenstrualPeriod: value };
+      if (value && !current.expectedDueDate) {
+        const dueDate = new Date(`${value}T00:00:00`);
+        dueDate.setDate(dueDate.getDate() + 280);
+        updates.expectedDueDate = dueDate.toISOString().slice(0, 10);
+      }
+      return { ...current, ...updates };
+    });
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -138,25 +146,44 @@ export default function ProfileFormDialog({
             </div>
           </div>
 
-          <div>
-            <label
-              htmlFor={`${titleId}-lastMenstrualPeriod`}
-              className="text-sm font-medium text-gray-800"
-            >
-              Last menstrual period <span className="text-red-500">*</span>
-            </label>
-            <input
-              id={`${titleId}-lastMenstrualPeriod`}
-              required
-              type="date"
-              value={form.lastMenstrualPeriod}
-              onChange={(event) => handleLmpChange(event.target.value)}
-              className={inputClass}
-            />
-            <p className="mt-2 text-xs leading-5 text-gray-500">
-              We use this to estimate pregnancy week and due date. You can adjust the due date
-              below.
-            </p>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor={`${titleId}-lastMenstrualPeriod`}
+                className="text-sm font-medium text-gray-800"
+              >
+                Last menstrual period <span className="text-red-500">*</span>
+              </label>
+              <input
+                id={`${titleId}-lastMenstrualPeriod`}
+                required
+                type="date"
+                value={form.lastMenstrualPeriod}
+                onChange={(event) => handleLmpChange(event.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor={`${titleId}-ultrasoundLastMenstrualPeriod`}
+                className="text-sm font-medium text-gray-800"
+              >
+                Ultrasound-equivalent LMP
+              </label>
+              <input
+                id={`${titleId}-ultrasoundLastMenstrualPeriod`}
+                type="date"
+                value={form.ultrasoundLastMenstrualPeriod || ''}
+                onChange={(event) => update('ultrasoundLastMenstrualPeriod', event.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2 -mt-3">
+              <p className="text-xs leading-5 text-gray-500">
+                We use this to estimate pregnancy week and due date. You can adjust the due date
+                below.
+              </p>
+            </div>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
