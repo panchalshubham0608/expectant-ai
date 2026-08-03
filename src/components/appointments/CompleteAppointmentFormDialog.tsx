@@ -94,7 +94,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
         diagnoses: diagnoses.split('\n').filter(Boolean),
         recommendations: recommendations.split('\n').filter(Boolean),
         prescribedMedications: prescribedMedications.filter(m => m.name) as Medication[],
-        followUpDate: followUpDate ? new Date(followUpDate).toISOString() : undefined,
+        followUpDate: followUpDate ? new Date(followUpDate).toISOString() : null,
         status: 'completed',
         completedAt: completionDate ? new Date(completionDate).toISOString() : new Date().toISOString(),
         attachedFiles: appointment.attachedFiles ? [...appointment.attachedFiles, ...uploadedFilesMetadata] : uploadedFilesMetadata,

@@ -134,7 +134,7 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
           recommendations: form.recommendations.split('\n').filter(Boolean),
           prescribedMedications: prescribedMedications.filter(m => m.name) as Medication[],
           completedAt: form.completedAt ? new Date(form.completedAt).toISOString() : new Date().toISOString(),
-          followUpDate: form.followUpDate ? new Date(form.followUpDate).toISOString() : undefined,
+          followUpDate: form.followUpDate ? new Date(form.followUpDate).toISOString() : null,
         });
       }
 
