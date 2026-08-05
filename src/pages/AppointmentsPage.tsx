@@ -236,7 +236,7 @@ export default function AppointmentsPage() {
 
       {completingAppt && (
         <CompleteAppointmentFormDialog
-          appointment={completingAppt}
+          appointment={completingAppt}          
           onClose={() => {
             setSelectedAppt(completingAppt);
             setCompletingAppt(null);

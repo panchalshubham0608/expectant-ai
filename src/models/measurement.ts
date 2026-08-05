@@ -12,6 +12,7 @@ export interface Measurement {
     | "other";
 
   value: string;
+  previousValue?: string;
   unit?: string;
   normalRange?: string;
   measuredAt: string;

@@ -18,7 +18,7 @@ interface MedicalRecordsCardProps {
 
 export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps) {
   const { user } = useAuth();
-  const { id } = useParams<{ id: string }>();
+  const { id : profileId } = useParams<{ id: string }>();
   const [recordList, setRecordList] = useState(records);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false);
@@ -31,19 +31,19 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
   }, [records]);
 
   useEffect(() => {
-    if (!user?.uid || !id) {
+    if (!user?.uid || !profileId) {
       return;
     }
 
-    const unsubscribe = subscribeToMedicalReports(user.uid, id, (nextRecords: MedicalRecord[]) => {
+    const unsubscribe = subscribeToMedicalReports(user.uid, profileId, (nextRecords: MedicalRecord[]) => {
       setRecordList(nextRecords);
     }, () => undefined);
 
     return unsubscribe;
-  }, [id, user?.uid]);
+  }, [profileId, user?.uid]);
 
   const handleConfirmUpload = async (file: File) => {
-    if (!user?.uid || !id) {
+    if (!user?.uid || !profileId) {
       throw new Error('You must be signed in to upload a report.');
     }
 
@@ -53,16 +53,16 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
     setProcessError(null);
 
     try {
-      const apiKey = await getGeminiApiKey(user.uid, id);
+      const apiKey = await getGeminiApiKey(user.uid, profileId);
 
       // Step 1: Upload to Google Drive
-      const reportUrl = await uploadReportToGoogleDrive(file);
+      const reportUrl = await uploadReportToGoogleDrive(user.uid, profileId, file);
       setUploadStep('done');
 
       // Step 2: Analyze with Gemini
       setAnalyzeStep('processing');
       const generatedSummary = await summarizePdfReport(file, apiKey || undefined);
-      await saveAnalyzedMedicalReport(user.uid, id, reportUrl, generatedSummary);
+      await saveAnalyzedMedicalReport(user.uid, profileId, reportUrl, generatedSummary);
       setAnalyzeStep('done');
     } catch (error) {
       if (uploadStep === 'processing') setUploadStep('error');

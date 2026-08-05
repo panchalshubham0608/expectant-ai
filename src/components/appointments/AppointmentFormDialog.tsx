@@ -6,6 +6,8 @@ import type { Medication } from '../../models/medication';
 import FileChooser from '../common/FileChooser';
 import { uploadReportToGoogleDrive } from '../../services/medical-records/reportsService';
 import FileUploadProgressModal, { type FileStatus } from '../common/FileUploadProgressModal';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '../../auth/useAuth';
 
 interface AppointmentFormDialogProps {
   initialValues?: Partial<Appointment>;
@@ -30,6 +32,9 @@ const inputClass =
   'mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100';
 
 export default function AppointmentFormDialog({ initialValues, mode = 'create', onClose, onSubmit }: AppointmentFormDialogProps) {
+  const { id: profileId } = useParams<{ id: string }>();
+  const { user } = useAuth();
+
   const titleId = useId();
   const isEditing = mode === 'edit';
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,6 +76,7 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    if (!user?.uid || !profileId) return;
     event.preventDefault();
     setIsSubmitting(true);
     
@@ -88,7 +94,7 @@ export default function AppointmentFormDialog({ initialValues, mode = 'create', 
           return next;
         });
         try {
-          const url = await uploadReportToGoogleDrive(file);
+          const url = await uploadReportToGoogleDrive(user?.uid, profileId, file);
           uploadedFilesMetadata.push({ name: file.name, url });
           setFileStatuses(prev => {
             const next = [...prev];
