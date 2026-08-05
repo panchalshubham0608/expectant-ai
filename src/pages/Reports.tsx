@@ -35,6 +35,17 @@ const formatReportDate = (dateString: string) => {
   }
 };
 
+const getReportDate = (report: Report) : Date => {
+  try {
+    const date = new Date(report.reportDate);
+    if (isNaN(date.getTime())) return new Date();
+    return date;    
+  } catch(error) {
+    console.log(error);
+    return new Date(report.createdAt || Date.now());
+  }
+}
+
 const getReportIcon = (type: string) => {
   switch (type) {
     case 'blood-test': return <Droplets size={16} className="text-rose-500" />;
@@ -68,6 +79,7 @@ function Reports() {
     }
 
     const unsubscribeMedical = subscribeToMedicalReports(user.uid, id, (nextRecords : Report[]) => {
+      // nextRecords.sort((a, b) => getReportDate(b).getTime() - getReportDate(a).getTime());
       setReports(nextRecords);
       setIsLoading(false);
     }, () => {
@@ -100,6 +112,7 @@ function Reports() {
       await saveAnalyzedMedicalReport(user.uid, id, reportUrl, generatedSummary);
       setAnalyzeStep('done');
     } catch (error) {
+      console.log(error);
       if (uploadStep === 'processing') setUploadStep('error');
       if (analyzeStep === 'processing') setAnalyzeStep('error');
       setProcessError(error instanceof Error ? error.message : 'An error occurred during processing.');

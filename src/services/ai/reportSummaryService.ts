@@ -91,7 +91,14 @@ const encodePdfToBase64 = async (file: File) => {
   return btoa(binary);
 };
 
-const readString = (value: unknown) => (typeof value === 'string' ? value.trim() : null);
+const readString = (value: unknown) => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.toLowerCase() === 'null' || trimmed === '') return null;
+    return trimmed;
+  }
+  return null;
+};
 const readArray = (value: unknown) => (Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []);
 
 const getStructuredSummary = (payload: GeminiResponse): GeminiPregnancyReportResponse => {
