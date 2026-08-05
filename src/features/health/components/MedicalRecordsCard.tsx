@@ -3,11 +3,11 @@ import '../../../styles/features/health/components/MedicalRecordsCard.css';
 import { FileText } from 'lucide-react';
 import { useAuth } from '../../../auth/useAuth';
 import { useParams } from 'react-router-dom';
-import type { MedicalRecord } from '../types';
-import { getGeminiApiKey } from '../../profiles/profileService';
-import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../medicalRecordsService';
-import { summarizePdfReport } from '../reportSummaryService';
-import { uploadReportToGoogleDrive } from '../reportsService';
+import type { MedicalRecord } from '../../../models/medical';
+import { getGeminiApiKey } from '../../../services/profiles/profileService';
+import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../../../services/medical-records/medicalRecordsService';
+import { summarizePdfReport } from '../../../services/ai/reportSummaryService';
+import { uploadReportToGoogleDrive } from '../../../services/medical-records/reportsService';
 import UploadReportDialog from './UploadReportDialog';
 import ProcessingModal, { type StepStatus } from './ProcessingModal';
 import MedicalRecordDetails from './MedicalRecordDetails';
@@ -18,7 +18,7 @@ interface MedicalRecordsCardProps {
 
 export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps) {
   const { user } = useAuth();
-  const { id } = useParams<{ id: string }>();
+  const { id : profileId } = useParams<{ id: string }>();
   const [recordList, setRecordList] = useState(records);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false);
@@ -31,19 +31,19 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
   }, [records]);
 
   useEffect(() => {
-    if (!user?.uid || !id) {
+    if (!user?.uid || !profileId) {
       return;
     }
 
-    const unsubscribe = subscribeToMedicalReports(user.uid, id, (nextRecords) => {
+    const unsubscribe = subscribeToMedicalReports(user.uid, profileId, (nextRecords: MedicalRecord[]) => {
       setRecordList(nextRecords);
     }, () => undefined);
 
     return unsubscribe;
-  }, [id, user?.uid]);
+  }, [profileId, user?.uid]);
 
   const handleConfirmUpload = async (file: File) => {
-    if (!user?.uid || !id) {
+    if (!user?.uid || !profileId) {
       throw new Error('You must be signed in to upload a report.');
     }
 
@@ -53,16 +53,16 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
     setProcessError(null);
 
     try {
-      const apiKey = await getGeminiApiKey(user.uid, id);
+      const apiKey = await getGeminiApiKey(user.uid, profileId);
 
       // Step 1: Upload to Google Drive
-      const reportUrl = await uploadReportToGoogleDrive(file);
+      const reportUrl = await uploadReportToGoogleDrive(user.uid, profileId, file);
       setUploadStep('done');
 
       // Step 2: Analyze with Gemini
       setAnalyzeStep('processing');
       const generatedSummary = await summarizePdfReport(file, apiKey || undefined);
-      await saveAnalyzedMedicalReport(user.uid, id, reportUrl, generatedSummary);
+      await saveAnalyzedMedicalReport(user.uid, profileId, reportUrl, generatedSummary);
       setAnalyzeStep('done');
     } catch (error) {
       if (uploadStep === 'processing') setUploadStep('error');

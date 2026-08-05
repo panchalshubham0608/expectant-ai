@@ -4,8 +4,6 @@ import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Home,
   MessageCircle,
-  BarChart3,
-  ShoppingBasket,
   HeartPulse,
   LogOut,
   Menu,
@@ -16,7 +14,7 @@ import {
   Stethoscope,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
-import { useProfile } from '../../features/profiles/useProfile';
+import { useProfile } from '../../hooks/useProfile';
 import ShareProfileDialog from '../profile/ShareProfileDialog';
 import ApiKeyDialog from '../profile/ApiKeyDialog';
 
@@ -40,16 +38,6 @@ function BottomNav() {
       name: 'Journal',
       path: `${basePath}/journal`,
       icon: MessageCircle,
-    },
-    {
-      name: 'Insights',
-      path: `${basePath}/insights`,
-      icon: BarChart3,
-    },
-    {
-      name: 'Pantry',
-      path: `${basePath}/pantry`,
-      icon: ShoppingBasket,
     },
     {
       name: 'Health',

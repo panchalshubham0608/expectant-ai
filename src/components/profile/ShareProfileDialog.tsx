@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { shareProfile, unshareProfile } from '../../features/profiles/profileService';
-import type { Profile } from '../../features/profiles/types';
+import { shareProfile, unshareProfile } from '../../services/profiles/profileService';
+import type { ExpectantProfile } from '../../models/profile';
 
 type ShareProfileDialogProps = {
   isOpen: boolean;
   onClose: () => void;
   profileId: string;
-  profile?: Profile | null;
+  profile?: ExpectantProfile | null;
 };
 
 export default function ShareProfileDialog({ isOpen, onClose, profileId, profile }: ShareProfileDialogProps) {
@@ -72,7 +72,7 @@ export default function ShareProfileDialog({ isOpen, onClose, profileId, profile
             <div className="mt-4 max-h-28 overflow-y-auto pr-2">
               <p className="text-xs font-medium text-gray-500">Already shared with:</p>
               <ul className="mt-2 space-y-1.5">
-                {profile.sharedWith.map((email) => (
+                {profile.sharedWith.map((email: string) => (
                   <li key={email} className="flex items-center justify-between text-sm text-gray-700">
                     <span className="truncate">{email}</span>
                     <button

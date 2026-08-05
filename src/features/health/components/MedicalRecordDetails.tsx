@@ -1,4 +1,4 @@
-import type { MedicalRecord } from '../types';
+import type { MedicalRecord } from '../../../models/medical';
 import {
     Activity,
     AlertCircle,
@@ -68,10 +68,10 @@ function MedicalRecordDetails({ report, onClose }: MedicalRecordDetailsProps) {
                                 <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500"><Hospital size={14} /> Hospital</span>
                                 {report.metadata.hospital ? <span className="text-sm font-medium text-slate-800">{report.metadata.hospital}</span> : <span className="text-sm italic text-slate-400">Not specified</span>}
                             </div>
-                            <div className="flex flex-col gap-1.5">
+                            {/* <div className="flex flex-col gap-1.5">
                                 <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500"><Calendar size={14} /> Date</span>
                                 {report.metadata.reportDate ? <span className="text-sm font-medium text-slate-800">{report.metadata.reportDate}</span> : <span className="text-sm italic text-slate-400">Not specified</span>}
-                            </div>
+                            </div> */}
                             <div className="flex flex-col gap-1.5">
                                 <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500"><Activity size={14} /> Pregnancy Wk</span>
                                 {report.metadata.pregnancyWeek ? <span className="text-sm font-medium text-slate-800">{report.metadata.pregnancyWeek}</span> : <span className="text-sm italic text-slate-400">Not specified</span>}
@@ -163,8 +163,8 @@ function MedicalRecordDetails({ report, onClose }: MedicalRecordDetailsProps) {
                             <p className="medical-records-card__detail-label !mt-0">Diagnoses mentioned</p>
                         </div>
                         <ul className="space-y-3">
-                            {report.diagnosesMentioned.length > 0 ? (
-                                report.diagnosesMentioned.map((item) => (
+                            {report.diagnoses.length > 0 ? (
+                                report.diagnoses.map((item) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
                                         <span>{item}</span>

@@ -1,6 +1,6 @@
-import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { Appointment } from '../../models/doctorVisit';
+import type { Appointment } from '../../models/appointment';
 
 const appointmentsCollection = (userId: string, profileId: string) => {
   if (!db) throw new Error('Firebase is not configured.');
@@ -41,6 +41,17 @@ export const updateAppointment = async (
   });
 };
 
+export const deleteAppointment = async (
+  userId: string,
+  profileId: string,
+  appointmentId: string,
+) => {
+  if (!db) {
+    throw new Error('Firebase is not configured.');
+  }
+  await deleteDoc(doc(db, 'users', userId, 'profiles', profileId, 'appointments', appointmentId));
+};
+
 export const subscribeToAppointments = (
   userId: string,
   profileId: string,
@@ -67,6 +78,7 @@ export const subscribeToAppointments = (
           prescribedMedications: data.prescribedMedications ?? [],
           followUpDate: data.followUpDate,
           medicalRecordIds: data.medicalRecordIds ?? [],
+          attachedFiles: data.attachedFiles ?? [],
           status: data.status ?? "scheduled",
           createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
           updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),

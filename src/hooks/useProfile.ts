@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { subscribeToProfile } from './profileService';
-import type { ExpectantProfile } from '../../models/profile';
+import { subscribeToProfile } from '../services/profiles/profileService';
+import type { ExpectantProfile } from '../models/profile';
 
 export function useProfile(userId: string | undefined, profileId: string | undefined) {
   const [profile, setProfile] = useState<ExpectantProfile | null>(null);

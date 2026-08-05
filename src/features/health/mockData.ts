@@ -1,205 +1,10 @@
 import type {
-  AIInsight,
-  DoctorVisit,
-  HealthScore,
   MedicalRecord,
-  Measurement,
-  TimelineEvent,
-} from './types';
+} from '../../models/medical';
 
-export const healthScoreData: HealthScore = {
-  score: 88,
-  trend: 'Stable',
-  highlight: 'Excellent hydration and nutrition this week.',
-  details: [
-    'Fetal heartbeat strong',
-    'Blood pressure within healthy range',
-    'Balanced meal planning on track',
-  ],
-};
+export const medicalRecordsData: MedicalRecord[] = [];
 
-export const measurementsData: Measurement[] = [
-  {
-    id: 'm-1',
-    label: 'Weight',
-    value: '0',
-    unit: 'kg',
-    lastMeasuredDate: '',
-  },
-  {
-    id: 'm-2',
-    label: 'Blood Pressure',
-    value: '0/0',
-    unit: '',
-    lastMeasuredDate: '',
-  },
-  {
-    id: 'm-3',
-    label: 'Heart Rate',
-    value: '0',
-    unit: 'bpm',
-    lastMeasuredDate: '',
-  },
-  {
-    id: 'm-4',
-    label: 'Baby Growth',
-    value: '0',
-    unit: 'g',
-    lastMeasuredDate: '',
-  },
-];
-
-export const medicalRecordsData: MedicalRecord[] = [
-  {
-    id: 'rec-1',
-    title: 'Ultrasound Scan',
-    reportDate: '18 Jul 2026',
-    reportType: 'ultrasound',
-    summary: {
-      plainEnglish: 'Healthy growth and amniotic fluid normal.',
-      importantFindings: ['Growth appears normal.'],
-      followUpActions: ['Schedule routine follow-up.'],
-      questionsForDoctor: ['Please confirm the scan result timing.'],
-    },
-    metadata: {
-      title: 'Ultrasound Scan',
-      hospital: null,
-      doctor: null,
-      reportDate: '18 Jul 2026',
-      pregnancyWeek: null,
-    },
-    measurements: {
-      fetalHeartRate: null,
-      crl: null,
-      bpd: null,
-      hc: null,
-      ac: null,
-      fl: null,
-      estimatedFetalWeight: null,
-      placenta: null,
-      amnioticFluid: null,
-      cervixLength: null,
-      hemoglobin: null,
-      bloodGroup: null,
-      rhFactor: null,
-      tsh: null,
-      bloodSugar: null,
-      vitaminD: null,
-      vitaminB12: null,
-      iron: null,
-      bloodPressure: null,
-      weight: null,
-      other: {},
-    },
-    medicines: [],
-    diagnosesMentioned: [],
-    recommendations: [],
-    nextVisit: null,
-    confidence: 0.75,
-    fileName: 'ultrasound-scan.pdf',
-    reportUrl: '',
-  },
-  {
-    id: 'rec-2',
-    title: 'Blood Panel',
-    reportDate: '12 Jul 2026',
-    reportType: 'blood-test',
-    summary: {
-      plainEnglish: 'Iron levels good, vitamin D slightly low.',
-      importantFindings: ['Vitamin D slightly low.'],
-      followUpActions: ['Confirm supplement plan with provider.'],
-      questionsForDoctor: ['Can you advise on the supplement plan?'],
-    },
-    metadata: {
-      title: 'Blood Panel',
-      hospital: null,
-      doctor: null,
-      reportDate: '12 Jul 2026',
-      pregnancyWeek: null,
-    },
-    measurements: {
-      fetalHeartRate: null,
-      crl: null,
-      bpd: null,
-      hc: null,
-      ac: null,
-      fl: null,
-      estimatedFetalWeight: null,
-      placenta: null,
-      amnioticFluid: null,
-      cervixLength: null,
-      hemoglobin: null,
-      bloodGroup: null,
-      rhFactor: null,
-      tsh: null,
-      bloodSugar: null,
-      vitaminD: null,
-      vitaminB12: null,
-      iron: null,
-      bloodPressure: null,
-      weight: null,
-      other: {},
-    },
-    medicines: [],
-    diagnosesMentioned: [],
-    recommendations: [],
-    nextVisit: null,
-    confidence: 0.7,
-    fileName: 'blood-panel.pdf',
-    reportUrl: '',
-  },
-  {
-    id: 'rec-3',
-    title: 'Glucose Test',
-    reportDate: '03 Jul 2026',
-    reportType: 'blood-test',
-    summary: {
-      plainEnglish: 'Awaiting lab confirmation.',
-      importantFindings: [],
-      followUpActions: ['Await lab confirmation.'],
-      questionsForDoctor: ['When will the results be available?'],
-    },
-    metadata: {
-      title: 'Glucose Test',
-      hospital: null,
-      doctor: null,
-      reportDate: '03 Jul 2026',
-      pregnancyWeek: null,
-    },
-    measurements: {
-      fetalHeartRate: null,
-      crl: null,
-      bpd: null,
-      hc: null,
-      ac: null,
-      fl: null,
-      estimatedFetalWeight: null,
-      placenta: null,
-      amnioticFluid: null,
-      cervixLength: null,
-      hemoglobin: null,
-      bloodGroup: null,
-      rhFactor: null,
-      tsh: null,
-      bloodSugar: null,
-      vitaminD: null,
-      vitaminB12: null,
-      iron: null,
-      bloodPressure: null,
-      weight: null,
-      other: {},
-    },
-    medicines: [],
-    diagnosesMentioned: [],
-    recommendations: [],
-    nextVisit: null,
-    confidence: 0.65,
-    fileName: 'glucose-test.pdf',
-    reportUrl: '',
-  },
-];
-
-export const doctorVisitsData: DoctorVisit[] = [
+export const doctorVisitsData = [
   {
     id: 'visit-1',
     provider: 'Dr. Mehta',
@@ -216,7 +21,7 @@ export const doctorVisitsData: DoctorVisit[] = [
   },
 ];
 
-export const aiInsightsData: AIInsight[] = [
+export const aiInsightsData = [
   {
     id: 'insight-1',
     title: 'Sleep rhythm looks strong',
@@ -234,7 +39,7 @@ export const aiInsightsData: AIInsight[] = [
   },
 ];
 
-export const pregnancyTimelineData: TimelineEvent[] = [
+export const pregnancyTimelineData = [
   {
     id: 'event-1',
     week: 'Week 20',

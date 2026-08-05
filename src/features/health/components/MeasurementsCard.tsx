@@ -2,7 +2,7 @@ import '../../../styles/features/health/components/MeasurementsCard.css';
 import { Edit3, X, Check, Activity } from 'lucide-react';
 import { useState } from 'react';
 import MeasurementsChart from './MeasurementsChart';
-import type { Measurement } from '../types';
+import type { Measurement } from '../../../models/measurement';
 
 interface MeasurementsCardProps {
   measurements: Measurement[];
@@ -57,7 +57,7 @@ export default function MeasurementsCard({ measurements, onSave }: MeasurementsC
   const [saveError, setSaveError] = useState('');
   const [isChartOpen, setIsChartOpen] = useState(false);
   const [lastMeasuredDate, setLastMeasuredDate] = useState<string>(
-    measurements[0]?.lastMeasuredDate || getTodayDateString(),
+    measurements[0]?.measuredAt || getTodayDateString(),
   );
   const [formData, setFormData] = useState<Measurement[]>(
     measurements.map((m) => ({
@@ -138,7 +138,7 @@ export default function MeasurementsCard({ measurements, onSave }: MeasurementsC
         value: m.value,
       })),
     );
-    setLastMeasuredDate(measurements[0]?.lastMeasuredDate || getTodayDateString());
+    setLastMeasuredDate(measurements[0]?.measuredAt || getTodayDateString());
     setIsEditing(false);
   };
 
@@ -255,7 +255,7 @@ export default function MeasurementsCard({ measurements, onSave }: MeasurementsC
                 <p className="measurement-item__change">
                   {formatValue(change, measurement.label)} {measurement.unit}
                 </p>}
-              {measurement.lastMeasuredDate && <p className="measurement-item__date">{formatDate(measurement.lastMeasuredDate)}</p>}
+              {measurement.measuredAt && <p className="measurement-item__date">{formatDate(measurement.measuredAt)}</p>}
             </div>
           );
         })}

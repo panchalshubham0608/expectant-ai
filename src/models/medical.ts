@@ -28,7 +28,9 @@ export interface MedicalRecord {
   recommendations: string[];
   nextVisit?: string;
   confidence: number;
-  file: ReportFile;
+  reportUrl: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ReportMetadata {
@@ -42,12 +44,4 @@ export interface ReportSummary {
   importantFindings: string[];
   followUpActions: string[];
   questionsForDoctor: string[];
-}
-
-export interface ReportFile {
-  fileName: string;
-  driveFileId: string;
-  reportUrl: string;
-  thumbnailUrl?: string;
-  pageCount?: number;
 }

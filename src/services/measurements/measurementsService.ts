@@ -1,6 +1,6 @@
 import { collection, doc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { Measurement } from './types';
+import type { Measurement } from '../../models/measurement';
 
 const measurementsCollection = (userId: string, profileId: string) => {
   if (!db) throw new Error('Firebase is not configured.');

@@ -3,8 +3,8 @@ import { Droplets, LogOut, MapPin, Phone, Stethoscope } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import ProfileFormDialog from '../components/profile/ProfileFormDialog';
-import { createProfile, subscribeToProfiles } from '../features/profiles/profileService';
-import type { Profile, ProfileInput } from '../features/profiles/types';
+import { createProfile, subscribeToProfiles, type ProfileInput } from '../services/profiles/profileService';
+import type { ExpectantProfile } from '../models/profile';
 
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(
@@ -44,7 +44,7 @@ const getPregnancyDetails = (lastMenstrualPeriod: string, today: Date) => {
 function Dashboard() {
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<ExpectantProfile[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(user));
   const [error, setError] = useState('');
@@ -57,11 +57,11 @@ function Dashboard() {
     return subscribeToProfiles(
       user.uid,
       user.email,
-      (nextProfiles) => {
+      (nextProfiles : ExpectantProfile[]) => {
         setProfiles(nextProfiles);
         setIsLoading(false);
       },
-      (nextError) => {
+      (nextError: Error) => {
         setError(nextError.message);
         setIsLoading(false);
       },

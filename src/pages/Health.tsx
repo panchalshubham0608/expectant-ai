@@ -2,15 +2,13 @@ import { useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import '../styles/pages/Health.css';
 import { useAuth } from '../auth/useAuth';
-import type { Measurement, MedicalRecord } from '../features/health/types';
-import { useProfile } from '../features/profiles/useProfile';
-import { useMeasurements } from '../features/health/useMeasurements';
-import { updateMeasurements } from '../features/health/measurementsService';
-import { subscribeToMedicalReports } from '../features/health/medicalRecordsService';
-// import { subscribeToDoctorVisits } from '../features/health/doctorVisitsService';
-import type { DoctorVisit } from '../features/health/types';
+import type { Measurement } from '../models/measurement';
+import type { MedicalRecord } from '../models/medical';
+import { useProfile } from '../hooks/useProfile';
+import { useMeasurements } from '../hooks/useMeasurements';
+import { updateMeasurements } from '../services/measurements/measurementsService';
+import { subscribeToMedicalReports } from '../services/medical-records/medicalRecordsService';
 import {
-  DoctorVisitsCard,
   MedicalRecordsCard,
   MeasurementsCard,
   medicalRecordsData,
@@ -23,7 +21,6 @@ function Health() {
   const { error: measurementsError, isLoading: isLoadingMeasurements, measurements } = useMeasurements(user?.uid, id);
   const [today] = useState(() => new Date());
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>(medicalRecordsData);
-  const [doctorVisits, _] = useState<DoctorVisit[]>([]);
 
   useEffect(() => {
     if (!user?.uid || !id) {
@@ -49,61 +46,7 @@ function Health() {
     await updateMeasurements(user.uid, id, newMeasurements);
   };
 
-  const addDoctorVisit = async (visit: Omit<DoctorVisit, 'id'>) => {
-    console.log('Adding doctor visit', visit);
-    if (!user || !id) throw new Error('You must be signed in to manage appointments.');
-    // await saveDoctorVisit(user.uid, id, visit);
-  };
-
-  const completeDoctorVisit = async (visitId: string, details: string) => {
-    console.log('Completing doctor visit', visitId, details);
-    if (!user || !id) throw new Error('You must be signed in to manage appointments.');
-    // await markDoctorVisitCompleted(user.uid, id, visitId, details);
-  };
-
-  const defaultMeasurements: Measurement[] = [
-    {
-      id: 'weight',
-      label: 'Weight',
-      value: '0',
-      unit: 'kg',
-      lastMeasuredDate: '',
-    },
-    {
-      id: 'blood-pressure',
-      label: 'Blood Pressure',
-      value: '0/0',
-      unit: '',
-      lastMeasuredDate: '',
-    },
-    {
-      id: 'heart-rate',
-      label: 'Heart Rate',
-      value: '0',
-      unit: 'bpm',
-      lastMeasuredDate: '',
-    },
-    {
-      id: 'gest-age',
-      label: 'Gestational Age',
-      value: '0',
-      unit: 'weeks',
-      lastMeasuredDate: '',
-    },
-    {
-      id: 'baby-weight',
-      label: 'Baby Weight',
-      value: '0',
-      unit: 'g',
-      lastMeasuredDate: '',
-    },
-    {
-      id: 'baby-heart-rate',
-      label: 'Baby Heart Rate',
-      value: '0',
-      unit: 'bpm',
-      lastMeasuredDate: '',
-    },];
+  const defaultMeasurements: Measurement[] = [];
 
   const mergedMeasurements = defaultMeasurements.map(
     (defaultMeasurement) =>
@@ -153,9 +96,7 @@ function Health() {
             measurements={mergedMeasurements}
             onSave={saveMeasurements}
           />
-          <DoctorVisitsCard visits={doctorVisits} onAddVisit={addDoctorVisit} onCompleteVisit={completeDoctorVisit} />
           <MedicalRecordsCard records={medicalRecords} />
-          {/* <TimelineCard events={pregnancyTimelineData} /> */}
         </div>
       )}
     </div>

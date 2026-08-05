@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../auth/useAuth';
-import { useProfile } from '../features/profiles/useProfile';
+import { useProfile } from '../hooks/useProfile';
 
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(

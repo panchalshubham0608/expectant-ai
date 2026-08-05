@@ -18,7 +18,16 @@ import {
 import type { DocumentData, DocumentSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { getAuth } from 'firebase/auth';
-import type { Profile, ProfileInput } from './types';
+import type { ExpectantProfile } from "../../models/profile";
+
+
+export type ProfileInput = Omit<
+  ExpectantProfile,
+  "id" | "creatorId" | "sharedWith" | "createdAt" | "updatedAt"
+>;
+
+export type Profile = ExpectantProfile;
+
 
 const profilesCollection = (userId: string) => {
   if (!db)

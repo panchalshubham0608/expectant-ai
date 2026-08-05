@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { getGeminiApiKey, saveGeminiApiKey } from '../../features/profiles/profileService';
+import { getGeminiApiKey, saveGeminiApiKey } from '../../services/profiles/profileService';
 
 interface ApiKeyDialogProps {
   isOpen: boolean;

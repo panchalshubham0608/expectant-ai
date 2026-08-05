@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { subscribeToAppointments } from './doctorVisitsService';
-import type { Appointment } from '../../models/doctorVisit';
+import { subscribeToAppointments } from '../services/appointments/appointmentService';
+import type { Appointment } from '../models/appointment';
 
 export function useAppointments(userId: string | undefined, profileId: string | undefined) {
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);

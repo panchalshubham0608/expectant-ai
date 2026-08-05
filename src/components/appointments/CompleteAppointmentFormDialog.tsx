@@ -1,25 +1,48 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
-import type { Appointment } from '../../models/doctorVisit';
+import { X, Plus, Trash2, Loader2 } from 'lucide-react';
+import type { Appointment } from '../../models/appointment';
 import type { Medication } from '../../models/medication';
+import FileChooser from '../common/FileChooser';
+import { uploadReportToGoogleDrive } from '../../services/medical-records/reportsService';
+import FileUploadProgressModal, { type FileStatus } from '../common/FileUploadProgressModal';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '../../auth/useAuth';
 
 interface CompleteAppointmentFormDialogProps {
   appointment: Appointment;
   onClose: () => void;
-  onSubmit: (data: Partial<Appointment>) => void;
+  onSubmit: (data: Partial<Appointment>) => void | Promise<void>;
 }
 
 const inputClass = 'mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100';
 const textareaClass = `${inputClass} min-h-[100px] resize-y`;
 
 export default function CompleteAppointmentFormDialog({ appointment, onClose, onSubmit }: CompleteAppointmentFormDialogProps) {
+  const { id: profileId } = useParams<{ id: string }>();
+  const { user } = useAuth();
+
   const titleId = useId();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [fileStatuses, setFileStatuses] = useState<FileStatus[]>([]);
+
   const [observations, setObservations] = useState('');
   const [diagnoses, setDiagnoses] = useState('');
   const [recommendations, setRecommendations] = useState('');
+  const [completionDate, setCompletionDate] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const day = now.getDate().toString().padStart(2, '0');
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  });
   const [followUpDate, setFollowUpDate] = useState('');
   const [prescribedMedications, setPrescribedMedications] = useState<Partial<Medication>[]>([{ name: '', dose: '', frequency: '' }]);
+
+  const [files, setFiles] = useState<File[]>([]);
 
   const handleMedicationChange = (index: number, field: keyof Medication, value: string) => {
     const newMeds = [...prescribedMedications];
@@ -35,20 +58,61 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
     setPrescribedMedications(prescribedMedications.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    if (!user?.uid || !profileId) return;
     event.preventDefault();
+    setIsSubmitting(true);
     
-    const data: Partial<Appointment> = {
-      observations: observations.split('\n').filter(Boolean),
-      diagnoses: diagnoses.split('\n').filter(Boolean),
-      recommendations: recommendations.split('\n').filter(Boolean),
-      prescribedMedications: prescribedMedications.filter(m => m.name) as Medication[],
-      followUpDate: followUpDate ? new Date(followUpDate).toISOString() : undefined,
-      status: 'completed',
-      completedAt: new Date().toISOString(),
-    };
+    try {
+      const uploadedFilesMetadata = [];
+      if (files.length > 0) {
+        setFileStatuses(files.map(f => ({ name: f.name, status: 'pending' })));
+        setIsUploading(true);
+      }
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setFileStatuses(prev => {
+          const next = [...prev];
+          next[i].status = 'uploading';
+          return next;
+        });
+        try {
+          const url = await uploadReportToGoogleDrive(user?.uid, profileId, file);
+          uploadedFilesMetadata.push({ id: crypto.randomUUID(), name: file.name, url });
+          setFileStatuses(prev => {
+            const next = [...prev];
+            next[i].status = 'done';
+            return next;
+          });
+        } catch (error) {
+          setFileStatuses(prev => {
+            const next = [...prev];
+            next[i].status = 'error';
+            return next;
+          });
+          throw error;
+        }
+      }
+      setIsUploading(false);
 
-    onSubmit(data);
+      const data: Partial<Appointment> = {
+        observations: observations.split('\n').filter(Boolean),
+        diagnoses: diagnoses.split('\n').filter(Boolean),
+        recommendations: recommendations.split('\n').filter(Boolean),
+        prescribedMedications: prescribedMedications.filter(m => m.name) as Medication[],
+        followUpDate: followUpDate ? new Date(followUpDate).toISOString() : null,
+        status: 'completed',
+        completedAt: completionDate ? new Date(completionDate).toISOString() : new Date().toISOString(),
+        attachedFiles: appointment.attachedFiles ? [...appointment.attachedFiles, ...uploadedFilesMetadata] : uploadedFilesMetadata,
+      } as any;
+
+      await onSubmit(data);
+    } catch (error) {
+      console.error('Failed to save completion details or upload files:', error);
+    } finally {
+      setIsSubmitting(false);
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -79,6 +143,8 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
             <X size={20} />
           </button>
         </div>
+
+        <FileUploadProgressModal isOpen={isUploading} files={fileStatuses} />
 
         <form onSubmit={handleSubmit} className="space-y-6 px-5 py-5 sm:px-6 sm:py-6">
           <div>
@@ -118,6 +184,27 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
             </button>
           </div>
 
+          <FileChooser 
+            files={files} 
+            onFilesChange={setFiles} 
+            label="Attachments" 
+            description="Add lab reports, ultrasounds, or discharge notes." 
+          />
+
+          <div>
+            <label htmlFor={`${titleId}-completionDate`} className="text-sm font-medium text-gray-800">
+              Completion Date & Time
+            </label>
+            <input
+              id={`${titleId}-completionDate`}
+              type="datetime-local"
+              required
+              value={completionDate}
+              onChange={(e) => setCompletionDate(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+
           <div>
             <label htmlFor={`${titleId}-followUp`} className="text-sm font-medium text-gray-800">
               Follow-up Appointment
@@ -135,8 +222,9 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
             <button type="button" onClick={onClose} className="rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100">
               Cancel
             </button>
-            <button type="submit" className="rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700">
-              Save Completion Details
+            <button type="submit" disabled={isSubmitting} className="flex items-center justify-center gap-2 rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-70">
+              {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+              {isSubmitting ? 'Saving...' : 'Save Completion Details'}
             </button>
           </div>
         </form>
