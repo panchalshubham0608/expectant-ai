@@ -75,6 +75,17 @@ export default function AppointmentsPage() {
     }
   };
 
+  const handleUpdateAppointment = async (updatedData: Partial<Appointment>) => {
+    if (!selectedAppt || !user?.uid || !profileId) return;
+    try {
+      await updateAppointment(user.uid, profileId, selectedAppt.id, updatedData);
+      const updatedAppt = { ...selectedAppt, ...updatedData } as Appointment;
+      setSelectedAppt(updatedAppt);
+    } catch (error) {
+      console.error("Failed to update appointment", error);
+    }
+  }
+
   const handleEditAppointment = (appointment: Appointment) => {
     setSelectedAppt(null);
     setEditingAppt(appointment);
@@ -222,6 +233,7 @@ export default function AppointmentsPage() {
           appointment={selectedAppt} 
           onClose={() => setSelectedAppt(null)} 
           onMarkComplete={handleMarkCompleteClick} 
+          onUpdate={handleUpdateAppointment}
           onEdit={handleEditAppointment}
           onDelete={handleDeleteAppointment}
         />

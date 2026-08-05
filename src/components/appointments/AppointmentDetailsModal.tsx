@@ -11,6 +11,7 @@ import {
   Trash2,
   Edit3
 } from "lucide-react";
+import { useState } from "react";
 import type { Appointment } from "../../models/appointment";
 
 const formatDateTime = (dateString: string) => {
@@ -31,22 +32,36 @@ interface AppointmentDetailsModalProps {
   onMarkComplete: (appointment: Appointment) => void;
   onEdit: (appointment: Appointment) => void;
   onDelete: (appointment: Appointment) => void;
+  onUpdate?: (appointment: Appointment) => void | Promise<void>;
 }
 
-export default function AppointmentDetailsModal({ appointment, onClose, onMarkComplete, onEdit, onDelete }: AppointmentDetailsModalProps) {
+export default function AppointmentDetailsModal({ appointment, onClose, onMarkComplete, onEdit, onDelete, onUpdate }: AppointmentDetailsModalProps) {
   const isPastDue = appointment.status === 'scheduled' && new Date(appointment.scheduledAt).getTime() < Date.now();
   const displayStatus = isPastDue ? 'overdue' : appointment.status;
   const isActive = appointment.status !== 'completed' && appointment.status !== 'cancelled';
+  
+  const [fileToRemove, setFileToRemove] = useState<{id: string, name: string, url: string} | null>(null);
+
+  const handleRemoveFile = async () => {
+    if (!fileToRemove || !onUpdate) return;
+    const updatedFiles = appointment.attachedFiles?.filter(f => f.id !== fileToRemove.id);
+    await onUpdate({
+      ...appointment,
+      attachedFiles: updatedFiles
+    });
+    setFileToRemove(null);
+  };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
-      onClick={onClose}
-    >
+    <>
       <div 
-        className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-[2rem] bg-white shadow-2xl ring-1 ring-gray-100 p-6 sm:p-8"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
+        onClick={onClose}
       >
+        <div 
+          className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-[2rem] bg-white shadow-2xl ring-1 ring-gray-100 p-6 sm:p-8"
+          onClick={(e) => e.stopPropagation()}
+        >
         <div className="flex items-start justify-between mb-6 gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
@@ -211,10 +226,21 @@ export default function AppointmentDetailsModal({ appointment, onClose, onMarkCo
               </h3>
               <div className="flex flex-col gap-2 mt-2">
                 {appointment.attachedFiles.map((file, i) => (
-                  <a key={i} href={file.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 text-slate-700 text-sm font-medium border border-slate-200 hover:bg-slate-100 transition-colors">
-                    <FileText size={16} className="text-indigo-500" />
-                    <span className="truncate">{file.name}</span>
-                  </a>
+                  <div key={file.id || i} className="flex items-center gap-2">
+                    <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 text-slate-700 text-sm font-medium border border-slate-200 hover:bg-slate-100 transition-colors">
+                      <FileText size={16} className="text-indigo-500" />
+                      <span className="truncate">{file.name}</span>
+                    </a>
+                    {onUpdate && (
+                      <button
+                        onClick={() => setFileToRemove(file)}
+                        className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors shrink-0"
+                        title="Remove file"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -233,6 +259,38 @@ export default function AppointmentDetailsModal({ appointment, onClose, onMarkCo
           )}
         </div>
       </div>
-    </div>
+      </div>
+
+      {fileToRemove && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
+          onClick={() => setFileToRemove(null)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-[2rem] bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Remove File?</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to remove "{fileToRemove.name}"?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setFileToRemove(null)}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveFile}
+                className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-full transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

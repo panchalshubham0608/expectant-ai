@@ -31,7 +31,7 @@ export interface Appointment {
 
   // Reports discussed/generated
   medicalRecordIds: string[];
-  attachedFiles?: { name: string; url: string }[];
+  attachedFiles?: { id: string; name: string; url: string }[];
 
   status: "scheduled" | "completed" | "cancelled";
 

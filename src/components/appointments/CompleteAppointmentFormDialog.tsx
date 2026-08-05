@@ -78,7 +78,7 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
         });
         try {
           const url = await uploadReportToGoogleDrive(user?.uid, profileId, file);
-          uploadedFilesMetadata.push({ name: file.name, url });
+          uploadedFilesMetadata.push({ id: crypto.randomUUID(), name: file.name, url });
           setFileStatuses(prev => {
             const next = [...prev];
             next[i].status = 'done';
