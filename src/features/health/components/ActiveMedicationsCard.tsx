@@ -1,32 +1,51 @@
-import { useState } from 'react';
-import { Pill, Edit3 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Pill, Edit3, Loader2 } from 'lucide-react';
 import type { Medication } from '../../../models/medication';
 import ActiveMedicationsFormDialog from './ActiveMedicationsFormDialog';
-
-const initialMockMedications: Medication[] = [
-  {
-    id: 'm1',
-    name: 'Prenatal Vitamins',
-    dose: '1 tablet',
-    frequency: 'Daily',
-    instructions: 'Take with food to prevent nausea',
-  },
-  {
-    id: 'm2',
-    name: 'Iron Supplement',
-    dose: '65 mg',
-    frequency: 'Every other day',
-    duration: '3 months',
-  },
-];
+import { useAuth } from '../../../auth/useAuth';
+import { subscribeToMedications, syncMedicationsList } from '../../../services/medication/medicationService';
 
 export default function ActiveMedicationsCard() {
-  const [medications, setMedications] = useState<Medication[]>(initialMockMedications);
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSave = (updatedMedications: Medication[]) => {
-    setMedications(updatedMedications);
-    setIsEditOpen(false);
+  useEffect(() => {
+    if (!user?.uid || !id) {
+      setIsLoading(false);
+      return;
+    }
+
+    const unsubscribe = subscribeToMedications(
+      user.uid,
+      id,
+      (fetchedMedications) => {
+        setMedications(fetchedMedications);
+        setIsLoading(false);
+      },
+      (err) => {
+        console.error('Error fetching medications:', err);
+        setError('Failed to load medications.');
+        setIsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid, id]);
+
+  const handleSave = async (updatedMedications: Medication[]) => {
+    if (!user?.uid || !id) return;
+    try {
+      await syncMedicationsList(user.uid, id, updatedMedications);
+      setIsEditOpen(false);
+    } catch (err) {
+      console.error('Failed to save medications:', err);
+    }
   };
 
   return (
@@ -38,13 +57,23 @@ export default function ActiveMedicationsCard() {
         </h3>
         <button
           onClick={() => setIsEditOpen(true)}
-          className="flex items-center gap-1.5 rounded-full bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 transition hover:bg-purple-100"
+          disabled={isLoading}
+          className="flex items-center gap-1.5 rounded-full bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 transition hover:bg-purple-100 disabled:opacity-50"
         >
           <Edit3 size={16} />
           <span>Edit</span>
         </button>
       </div>
-      {medications.length > 0 ? (
+
+      {isLoading ? (
+        <div className="flex justify-center p-6">
+          <Loader2 className="animate-spin text-purple-500" size={24} />
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-600">
+          {error}
+        </div>
+      ) : medications.length > 0 ? (
         <div className="space-y-4">
           {medications.map((med) => (
             <div
