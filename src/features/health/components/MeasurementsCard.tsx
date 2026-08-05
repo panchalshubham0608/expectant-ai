@@ -1,5 +1,5 @@
 import '../../../styles/features/health/components/MeasurementsCard.css';
-import { Edit3, X, Check, Activity } from 'lucide-react';
+import { Edit3, X, Check, Activity, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import MeasurementsChart from './MeasurementsChart';
 import type { Measurement } from '../../../models/measurement';
@@ -56,6 +56,7 @@ export default function MeasurementsCard({ measurements, onSave }: MeasurementsC
   const [isEditing, setIsEditing] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [isChartOpen, setIsChartOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [lastMeasuredDate, setLastMeasuredDate] = useState<string>(
     measurements[0]?.measuredAt || getTodayDateString(),
   );
@@ -216,35 +217,53 @@ export default function MeasurementsCard({ measurements, onSave }: MeasurementsC
 
   return (
     <section className="measurements-card">
-      <div className="measurements-card__header">
+      <div 
+        className="measurements-card__header cursor-pointer select-none"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <div>
           <p className="measurements-card__label">Measurements</p>
           <h2 className="measurements-card__title">Vitals & Growth</h2>
         </div>
 
-        <div className="measurements-card__icon-group">
+        <div className="measurements-card__icon-group flex items-center">
           <div
             className="measurements-card__icon"
             role="button"
             tabIndex={0}
-            onClick={() => setIsChartOpen(true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsChartOpen(true);
+            }}
             onKeyDown={(e) => {
+              e.stopPropagation();
               if (e.key === 'Enter' || e.key === ' ') setIsChartOpen(true);
             }}
           >
             <Activity size={18} />
           </div>
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="measurements-card__edit-button"
-          >
-            <Edit3 size={16} />
-          </button>
+          {isExpanded && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditing(true);
+              }}
+              className="measurements-card__edit-button"
+            >
+              <Edit3 size={16} />
+            </button>
+          )}
+          {isExpanded ? (
+            <ChevronUp size={20} className="text-slate-400 ml-2" />
+          ) : (
+            <ChevronDown size={20} className="text-slate-400 ml-2" />
+          )}
         </div>
       </div>
 
-      <div className="measurements-card__grid">
+      {isExpanded && (
+        <div className="measurements-card__grid mt-5">
         {formData.map((measurement) => {
           const change = calculateChange(measurement.value, measurement.previousValue, measurement.label);
           return (
@@ -259,7 +278,8 @@ export default function MeasurementsCard({ measurements, onSave }: MeasurementsC
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
       {isChartOpen && (
         <MeasurementsChart series={chartSeries} onClose={() => setIsChartOpen(false)} />
       )}

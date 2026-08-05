@@ -5,6 +5,10 @@ export interface Medication {
   frequency?: string;
   duration?: string;
   instructions?: string;
+  startedAt?: string;
+  continuedAt?: string;
+  discontinued?: boolean;
+  discontinuedAt?: string;
 }
 
 export interface MedicationLog {

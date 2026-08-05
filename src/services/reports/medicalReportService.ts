@@ -1,16 +1,9 @@
-import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
 import type { Report, ReportType } from '../../models/report';
 import type { GeminiPregnancyReportResponse } from '../ai/reportSummaryService';
 import type { Measurement } from '../../models/measurement';
 import type { Medication } from '../../models/medication';
-
-const getReportsCollection = (userId: string, profileId: string) => {
-  if (!db) {
-    throw new Error('Firebase is not configured.');
-  }
-  return collection(db, 'users', userId, 'profiles', profileId, 'reports');
-};
+import { getReportsCollection } from '../../lib/collections';
 
 const toMeasurement = (measurement : GeminiPregnancyReportResponse['measurements'][number]) : Measurement => ({
   id: measurement.name,

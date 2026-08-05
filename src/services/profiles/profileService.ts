@@ -2,7 +2,6 @@ import {
   addDoc,
   arrayRemove,
   arrayUnion,
-  collection,
   doc,
   getDoc,
   getDocs,
@@ -16,9 +15,9 @@ import {
   where,
 } from 'firebase/firestore';
 import type { DocumentData, DocumentSnapshot, Unsubscribe } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
 import { getAuth } from 'firebase/auth';
 import type { ExpectantProfile } from "../../models/profile";
+import { getProfilesCollection, getKeysCollection } from '../../lib/collections';
 
 
 export type ProfileInput = Omit<
@@ -27,17 +26,6 @@ export type ProfileInput = Omit<
 >;
 
 export type Profile = ExpectantProfile;
-
-
-const profilesCollection = (userId: string) => {
-  if (!db)
-    throw new Error(
-      'Firebase is not configured. Add the VITE_FIREBASE_* values to your .env file.',
-    );
-  return collection(db, 'users', userId, 'profiles');
-};
-
-const keysCollection = (userId: string, profileId: string) => collection(profilesCollection(userId), profileId, 'keys');
 
 const toProfile = (
   id: string,
@@ -80,7 +68,7 @@ const getUpdatableProfileDocSnap = async (
     conditions.push(where('sharedWith', 'array-contains', userEmail.toLowerCase()));
   }
 
-  const q = query(profilesCollection(userId), or(...conditions));
+  const q = query(getProfilesCollection(userId), or(...conditions));
   const snapshot = await getDocs(q);
   const docSnap = snapshot.docs.find((d) => d.id === profileId);
 
@@ -92,7 +80,7 @@ const getUpdatableProfileDocSnap = async (
 };
 
 export const createProfile = async (userId: string, profile: ProfileInput) => {
-  const reference = await addDoc(profilesCollection(userId), {
+  const reference = await addDoc(getProfilesCollection(userId), {
     ...profile,
     creatorId: userId,
     sharedWith: [],
@@ -138,7 +126,7 @@ export const subscribeToProfiles = (
     conditions.push(where('sharedWith', 'array-contains', userEmail.toLowerCase()));
   }
   return onSnapshot(
-    query(profilesCollection(userId), or(...conditions), orderBy('createdAt', 'desc')),
+    query(getProfilesCollection(userId), or(...conditions), orderBy('createdAt', 'desc')),
     (snapshot) => {
       onChange(
         snapshot.docs.map((profile) => toProfile(profile.id, profile.data())),
@@ -162,7 +150,7 @@ export const subscribeToProfile = (
   }
 
   return onSnapshot(
-    query(profilesCollection(userId), or(...conditions)),
+    query(getProfilesCollection(userId), or(...conditions)),
     (snapshot) => {
       const docSnap = snapshot.docs.find((d) => d.id === profileId);
       if (docSnap) {
@@ -176,7 +164,7 @@ export const subscribeToProfile = (
 };
 
 export const getGeminiApiKey = async (userId: string, profileId: string): Promise<string | null> => {
-  const keysCollectionRef = keysCollection(userId, profileId);
+  const keysCollectionRef = getKeysCollection(userId, profileId);
   const docRef = doc(keysCollectionRef, 'geminiApiKey');
 
   const docSnap = await getDoc(docRef);
@@ -187,7 +175,7 @@ export const getGeminiApiKey = async (userId: string, profileId: string): Promis
 };
 
 export const saveGeminiApiKey = async (userId: string, profileId: string, apiKey: string): Promise<void> => {
-  const keysCollectionRef = keysCollection(userId, profileId);
+  const keysCollectionRef = getKeysCollection(userId, profileId);
   const docRef = doc(keysCollectionRef, 'geminiApiKey');
   await setDoc(docRef, { geminiApiKey: apiKey }, { merge: true });
 };

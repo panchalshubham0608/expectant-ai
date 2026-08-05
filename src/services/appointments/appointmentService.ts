@@ -1,22 +1,13 @@
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { addDoc, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { Appointment } from '../../models/appointment';
-
-const appointmentsCollection = (userId: string, profileId: string) => {
-  if (!db) throw new Error('Firebase is not configured.');
-  return collection(db, 'users', userId, 'profiles', profileId, 'appointments');
-};
+import { getAppointmentsCollection } from '../../lib/collections';
 
 export const saveAppointment = async (
   userId: string,
   profileId: string,
   appointmentInput: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt'>,
 ) => {
-  if (!db) {
-    throw new Error('Firebase is not configured.');
-  }
-
-  const docRef = await addDoc(appointmentsCollection(userId, profileId), {
+  const docRef = await addDoc(getAppointmentsCollection(userId, profileId), {
     ...appointmentInput,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -31,11 +22,7 @@ export const updateAppointment = async (
   appointmentId: string,
   data: Partial<Appointment>,
 ) => {
-  if (!db) {
-    throw new Error('Firebase is not configured.');
-  }
-
-  await updateDoc(doc(db, 'users', userId, 'profiles', profileId, 'appointments', appointmentId), {
+  await updateDoc(doc(getAppointmentsCollection(userId, profileId), appointmentId), {
     ...data,
     updatedAt: serverTimestamp(),
   });
@@ -46,10 +33,7 @@ export const deleteAppointment = async (
   profileId: string,
   appointmentId: string,
 ) => {
-  if (!db) {
-    throw new Error('Firebase is not configured.');
-  }
-  await deleteDoc(doc(db, 'users', userId, 'profiles', profileId, 'appointments', appointmentId));
+  await deleteDoc(doc(getAppointmentsCollection(userId, profileId), appointmentId));
 };
 
 export const subscribeToAppointments = (
@@ -59,7 +43,7 @@ export const subscribeToAppointments = (
   onError: (error: Error) => void,
 ) => {
   return onSnapshot(
-    query(appointmentsCollection(userId, profileId), orderBy('scheduledAt', 'desc')),
+    query(getAppointmentsCollection(userId, profileId), orderBy('scheduledAt', 'desc')),
     (snapshot) => {
       const appointments = snapshot.docs.map((docSnap) => {
         const data = docSnap.data();

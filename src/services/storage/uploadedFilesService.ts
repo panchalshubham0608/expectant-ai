@@ -1,16 +1,12 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { getUploadedFilesCollection } from '../../lib/collections';
 
 export const getUploadedFileUrl = async (
   userId: string,
   profileId: string,
   fileHash: string
 ): Promise<string | null> => {
-  if (!db) {
-    throw new Error('Firebase is not configured.');
-  }
-
-  const fileRef = doc(db, 'users', userId, 'profiles', profileId, 'uploaded_files', fileHash);
+  const fileRef = doc(getUploadedFilesCollection(userId, profileId), fileHash);
   const fileSnap = await getDoc(fileRef);
 
   if (fileSnap.exists()) {
@@ -30,11 +26,7 @@ export const saveUploadedFileMetadata = async (
   file: File,
   url: string
 ): Promise<void> => {
-  if (!db) {
-    throw new Error('Firebase is not configured.');
-  }
-
-  const fileRef = doc(db, 'users', userId, 'profiles', profileId, 'uploaded_files', fileHash);
+  const fileRef = doc(getUploadedFilesCollection(userId, profileId), fileHash);
   await setDoc(fileRef, {
     hash: fileHash,
     url,
