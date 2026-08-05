@@ -11,11 +11,12 @@ import {
   Syringe, 
   Hospital, 
   Dna, 
-  FlaskConical 
+  FlaskConical,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import type { Report } from '../models/report';
-import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../services/reports/medicalReportService';
+import { saveAnalyzedMedicalReport, subscribeToMedicalReports, deleteMedicalReport } from '../services/reports/medicalReportService';
 import { getGeminiApiKey } from '../services/profiles/profileService';
 import { summarizePdfReport } from '../services/ai/reportSummaryService';
 import { uploadReportToGoogleDrive } from '../services/reports/reportsService';
@@ -73,13 +74,16 @@ function Reports() {
   const [analyzeStep, setAnalyzeStep] = useState<StepStatus>('pending');
   const [processError, setProcessError] = useState<string | null>(null);
 
+  const [reportToDelete, setReportToDelete] = useState<Report | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     if (!user?.uid || !id) {
       return;
     }
 
     const unsubscribeMedical = subscribeToMedicalReports(user.uid, id, (nextRecords : Report[]) => {
-      // nextRecords.sort((a, b) => getReportDate(b).getTime() - getReportDate(a).getTime());
+      nextRecords.sort((a, b) => getReportDate(b).getTime() - getReportDate(a).getTime());
       setReports(nextRecords);
       setIsLoading(false);
     }, () => {
@@ -116,6 +120,22 @@ function Reports() {
       if (uploadStep === 'processing') setUploadStep('error');
       if (analyzeStep === 'processing') setAnalyzeStep('error');
       setProcessError(error instanceof Error ? error.message : 'An error occurred during processing.');
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!user?.uid || !id || !reportToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteMedicalReport(user.uid, id, reportToDelete.id);
+      setReportToDelete(null);
+      if (selectedRecord?.id === reportToDelete.id) {
+        setSelectedRecord(null);
+      }
+    } catch (error) {
+      console.error("Failed to delete report:", error);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -195,7 +215,48 @@ function Reports() {
       />
 
       {selectedRecord && (
-        <ReportDetails report={selectedRecord} onClose={() => setSelectedRecord(null)} />
+        <ReportDetails 
+          report={selectedRecord} 
+          onClose={() => setSelectedRecord(null)}
+          onDeleteClick={() => setReportToDelete(selectedRecord)}
+        />
+      )}
+
+      {reportToDelete && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
+          onClick={() => setReportToDelete(null)}
+        >
+          <div 
+            className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-1 ring-gray-100 p-6 sm:p-8 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 mb-6">
+              <AlertTriangle size={32} className="text-rose-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Delete Report?</h2>
+            <p className="text-sm text-gray-500 mb-8">
+              Are you sure you want to delete "{reportToDelete.title}"? This action cannot be undone.
+            </p>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button 
+                onClick={() => setReportToDelete(null)}
+                disabled={isDeleting}
+                className="w-full rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="w-full flex items-center justify-center gap-2 rounded-full bg-rose-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 sm:w-auto disabled:opacity-70"
+              >
+                {isDeleting && <Loader2 size={16} className="animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

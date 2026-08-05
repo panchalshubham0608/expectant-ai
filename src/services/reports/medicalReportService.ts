@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { Report, ReportType } from '../../models/report';
 import type { GeminiPregnancyReportResponse } from '../ai/reportSummaryService';
@@ -15,18 +15,18 @@ const getReportsCollection = (userId: string, profileId: string) => {
 const toMeasurement = (measurement : GeminiPregnancyReportResponse['measurements'][number]) : Measurement => ({
   id: measurement.name,
   value: measurement.value,
-  unit: measurement.unit,
   label: measurement.name,
   measuredAt: measurement.measuredAt || new Date().toISOString(),
+  ...(measurement.unit !== undefined && { unit: measurement.unit }),
 });
 
 const toMedication = (medication : GeminiPregnancyReportResponse['medicines'][number]) : Medication => ({
   id: medication.name,
   name: medication.name,
-  dose: medication.dose,
-  frequency: medication.frequency,
-  duration: medication.duration,
-  instructions: medication.instructions,
+  ...(medication.dose !== undefined && { dose: medication.dose }),
+  ...(medication.frequency !== undefined && { frequency: medication.frequency }),
+  ...(medication.duration !== undefined && { duration: medication.duration }),
+  ...(medication.instructions !== undefined && { instructions: medication.instructions }),
 });
 
 export const saveAnalyzedMedicalReport = async (
@@ -65,6 +65,8 @@ export const saveAnalyzedMedicalReport = async (
     updatedAt: serverTimestamp(),
   };
 
+  console.log(report);
+
   await setDoc(newReportRef, report);
   return newReportRef.id;
 };
@@ -86,4 +88,10 @@ export const subscribeToMedicalReports = (
     },
     onError
   );
+};
+
+
+export const deleteMedicalReport = async (userId: string, profileId: string, reportId: string): Promise<void> => {
+  const recordsRef = getReportsCollection(userId, profileId);
+  await deleteDoc(doc(recordsRef, reportId));
 };

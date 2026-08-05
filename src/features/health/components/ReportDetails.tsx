@@ -11,15 +11,17 @@ import {
     ListChecks,
     Pill,
     Stethoscope,
+    Trash2,
     X,
 } from 'lucide-react';
 
 interface ReportDetailsProps {
     report: Report;
     onClose: () => void;
+    onDeleteClick?: () => void;
 }
 
-function ReportDetails({ report, onClose }: ReportDetailsProps) {
+function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
     return (
         <div className="medical-records-card__modal">
             <div className="medical-records-card__modal-card">
@@ -29,9 +31,16 @@ function ReportDetails({ report, onClose }: ReportDetailsProps) {
                         <h3 className="medical-records-card__title">{report.title}</h3>
                         <p className="medical-records-card__modal-meta">{report.reportDate} · {report.reportType}</p>
                     </div>
-                    <button type="button" className="medical-records-card__close !p-2" onClick={onClose} aria-label="Close">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        {onDeleteClick && (
+                            <button type="button" className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors shrink-0" onClick={onDeleteClick} title="Delete report">
+                                <Trash2 size={20} />
+                            </button>
+                        )}
+                        <button type="button" className="medical-records-card__close !p-2" onClick={onClose} aria-label="Close">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="medical-records-card__detail-grid">
