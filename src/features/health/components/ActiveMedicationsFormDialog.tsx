@@ -11,6 +11,17 @@ interface ActiveMedicationsFormDialogProps {
 const inputClass =
   'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-purple-600 focus:bg-white focus:ring-4 focus:ring-purple-100';
 
+const formatDateForInput = (isoString?: string) => {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
 export default function ActiveMedicationsFormDialog({
   initialMedications,
   onClose,
@@ -20,7 +31,7 @@ export default function ActiveMedicationsFormDialog({
   const [medications, setMedications] = useState<Partial<Medication>[]>(
     initialMedications.length > 0
       ? initialMedications
-      : [{ name: '', dose: '', frequency: '', duration: '', instructions: '' }]
+      : [{ name: '', dose: '', frequency: '', duration: '', instructions: '', startedAt: '' }]
   );
 
   const handleMedicationChange = (index: number, field: keyof Medication, value: string) => {
@@ -32,7 +43,7 @@ export default function ActiveMedicationsFormDialog({
   const addMedication = () => {
     setMedications([
       ...medications,
-      { name: '', dose: '', frequency: '', duration: '', instructions: '' },
+      { name: '', dose: '', frequency: '', duration: '', instructions: '', startedAt: '' },
     ]);
   };
 
@@ -99,7 +110,18 @@ export default function ActiveMedicationsFormDialog({
                   <input value={med.dose || ''} onChange={(e) => handleMedicationChange(index, 'dose', e.target.value)} placeholder="Dose (e.g. 1 tablet)" className={inputClass} />
                   <input value={med.frequency || ''} onChange={(e) => handleMedicationChange(index, 'frequency', e.target.value)} placeholder="Frequency (e.g. Daily)" className={inputClass} />
                   <input value={med.duration || ''} onChange={(e) => handleMedicationChange(index, 'duration', e.target.value)} placeholder="Duration (e.g. 3 months)" className={inputClass} />
-                  <input value={med.instructions || ''} onChange={(e) => handleMedicationChange(index, 'instructions', e.target.value)} placeholder="Instructions (e.g. Take with food)" className={inputClass} />
+                  <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition focus-within:border-purple-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-purple-100">
+                    <span className="mr-2 text-sm text-gray-500 whitespace-nowrap">Started:</span>
+                    <input
+                      type="date"
+                      value={formatDateForInput(med.startedAt || med.continuedAt)}
+                      onChange={(e) => handleMedicationChange(index, 'startedAt', e.target.value ? new Date(e.target.value).toISOString() : '')}
+                      className="w-full bg-transparent text-sm outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <input value={med.instructions || ''} onChange={(e) => handleMedicationChange(index, 'instructions', e.target.value)} placeholder="Instructions (e.g. Take with food)" className={inputClass} />
+                  </div>
                 </div>
               </div>
             ))}

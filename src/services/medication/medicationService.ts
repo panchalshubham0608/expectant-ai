@@ -54,6 +54,28 @@ export const deleteMedication = async (
   await deleteDoc(doc(medicationsRef, medicationId));
 };
 
+export const discontinueMedication = async (
+  userId: string,
+  profileId: string,
+  medication: Medication,
+  discontinuedAt: string
+): Promise<void> => {
+  await saveMedication(userId, profileId, {
+    ...medication,
+    discontinued: true,
+    discontinuedAt,
+  });
+};
+
+export const resumeMedication = async (
+  userId: string,
+  profileId: string,
+  medication: Medication,
+  continuedAt: string
+): Promise<void> => {
+  await saveMedication(userId, profileId, { ...medication, discontinued: false, continuedAt });
+};
+
 export const syncMedicationsList = async (
   userId: string,
   profileId: string,
