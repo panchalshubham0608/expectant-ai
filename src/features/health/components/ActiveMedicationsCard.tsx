@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Pill, Edit3, Loader2, Clock, Calendar, Info, XCircle, RotateCcw, Trash2 } from 'lucide-react';
+import { Pill, Edit3, Loader2, Clock, Calendar, Info, XCircle, RotateCcw, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Medication } from '../../../models/medication';
 import ActiveMedicationsFormDialog from './ActiveMedicationsFormDialog';
 import DiscontinueMedicationDialog from './DiscontinueMedicationDialog';
@@ -20,6 +20,7 @@ export default function ActiveMedicationsCard() {
   const [medicationToResume, setMedicationToResume] = useState<Medication | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const activeMedications = medications.filter((m) => !m.discontinued);
   const discontinuedMedications = medications.filter((m) => m.discontinued);
@@ -87,21 +88,38 @@ export default function ActiveMedicationsCard() {
 
   return (
     <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-gray-100">
-      <div className="mb-5 flex items-center justify-between">
+      <div 
+        className="flex cursor-pointer select-none items-center justify-between"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900">
           <Pill className="text-purple-500" size={20} />
           Active Medications
         </h3>
-        <button
-          onClick={() => setIsEditOpen(true)}
-          disabled={isLoading}
-          className="flex items-center gap-1.5 rounded-full bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 transition hover:bg-purple-100 disabled:opacity-50"
-        >
-          <Edit3 size={16} />
-          <span>Edit</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {isExpanded && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditOpen(true);
+              }}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 rounded-full bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 transition hover:bg-purple-100 disabled:opacity-50"
+            >
+              <Edit3 size={16} />
+              <span>Edit</span>
+            </button>
+          )}
+          {isExpanded ? (
+            <ChevronUp size={20} className="text-slate-400" />
+          ) : (
+            <ChevronDown size={20} className="text-slate-400" />
+          )}
+        </div>
       </div>
 
+      {isExpanded && (
+        <div className="mt-5">
       {isLoading ? (
         <div className="flex justify-center p-6">
           <Loader2 className="animate-spin text-purple-500" size={24} />
@@ -244,6 +262,8 @@ export default function ActiveMedicationsCard() {
             </div>
           )}
         </>
+      )}
+        </div>
       )}
 
       {isEditOpen && (

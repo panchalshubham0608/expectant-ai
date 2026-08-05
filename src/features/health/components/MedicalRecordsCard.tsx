@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import '../../../styles/features/health/components/ReportsCard.css';
-import { FileText } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../../../auth/useAuth';
 import { useParams } from 'react-router-dom';
 import type { Report } from '../../../models/report';
@@ -25,6 +25,7 @@ export default function ReportsCard({ records }: ReportsCardProps) {
   const [uploadStep, setUploadStep] = useState<StepStatus>('pending');
   const [analyzeStep, setAnalyzeStep] = useState<StepStatus>('pending');
   const [processError, setProcessError] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     setRecordList(records);
@@ -73,15 +74,27 @@ export default function ReportsCard({ records }: ReportsCardProps) {
 
   return (
     <section className="medical-records-card">
-      <div className="medical-records-card__header">
+      <div 
+        className="medical-records-card__header cursor-pointer select-none"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <div>
           <p className="medical-records-card__label">Medical Records</p>
           <h2 className="medical-records-card__title">Recent Reports</h2>
         </div>
 
-        <FileText size={20} className="medical-records-card__icon" />
+        <div className="flex items-center gap-3">
+          <FileText size={20} className="medical-records-card__icon" />
+          {isExpanded ? (
+            <ChevronUp size={20} className="text-slate-400" />
+          ) : (
+            <ChevronDown size={20} className="text-slate-400" />
+          )}
+        </div>
       </div>
 
+      {isExpanded && (
+        <>
       <ProcessingModal
         isOpen={isProcessingModalOpen}
         onClose={() => setIsProcessingModalOpen(false)}
@@ -114,6 +127,8 @@ export default function ReportsCard({ records }: ReportsCardProps) {
 
       {selectedRecord && (
         <ReportDetails report={selectedRecord} onClose={() => setSelectedRecord(null)} />
+      )}
+        </>
       )}
     </section>
   );
