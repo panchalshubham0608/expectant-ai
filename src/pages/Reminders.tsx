@@ -1,4 +1,5 @@
 import MedicationRemindersCard from '../features/health/components/MedicationRemindersCard';
+import RemindersCard from '../lib/RemindersCard';
 
 export default function Reminders() {
   return (
@@ -20,6 +21,7 @@ export default function Reminders() {
       <div className="relative z-20 -mt-8 px-4">
         <div className="flex flex-col gap-5">
           <MedicationRemindersCard />
+          <RemindersCard />
         </div>
       </div>
     </div>

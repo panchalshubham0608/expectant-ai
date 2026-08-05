@@ -1,17 +1,72 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BellRing, CheckCircle2, Circle, ChevronDown, ChevronUp, Smartphone } from 'lucide-react';
 
 export default function MedicationRemindersCard() {
   const [isExpanded, setIsExpanded] = useState(true);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [takenItems, setTakenItems] = useState<Set<string>>(new Set());
+  const notifiedItems = useRef<Set<string>>(new Set());
 
   // Mock data for today's reminders
   const mockReminders = [
-    { id: 'r1', time: '08:00 AM', name: 'Prenatal Vitamins', dose: '1 tablet' },
+    { id: 'r1', time: '09:55 PM', name: 'Prenatal Vitamins', dose: '1 tablet' },
     { id: 'r2', time: '02:00 PM', name: 'Iron Supplement', dose: '65 mg' },
     { id: 'r3', time: '08:00 PM', name: 'Progesterone', dose: '200 mg' },
   ];
+
+  // Modern browsers prefer notifications to be routed through a Service Worker
+  const fireNotification = async (title: string, options: NotificationOptions) => {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.showNotification(title, options);
+        return;
+      }
+    }
+    
+    // Fallback for desktop browsers without a service worker
+    new Notification(title, options);
+  };
+
+  // Check for notification permissions on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      setPushEnabled(true);
+    }
+  }, []);
+
+  // The Local Frontend Background Scheduler
+  useEffect(() => {
+    if (!pushEnabled || !('Notification' in window)) return;
+
+    // Check every minute to see if any reminder matches the current time
+    const interval = setInterval(() => {
+      const now = new Date();
+      // Formats current time to match the mock format exactly, e.g. "08:00 AM"
+      const timeString = now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      mockReminders.forEach((reminder) => {
+        // If the time matches, the user hasn't checked it off, and we haven't already notified them
+        if (reminder.time === timeString && !takenItems.has(reminder.id) && !notifiedItems.current.has(reminder.id)) {
+          notifiedItems.current.add(reminder.id);
+          console.log(`Triggering notification for: ${reminder.name}`);
+          fireNotification('Medication Reminder 💊', {
+            body: `It's time to take your ${reminder.name} (${reminder.dose}).`,
+            tag: reminder.id, // Prevents duplicate spamming
+            requireInteraction: true,
+          });
+        }
+      });
+    }, 1000); // 60,000 ms = 1 minute
+
+    // We also run the check immediately on mount/update so we don't have to wait 60s
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pushEnabled, takenItems]);
+
 
   const toggleTaken = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -22,6 +77,35 @@ export default function MedicationRemindersCard() {
       newSet.add(id);
     }
     setTakenItems(newSet);
+  };
+
+  const handleTogglePush = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!('Notification' in window)) {
+      alert('Your browser does not support notifications.');
+      return;
+    }
+
+    if (!pushEnabled) {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setPushEnabled(true);
+        fireNotification('Reminders Enabled', { body: 'You will now receive local reminders when the app is open.' });
+      }
+    } else {
+      setPushEnabled(false);
+    }
+  };
+
+  const sendTestNotification = () => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      console.log('Sending test notification...');
+      fireNotification('Test Reminder 💊', {
+        body: 'This is a test notification! Your browser permissions are working.',
+        requireInteraction: true,
+      });
+    }
   };
 
   return (
@@ -58,10 +142,7 @@ export default function MedicationRemindersCard() {
             </div>
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setPushEnabled(!pushEnabled);
-              }}
+              onClick={handleTogglePush}
               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
                 pushEnabled ? 'bg-blue-600' : 'bg-slate-200'
               }`}
@@ -76,6 +157,16 @@ export default function MedicationRemindersCard() {
               />
             </button>
           </div>
+
+          {pushEnabled && (
+            <button
+              type="button"
+              onClick={sendTestNotification}
+              className="mb-5 w-full rounded-xl bg-blue-50 py-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-100"
+            >
+              Send Test Notification
+            </button>
+          )}
 
           {/* Reminders List */}
           <div className="space-y-3">

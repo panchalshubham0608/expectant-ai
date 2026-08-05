@@ -21,3 +21,4 @@ export const getMeasurementsCollection = (userId: string, profileId: string) => 
 export const getAppointmentsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'appointments');
 export const getReportsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'reports');
 export const getUploadedFilesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'uploaded_files');
+export const getRemindersCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'reminders');
