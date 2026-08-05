@@ -13,6 +13,7 @@ import {
   User,
   Stethoscope,
   FileText,
+  BellRing,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -60,6 +61,11 @@ function BottomNav() {
       path: `${basePath}/expectant`,
       icon: User,
     },
+    {
+      name: 'Reminders',
+      path: `${basePath}/reminders`,
+      icon: BellRing,
+    }
   ];
 
   return (

@@ -13,6 +13,7 @@ import RequireAuth from './auth/RequireAuth';
 import ProfilePage from './pages/ProfilePage';
 import AppointmentsPage from './pages/AppointmentsPage';
 import Reports from './pages/Reports';
+import Reminders from './pages/Reminders';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
             <Route path="appointments" element={<AppointmentsPage />} />
             <Route path="expectant" element={<ProfilePage />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="reminders" element={<Reminders />} />
           </Route>
         </Route>
       </Routes>
