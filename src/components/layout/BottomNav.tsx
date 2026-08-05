@@ -12,6 +12,7 @@ import {
   Astroid,
   User,
   Stethoscope,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -45,6 +46,11 @@ function BottomNav() {
       icon: HeartPulse,
     },
     {
+      name: 'Reports',
+      path: `${basePath}/reports`,
+      icon: FileText,
+    },
+    {
       name: 'Visits',
       path: `${basePath}/appointments`,
       icon: Stethoscope,
@@ -59,7 +65,7 @@ function BottomNav() {
   return (
     <nav
       className="
-      fixed bottom-0 left-0 right-0
+      fixed bottom-0 left-0 right-0 z-50
       border-t bg-white
       "
     >

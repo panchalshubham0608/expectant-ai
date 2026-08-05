@@ -1,4 +1,4 @@
-import type { MedicalRecord } from '../../../models/medical';
+import type { Report } from '../../../models/report';
 import {
     Activity,
     AlertCircle,
@@ -11,15 +11,17 @@ import {
     ListChecks,
     Pill,
     Stethoscope,
+    Trash2,
     X,
 } from 'lucide-react';
 
-interface MedicalRecordDetailsProps {
-    report: MedicalRecord;
+interface ReportDetailsProps {
+    report: Report;
     onClose: () => void;
+    onDeleteClick?: () => void;
 }
 
-function MedicalRecordDetails({ report, onClose }: MedicalRecordDetailsProps) {
+function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
     return (
         <div className="medical-records-card__modal">
             <div className="medical-records-card__modal-card">
@@ -29,9 +31,16 @@ function MedicalRecordDetails({ report, onClose }: MedicalRecordDetailsProps) {
                         <h3 className="medical-records-card__title">{report.title}</h3>
                         <p className="medical-records-card__modal-meta">{report.reportDate} · {report.reportType}</p>
                     </div>
-                    <button type="button" className="medical-records-card__close !p-2" onClick={onClose} aria-label="Close">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        {onDeleteClick && (
+                            <button type="button" className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors shrink-0" onClick={onDeleteClick} title="Delete report">
+                                <Trash2 size={20} />
+                            </button>
+                        )}
+                        <button type="button" className="medical-records-card__close !p-2" onClick={onClose} aria-label="Close">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="medical-records-card__detail-grid">
@@ -68,14 +77,14 @@ function MedicalRecordDetails({ report, onClose }: MedicalRecordDetailsProps) {
                                 <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500"><Hospital size={14} /> Hospital</span>
                                 {report.metadata.hospital ? <span className="text-sm font-medium text-slate-800">{report.metadata.hospital}</span> : <span className="text-sm italic text-slate-400">Not specified</span>}
                             </div>
-                            {/* <div className="flex flex-col gap-1.5">
-                                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500"><Calendar size={14} /> Date</span>
-                                {report.metadata.reportDate ? <span className="text-sm font-medium text-slate-800">{report.metadata.reportDate}</span> : <span className="text-sm italic text-slate-400">Not specified</span>}
-                            </div> */}
                             <div className="flex flex-col gap-1.5">
-                                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500"><Activity size={14} /> Pregnancy Wk</span>
-                                {report.metadata.pregnancyWeek ? <span className="text-sm font-medium text-slate-800">{report.metadata.pregnancyWeek}</span> : <span className="text-sm italic text-slate-400">Not specified</span>}
+                                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500"><Calendar size={14} /> Date</span>
+                                {report.reportDate ? <span className="text-sm font-medium text-slate-800">{report.reportDate}</span> : <span className="text-sm italic text-slate-400">Not specified</span>}
                             </div>
+                            {report.metadata.pregnancyWeek && <div className="flex flex-col gap-1.5">
+                                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500"><Activity size={14} /> Pregnancy Wk</span>
+                                <span className="text-sm font-medium text-slate-800">{report.metadata.pregnancyWeek}</span>
+                            </div>}
                         </div>
                     </section>
 
@@ -216,4 +225,4 @@ function MedicalRecordDetails({ report, onClose }: MedicalRecordDetailsProps) {
     )
 };
 
-export default MedicalRecordDetails;
+export default ReportDetails;

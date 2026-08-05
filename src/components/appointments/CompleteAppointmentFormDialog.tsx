@@ -4,7 +4,7 @@ import { X, Plus, Trash2, Loader2 } from 'lucide-react';
 import type { Appointment } from '../../models/appointment';
 import type { Medication } from '../../models/medication';
 import FileChooser from '../common/FileChooser';
-import { uploadReportToGoogleDrive } from '../../services/medical-records/reportsService';
+import { uploadReportToGoogleDrive } from '../../services/reports/reportsService';
 import FileUploadProgressModal, { type FileStatus } from '../common/FileUploadProgressModal';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/useAuth';

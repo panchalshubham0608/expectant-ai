@@ -1,19 +1,14 @@
 export interface Measurement {
   id: string;
   reportId?: string;
-  type: string;
+  type?: string;
   label: string;
-
-  category:
-    | "blood"
-    | "ultrasound"
-    | "urine"
-    | "vitals"
-    | "other";
 
   value: string;
   previousValue?: string;
   unit?: string;
   normalRange?: string;
   measuredAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
