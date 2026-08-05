@@ -8,6 +8,9 @@ export const updateMeasurements = async (
   profileId: string,
   measurements: Measurement[],
 ) => {
+  if (!db) {
+    throw new Error('Firestore database is not initialized.');
+  }
   const batch = writeBatch(db);
 
   measurements.forEach((measurement) => {

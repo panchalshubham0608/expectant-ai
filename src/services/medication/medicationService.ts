@@ -81,6 +81,10 @@ export const syncMedicationsList = async (
   profileId: string,
   medications: Medication[]
 ): Promise<void> => {
+  if (!db) {
+    throw new Error('Firestore database is not initialized.');
+  }
+
   const medicationsRef = getMedicationsCollection(userId, profileId);
   const existingDocs = await getDocs(medicationsRef);
 
