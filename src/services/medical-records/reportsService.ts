@@ -20,7 +20,9 @@ export const uploadReportToGoogleDrive = async (
     return existingUrl;
   }
 
-  const uploadUrl = await uploadFileToGoogleDrive(file);
+  const fileExtension = file.name.split('.').pop() || 'pdf';
+  const filename = `${fileHash}.${fileExtension}`;
+  const uploadUrl = await uploadFileToGoogleDrive(file, filename);
   await saveUploadedFileMetadata(userId, profileId, fileHash, file, uploadUrl);
 
   return uploadUrl;

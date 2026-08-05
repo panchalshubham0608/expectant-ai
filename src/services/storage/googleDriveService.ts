@@ -1,6 +1,6 @@
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
-export const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
+export const uploadFileToGoogleDrive = async (file: File, filename?: string): Promise<string> => {
   const auth = getAuth();
   const provider = new GoogleAuthProvider();
   // The drive.file scope limits access only to files created by this app
@@ -49,7 +49,7 @@ export const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
       'X-Upload-Content-Length': file.size.toString(),
     },
     body: JSON.stringify({
-      name: file.name,
+      name: filename || file.name,
       parents: [folderId],
     }),
   });
