@@ -1,9 +1,9 @@
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { X } from 'lucide-react';
-import type { ProfileInput } from '../../features/profiles/types';
+import type { ProfileInput } from '../../services/profiles/profileService';
 
-export type { ProfileInput as ProfileFormData } from '../../features/profiles/types';
+export type { ProfileInput as ProfileFormData } from '../../services/profiles/profileService';
 
 const emptyProfileForm: ProfileInput = {
   fullName: '',
@@ -45,11 +45,11 @@ export default function ProfileFormDialog({
   const isEditing = mode === 'edit';
 
   const update = (field: keyof ProfileInput, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current : ProfileInput) => ({ ...current, [field]: value }));
   };
 
   const handleLmpChange = (value: string) => {
-    setForm((current) => {
+    setForm((current : ProfileInput) => {
       const updates: Partial<ProfileInput> = { lastMenstrualPeriod: value };
       if (value && !current.expectedDueDate) {
         const dueDate = new Date(`${value}T00:00:00`);

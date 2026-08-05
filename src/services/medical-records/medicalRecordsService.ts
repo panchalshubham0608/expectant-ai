@@ -1,7 +1,7 @@
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { MedicalRecord } from './types';
-import type { GeminiPregnancyReportResponse } from './reportSummaryService';
+import type { MedicalRecord, MedicalReportType } from '../../models/medical';
+import type { GeminiPregnancyReportResponse } from '../ai/reportSummaryService';
 
 const getMedicalRecordsCollection = (userId: string, profileId: string) => {
   if (!db) {
@@ -19,21 +19,29 @@ export const saveAnalyzedMedicalReport = async (
   const recordsRef = getMedicalRecordsCollection(userId, profileId);
   const newRecordRef = doc(recordsRef);
 
-  const record: Partial<MedicalRecord> & { createdAt: any } = {
+  const record: Omit<Partial<MedicalRecord>, 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
     id: newRecordRef.id,
+    profileId,
+
     title: summary.metadata?.title || 'Uploaded Report',
+    reportType: (summary.reportType as MedicalReportType) || 'other',
     reportDate: summary.metadata?.reportDate || new Date().toISOString(),
-    reportType: summary.reportType || 'General',
+
+    metadata: {
+      doctor: summary.metadata?.doctor || '',
+      hospital: summary.metadata?.hospital || '',
+      pregnancyWeek: summary.metadata?.pregnancyWeek ? parseInt(String(summary.metadata.pregnancyWeek)) : undefined,
+    },
     summary: summary.summary,
-    metadata: summary.metadata,
-    measurements: summary.measurements || [],
-    medicines: summary.medicines || [],
-    diagnosesMentioned: summary.diagnosesMentioned || [],
+    // measurements: summary.measurements || [],
+    // medicines: summary.medicines || [],
+    diagnoses: summary.diagnosesMentioned || [],
     recommendations: summary.recommendations || [],
     nextVisit: summary.nextVisit || '',
     confidence: summary.confidence || 0,
     reportUrl,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
 
   await setDoc(newRecordRef, record);

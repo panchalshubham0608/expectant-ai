@@ -2,7 +2,7 @@ import '../../../styles/features/health/components/MeasurementsCard.css';
 import { Edit3, X, Check, Activity } from 'lucide-react';
 import { useState } from 'react';
 import MeasurementsChart from './MeasurementsChart';
-import type { Measurement } from '../types';
+import type { Measurement } from '../../../models/measurement';
 
 interface MeasurementsCardProps {
   measurements: Measurement[];

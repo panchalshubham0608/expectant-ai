@@ -1,6 +1,6 @@
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
-export const uploadReportToGoogleDrive = async (file: File): Promise<string> => {
+export const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
   const auth = getAuth();
   const provider = new GoogleAuthProvider();
   // The drive.file scope limits access only to files created by this app

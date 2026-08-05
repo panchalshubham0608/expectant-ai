@@ -1,53 +1,6 @@
 import type {
-  AIInsight,
-  DoctorVisit,
-  HealthScore,
   MedicalRecord,
-  Measurement,
-  TimelineEvent,
-} from './types';
-
-export const healthScoreData: HealthScore = {
-  score: 88,
-  trend: 'Stable',
-  highlight: 'Excellent hydration and nutrition this week.',
-  details: [
-    'Fetal heartbeat strong',
-    'Blood pressure within healthy range',
-    'Balanced meal planning on track',
-  ],
-};
-
-export const measurementsData: Measurement[] = [
-  {
-    id: 'm-1',
-    label: 'Weight',
-    value: '0',
-    unit: 'kg',
-    lastMeasuredDate: '',
-  },
-  {
-    id: 'm-2',
-    label: 'Blood Pressure',
-    value: '0/0',
-    unit: '',
-    lastMeasuredDate: '',
-  },
-  {
-    id: 'm-3',
-    label: 'Heart Rate',
-    value: '0',
-    unit: 'bpm',
-    lastMeasuredDate: '',
-  },
-  {
-    id: 'm-4',
-    label: 'Baby Growth',
-    value: '0',
-    unit: 'g',
-    lastMeasuredDate: '',
-  },
-];
+} from '../../models/medical';
 
 export const medicalRecordsData: MedicalRecord[] = [
   {
@@ -63,38 +16,16 @@ export const medicalRecordsData: MedicalRecord[] = [
     },
     metadata: {
       title: 'Ultrasound Scan',
-      hospital: null,
-      doctor: null,
+      hospital: '',
+      doctor: '',
       reportDate: '18 Jul 2026',
-      pregnancyWeek: null,
+      pregnancyWeek: undefined,
     },
-    measurements: {
-      fetalHeartRate: null,
-      crl: null,
-      bpd: null,
-      hc: null,
-      ac: null,
-      fl: null,
-      estimatedFetalWeight: null,
-      placenta: null,
-      amnioticFluid: null,
-      cervixLength: null,
-      hemoglobin: null,
-      bloodGroup: null,
-      rhFactor: null,
-      tsh: null,
-      bloodSugar: null,
-      vitaminD: null,
-      vitaminB12: null,
-      iron: null,
-      bloodPressure: null,
-      weight: null,
-      other: {},
-    },
+    measurements: [],
     medicines: [],
-    diagnosesMentioned: [],
+    diagnoses: [],
     recommendations: [],
-    nextVisit: null,
+    nextVisit: '',
     confidence: 0.75,
     fileName: 'ultrasound-scan.pdf',
     reportUrl: '',
@@ -112,38 +43,16 @@ export const medicalRecordsData: MedicalRecord[] = [
     },
     metadata: {
       title: 'Blood Panel',
-      hospital: null,
-      doctor: null,
+      hospital: '',
+      doctor: '',
       reportDate: '12 Jul 2026',
-      pregnancyWeek: null,
+      pregnancyWeek: undefined,
     },
-    measurements: {
-      fetalHeartRate: null,
-      crl: null,
-      bpd: null,
-      hc: null,
-      ac: null,
-      fl: null,
-      estimatedFetalWeight: null,
-      placenta: null,
-      amnioticFluid: null,
-      cervixLength: null,
-      hemoglobin: null,
-      bloodGroup: null,
-      rhFactor: null,
-      tsh: null,
-      bloodSugar: null,
-      vitaminD: null,
-      vitaminB12: null,
-      iron: null,
-      bloodPressure: null,
-      weight: null,
-      other: {},
-    },
+    measurements: [],
     medicines: [],
-    diagnosesMentioned: [],
+    diagnoses: [],
     recommendations: [],
-    nextVisit: null,
+    nextVisit: '',
     confidence: 0.7,
     fileName: 'blood-panel.pdf',
     reportUrl: '',
@@ -161,45 +70,23 @@ export const medicalRecordsData: MedicalRecord[] = [
     },
     metadata: {
       title: 'Glucose Test',
-      hospital: null,
-      doctor: null,
+      hospital: '',
+      doctor: '',
       reportDate: '03 Jul 2026',
-      pregnancyWeek: null,
+      pregnancyWeek: undefined,
     },
-    measurements: {
-      fetalHeartRate: null,
-      crl: null,
-      bpd: null,
-      hc: null,
-      ac: null,
-      fl: null,
-      estimatedFetalWeight: null,
-      placenta: null,
-      amnioticFluid: null,
-      cervixLength: null,
-      hemoglobin: null,
-      bloodGroup: null,
-      rhFactor: null,
-      tsh: null,
-      bloodSugar: null,
-      vitaminD: null,
-      vitaminB12: null,
-      iron: null,
-      bloodPressure: null,
-      weight: null,
-      other: {},
-    },
+    measurements: [],
     medicines: [],
-    diagnosesMentioned: [],
+    diagnoses: [],
     recommendations: [],
-    nextVisit: null,
+    nextVisit: '',
     confidence: 0.65,
     fileName: 'glucose-test.pdf',
     reportUrl: '',
   },
 ];
 
-export const doctorVisitsData: DoctorVisit[] = [
+export const doctorVisitsData = [
   {
     id: 'visit-1',
     provider: 'Dr. Mehta',
@@ -216,7 +103,7 @@ export const doctorVisitsData: DoctorVisit[] = [
   },
 ];
 
-export const aiInsightsData: AIInsight[] = [
+export const aiInsightsData = [
   {
     id: 'insight-1',
     title: 'Sleep rhythm looks strong',
@@ -234,7 +121,7 @@ export const aiInsightsData: AIInsight[] = [
   },
 ];
 
-export const pregnancyTimelineData: TimelineEvent[] = [
+export const pregnancyTimelineData = [
   {
     id: 'event-1',
     week: 'Week 20',

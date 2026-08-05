@@ -17,11 +17,10 @@ import {
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import ProfileFormDialog from "../components/profile/ProfileFormDialog";
-import type { ProfileInput } from "../features/profiles/types";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
-import { useProfile } from "../features/profiles/useProfile";
-import { updateProfile } from "../features/profiles/profileService";
+import { useProfile } from "../hooks/useProfile";
+import { updateProfile, type ProfileInput } from "../services/profiles/profileService";
 
 const formatDate = (date: string) => {
   if (!date) return "Not specified";

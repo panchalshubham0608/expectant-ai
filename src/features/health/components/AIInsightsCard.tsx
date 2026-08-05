@@ -1,6 +1,6 @@
 import '../../../styles/features/health/components/AIInsightsCard.css';
 import { Sparkles } from 'lucide-react';
-import type { AIInsight } from '../types';
+import type { AIInsight } from '../../../models/ai';
 
 interface AIInsightsCardProps {
   insights: AIInsight[];

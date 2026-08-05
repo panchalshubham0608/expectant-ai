@@ -14,7 +14,7 @@ import {
   Stethoscope,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
-import { useProfile } from '../../features/profiles/useProfile';
+import { useProfile } from '../../hooks/useProfile';
 import ShareProfileDialog from '../profile/ShareProfileDialog';
 import ApiKeyDialog from '../profile/ApiKeyDialog';
 

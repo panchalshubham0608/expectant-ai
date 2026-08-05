@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { subscribeToMeasurements } from './measurementsService';
-import type { Measurement } from './types';
+import { subscribeToMeasurements } from '../services/measurements/measurementsService';
+import type { Measurement } from '../models/measurement';
 
 export function useMeasurements(userId: string | undefined, profileId: string | undefined) {
   const [measurements, setMeasurements] = useState<Measurement[] | null>(null);

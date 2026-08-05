@@ -4,7 +4,7 @@ import { X, Loader2, Plus, Trash2 } from 'lucide-react';
 import type { Appointment } from '../../models/appointment';
 import type { Medication } from '../../models/medication';
 import FileChooser from '../common/FileChooser';
-import { uploadReportToGoogleDrive } from '../../features/health/reportsService';
+import { uploadReportToGoogleDrive } from '../../services/medical-records/reportsService';
 import FileUploadProgressModal, { type FileStatus } from '../common/FileUploadProgressModal';
 
 interface AppointmentFormDialogProps {

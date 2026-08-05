@@ -15,8 +15,8 @@ import CompleteAppointmentFormDialog from "../components/appointments/CompleteAp
 import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
 import { useAuth } from "../auth/useAuth";
 import { useParams } from "react-router-dom";
-import { useAppointments } from "../features/health/useAppointments";
-import { saveAppointment, updateAppointment, deleteAppointment } from "../features/health/appointmentService";
+import { useAppointments } from "../hooks/useAppointments";
+import { saveAppointment, updateAppointment, deleteAppointment } from "../services/appointments/appointmentService";
 
 const formatDateTime = (dateString: string) => {
   try {

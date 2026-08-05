@@ -11,7 +11,7 @@ export interface Measurement {
     | "vitals"
     | "other";
 
-    value: string;
+  value: string;
   unit?: string;
   normalRange?: string;
   measuredAt: string;

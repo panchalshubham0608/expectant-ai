@@ -3,11 +3,11 @@ import '../../../styles/features/health/components/MedicalRecordsCard.css';
 import { FileText } from 'lucide-react';
 import { useAuth } from '../../../auth/useAuth';
 import { useParams } from 'react-router-dom';
-import type { MedicalRecord } from '../types';
-import { getGeminiApiKey } from '../../profiles/profileService';
-import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../medicalRecordsService';
-import { summarizePdfReport } from '../reportSummaryService';
-import { uploadReportToGoogleDrive } from '../reportsService';
+import type { MedicalRecord } from '../../../models/medical';
+import { getGeminiApiKey } from '../../../services/profiles/profileService';
+import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../../../services/medical-records/medicalRecordsService';
+import { summarizePdfReport } from '../../../services/ai/reportSummaryService';
+import { uploadReportToGoogleDrive } from '../../../services/medical-records/reportsService';
 import UploadReportDialog from './UploadReportDialog';
 import ProcessingModal, { type StepStatus } from './ProcessingModal';
 import MedicalRecordDetails from './MedicalRecordDetails';
@@ -35,7 +35,7 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
       return;
     }
 
-    const unsubscribe = subscribeToMedicalReports(user.uid, id, (nextRecords) => {
+    const unsubscribe = subscribeToMedicalReports(user.uid, id, (nextRecords: MedicalRecord[]) => {
       setRecordList(nextRecords);
     }, () => undefined);
 
