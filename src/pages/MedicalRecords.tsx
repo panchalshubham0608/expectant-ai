@@ -1,0 +1,191 @@
+import { useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { 
+  FileText, 
+  ChevronRight, 
+  Loader2, 
+  Droplets, 
+  Activity, 
+  Pill, 
+  Stethoscope, 
+  Syringe, 
+  Hospital, 
+  Dna, 
+  FlaskConical 
+} from 'lucide-react';
+import { useAuth } from '../auth/useAuth';
+import type { MedicalRecord } from '../models/medical';
+import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../services/medical-records/medicalRecordsService';
+import { getGeminiApiKey } from '../services/profiles/profileService';
+import { summarizePdfReport } from '../services/ai/reportSummaryService';
+import { uploadReportToGoogleDrive } from '../services/medical-records/reportsService';
+
+import UploadReportDialog from '../features/health/components/UploadReportDialog';
+import ProcessingModal, { type StepStatus } from '../features/health/components/ProcessingModal';
+import MedicalRecordDetails from '../features/health/components/MedicalRecordDetails';
+
+const formatReportDate = (dateString: string) => {
+  if (!dateString) return "";
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+  } catch {
+    return dateString;
+  }
+};
+
+const getReportIcon = (type: string) => {
+  switch (type) {
+    case 'blood-test': return <Droplets size={16} className="text-rose-500" />;
+    case 'ultrasound': return <Activity size={16} className="text-indigo-500" />;
+    case 'urine-test': return <FlaskConical size={16} className="text-amber-500" />;
+    case 'prescription': return <Pill size={16} className="text-purple-500" />;
+    case 'consultation': return <Stethoscope size={16} className="text-teal-500" />;
+    case 'vaccination': return <Syringe size={16} className="text-cyan-500" />;
+    case 'hospital': return <Hospital size={16} className="text-blue-500" />;
+    case 'genetic-screening': return <Dna size={16} className="text-emerald-500" />;
+    default: return <FileText size={16} className="text-gray-500" />;
+  }
+};
+
+function MedicalRecords() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  
+  const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false);
+  const [uploadStep, setUploadStep] = useState<StepStatus>('pending');
+  const [analyzeStep, setAnalyzeStep] = useState<StepStatus>('pending');
+  const [processError, setProcessError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid || !id) {
+      return;
+    }
+
+    const unsubscribeMedical = subscribeToMedicalReports(user.uid, id, (nextRecords) => {
+      setMedicalRecords(nextRecords);
+      setIsLoading(false);
+    }, () => {
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubscribeMedical();
+    };
+  }, [id, user?.uid]);
+
+  const handleConfirmUpload = async (file: File) => {
+    if (!user?.uid || !id) {
+      throw new Error('You must be signed in to upload a report.');
+    }
+
+    setIsProcessingModalOpen(true);
+    setUploadStep('processing');
+    setAnalyzeStep('pending');
+    setProcessError(null);
+
+    try {
+      const apiKey = await getGeminiApiKey(user.uid, id);
+
+      const reportUrl = await uploadReportToGoogleDrive(user.uid, id, file);
+      setUploadStep('done');
+
+      setAnalyzeStep('processing');
+      const generatedSummary = await summarizePdfReport(file, apiKey || undefined);
+      await saveAnalyzedMedicalReport(user.uid, id, reportUrl, generatedSummary);
+      setAnalyzeStep('done');
+    } catch (error) {
+      if (uploadStep === 'processing') setUploadStep('error');
+      if (analyzeStep === 'processing') setAnalyzeStep('error');
+      setProcessError(error instanceof Error ? error.message : 'An error occurred during processing.');
+    }
+  };
+
+  return (
+    <div className="-mx-4 -mt-6 pb-24">
+      {/* Header Section */}
+      <div className="relative overflow-hidden rounded-b-[2.5rem] bg-gradient-to-br from-teal-600 to-cyan-800 px-6 pb-20 pt-12 shadow-lg">
+        <div className="absolute -right-8 -top-8 h-48 w-48 rounded-full bg-white opacity-10 blur-2xl"></div>
+        <div className="absolute -left-8 top-16 h-32 w-32 rounded-full bg-white opacity-10 blur-2xl"></div>
+        
+        <div className="relative z-10">
+          <h1 className="text-2xl font-bold tracking-tight text-white mb-2">Medical Reports</h1>
+          <p className="text-sm text-teal-50/90 max-w-[280px] leading-relaxed">
+            All your pregnancy reports in one place, with AI-generated summaries and key details for quick review.
+          </p>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="relative z-20 -mt-8 px-4">
+        <div className="space-y-4">
+          <UploadReportDialog onConfirmUpload={handleConfirmUpload} />
+
+          {isLoading ? (
+            <div className="rounded-[2rem] bg-white p-10 text-center shadow-sm ring-1 ring-gray-100">
+              <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-teal-500" />
+              <p className="mt-1 text-sm text-gray-500">Loading reports...</p>
+            </div>
+          ) : medicalRecords.length === 0 ? (
+            <div className="rounded-[2rem] bg-white p-10 text-center shadow-sm ring-1 ring-gray-100">
+              <FileText className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+              <h3 className="text-lg font-medium text-gray-900">No medical reports</h3>
+              <p className="mt-1 text-sm text-gray-500">Upload a PDF report to extract insights.</p>
+            </div>
+          ) : (
+            medicalRecords.map((record) => {
+              const formattedDate = formatReportDate(record.reportDate);
+              const dateParts = formattedDate.split(' ');
+              const month = dateParts.length > 1 ? dateParts[0] : '';
+              const day = dateParts.length > 1 ? dateParts[1]?.replace(',', '') : dateParts[0];
+
+              return (
+                <div 
+                  key={record.id} 
+                  onClick={() => setSelectedRecord(record)}
+                  className="relative overflow-hidden rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-gray-100 transition-shadow hover:shadow-md cursor-pointer flex items-center justify-between"
+                >
+                  <div className="flex gap-4 items-center">
+                    <div className="flex flex-col items-center justify-center rounded-2xl bg-teal-50 px-3 py-2 text-teal-700 min-w-[72px]">
+                      <span className="text-xs font-semibold uppercase tracking-wider">{month}</span>
+                      <span className="text-xl font-bold leading-none my-0.5">{day}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-bold text-gray-900 break-words">{record.title}</h3>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {getReportIcon(record.reportType)}
+                        <p className="text-sm font-medium text-gray-600 capitalize">
+                          {record.reportType.replace(/-/g, ' ')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight size={20} className="text-gray-300 shrink-0 ml-2" />
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <ProcessingModal
+        isOpen={isProcessingModalOpen}
+        onClose={() => setIsProcessingModalOpen(false)}
+        uploadStep={uploadStep}
+        analyzeStep={analyzeStep}
+        error={processError}
+      />
+
+      {selectedRecord && (
+        <MedicalRecordDetails report={selectedRecord} onClose={() => setSelectedRecord(null)} />
+      )}
+    </div>
+  );
+}
+
+export default MedicalRecords;

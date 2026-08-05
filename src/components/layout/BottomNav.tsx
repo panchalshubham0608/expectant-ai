@@ -12,6 +12,7 @@ import {
   Astroid,
   User,
   Stethoscope,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../../auth/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -43,6 +44,11 @@ function BottomNav() {
       name: 'Health',
       path: `${basePath}/health`,
       icon: HeartPulse,
+    },
+    {
+      name: 'Reports',
+      path: `${basePath}/reports`,
+      icon: FileText,
     },
     {
       name: 'Visits',

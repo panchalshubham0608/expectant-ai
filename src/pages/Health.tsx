@@ -3,15 +3,11 @@ import { useEffect, useState } from 'react';
 import '../styles/pages/Health.css';
 import { useAuth } from '../auth/useAuth';
 import type { Measurement } from '../models/measurement';
-import type { MedicalRecord } from '../models/medical';
 import { useProfile } from '../hooks/useProfile';
 import { useMeasurements } from '../hooks/useMeasurements';
 import { updateMeasurements } from '../services/measurements/measurementsService';
-import { subscribeToMedicalReports } from '../services/medical-records/medicalRecordsService';
 import {
-  MedicalRecordsCard,
   MeasurementsCard,
-  medicalRecordsData,
 } from '../features/health';
 
 function Health() {
@@ -20,23 +16,17 @@ function Health() {
   const { error, isLoading, profile } = useProfile(user?.uid, id);
   const { error: measurementsError, isLoading: isLoadingMeasurements, measurements } = useMeasurements(user?.uid, id);
   const [today] = useState(() => new Date());
-  const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>(medicalRecordsData);
 
   useEffect(() => {
     if (!user?.uid || !id) {
       return;
     }
 
-    const unsubscribeMedical = subscribeToMedicalReports(user.uid, id, (nextRecords) => {
-      setMedicalRecords(nextRecords.length > 0 ? nextRecords : medicalRecordsData);
-    }, () => undefined);
-
     // const unsubscribeVisits = subscribeToDoctorVisits(user.uid, id, (nextVisits) => {
     //   setDoctorVisits(nextVisits);
     // }, () => undefined);
 
     return () => {
-      unsubscribeMedical();
       // unsubscribeVisits();
     };
   }, [id, user?.uid]);
@@ -96,7 +86,6 @@ function Health() {
             measurements={mergedMeasurements}
             onSave={saveMeasurements}
           />
-          <MedicalRecordsCard records={medicalRecords} />
         </div>
       )}
     </div>

@@ -27,36 +27,18 @@ export interface GeminiPregnancyReportResponse {
     followUpActions: string[];
     questionsForDoctor: string[];
   };
-  measurements: {
-    fetalHeartRate: string | null;
-    crl: string | null;
-    bpd: string | null;
-    hc: string | null;
-    ac: string | null;
-    fl: string | null;
-    estimatedFetalWeight: string | null;
-    placenta: string | null;
-    amnioticFluid: string | null;
-    cervixLength: string | null;
-    hemoglobin: string | null;
-    bloodGroup: string | null;
-    rhFactor: string | null;
-    tsh: string | null;
-    bloodSugar: string | null;
-    vitaminD: string | null;
-    vitaminB12: string | null;
-    iron: string | null;
-    bloodPressure: string | null;
-    weight: string | null;
-    other: Record<string, unknown>;
-  };
+  measurements: Array<{
+    name: string;
+    value: string;
+    unit: string | null;
+  }>;
   medicines: Array<{
     name: string;
     dose: string;
     frequency: string;
-    duration: string;
+    duration: string | null;
   }>;
-  diagnosesMentioned: string[];
+  diagnoses: string[];
   recommendations: string[];
   nextVisit: string | null;
   confidence: number;
@@ -172,31 +154,13 @@ const getStructuredSummary = (payload: GeminiResponse): GeminiPregnancyReportRes
         followUpActions: readArray(parsed.summary?.followUpActions),
         questionsForDoctor: readArray(parsed.summary?.questionsForDoctor),
       },
-      measurements: {
-        fetalHeartRate: readString(parsed.measurements?.fetalHeartRate),
-        crl: readString(parsed.measurements?.crl),
-        bpd: readString(parsed.measurements?.bpd),
-        hc: readString(parsed.measurements?.hc),
-        ac: readString(parsed.measurements?.ac),
-        fl: readString(parsed.measurements?.fl),
-        estimatedFetalWeight: readString(parsed.measurements?.estimatedFetalWeight),
-        placenta: readString(parsed.measurements?.placenta),
-        amnioticFluid: readString(parsed.measurements?.amnioticFluid),
-        cervixLength: readString(parsed.measurements?.cervixLength),
-        hemoglobin: readString(parsed.measurements?.hemoglobin),
-        bloodGroup: readString(parsed.measurements?.bloodGroup),
-        rhFactor: readString(parsed.measurements?.rhFactor),
-        tsh: readString(parsed.measurements?.tsh),
-        bloodSugar: readString(parsed.measurements?.bloodSugar),
-        vitaminD: readString(parsed.measurements?.vitaminD),
-        vitaminB12: readString(parsed.measurements?.vitaminB12),
-        iron: readString(parsed.measurements?.iron),
-        bloodPressure: readString(parsed.measurements?.bloodPressure),
-        weight: readString(parsed.measurements?.weight),
-        other: typeof parsed.measurements?.other === 'object' && parsed.measurements?.other !== null
-          ? parsed.measurements.other
-          : {},
-      },
+      measurements: Array.isArray(parsed.measurements)
+        ? parsed.measurements.map((m: any) => ({
+            name: readString(m?.name) ?? '',
+            value: readString(m?.value) ?? '',
+            unit: readString(m?.unit),
+          }))
+        : [],
       medicines: Array.isArray(parsed.medicines)
         ? parsed.medicines.map(
             (medicine: {
@@ -208,11 +172,11 @@ const getStructuredSummary = (payload: GeminiResponse): GeminiPregnancyReportRes
               name: readString(medicine?.name) ?? '',
               dose: readString(medicine?.dose) ?? '',
               frequency: readString(medicine?.frequency) ?? '',
-              duration: readString(medicine?.duration) ?? '',
+              duration: readString(medicine?.duration),
             }),
           )
         : [],
-      diagnosesMentioned: readArray(parsed.diagnosesMentioned),
+      diagnoses: readArray(parsed.diagnoses || (parsed as any).diagnosesMentioned),
       recommendations: readArray(parsed.recommendations),
       nextVisit: readString(parsed.nextVisit),
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
@@ -287,29 +251,13 @@ Response structured schema:
     "followUpActions": [],
     "questionsForDoctor": []
   },
-  "measurements": {
-    "fetalHeartRate": null,
-    "crl": null,
-    "bpd": null,
-    "hc": null,
-    "ac": null,
-    "fl": null,
-    "estimatedFetalWeight": null,
-    "placenta": null,
-    "amnioticFluid": null,
-    "cervixLength": null,
-    "hemoglobin": null,
-    "bloodGroup": null,
-    "rhFactor": null,
-    "tsh": null,
-    "bloodSugar": null,
-    "vitaminD": null,
-    "vitaminB12": null,
-    "iron": null,
-    "bloodPressure": null,
-    "weight": null,
-    "other": {}
-  },
+  "measurements": [
+    {
+      "name": "e.g., Fetal Heart Rate, Weight, Blood Pressure",
+      "value": "140",
+      "unit": "bpm"
+    }
+  ],
   "medicines": [
     {
       "name": "",
@@ -318,7 +266,7 @@ Response structured schema:
       "duration": ""
     }
   ],
-  "diagnosesMentioned": [],
+  "diagnoses": [],
   "recommendations": [],
   "nextVisit": null,
   "confidence": 0.0
@@ -395,31 +343,15 @@ The document is in the attached PDF. Extract only what is explicitly present in 
               },
             },
             measurements: {
-              type: 'OBJECT',
-              properties: {
-                fetalHeartRate: { type: 'STRING' },
-                crl: { type: 'STRING' },
-                bpd: { type: 'STRING' },
-                hc: { type: 'STRING' },
-                ac: { type: 'STRING' },
-                fl: { type: 'STRING' },
-                estimatedFetalWeight: { type: 'STRING' },
-                placenta: { type: 'STRING' },
-                amnioticFluid: { type: 'STRING' },
-                cervixLength: { type: 'STRING' },
-                hemoglobin: { type: 'STRING' },
-                bloodGroup: { type: 'STRING' },
-                rhFactor: { type: 'STRING' },
-                tsh: { type: 'STRING' },
-                bloodSugar: { type: 'STRING' },
-                vitaminD: { type: 'STRING' },
-                vitaminB12: { type: 'STRING' },
-                iron: { type: 'STRING' },
-                bloodPressure: { type: 'STRING' },
-                weight: { type: 'STRING' },
-                other: {
-                  type: 'OBJECT',
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  name: { type: 'STRING' },
+                  value: { type: 'STRING' },
+                  unit: { type: 'STRING' },
                 },
+                required: ['name', 'value'],
               },
             },
             medicines: {
@@ -434,7 +366,7 @@ The document is in the attached PDF. Extract only what is explicitly present in 
                 },
               },
             },
-            diagnosesMentioned: {
+            diagnoses: {
               type: 'ARRAY',
               items: { type: 'STRING' },
             },
@@ -451,7 +383,7 @@ The document is in the attached PDF. Extract only what is explicitly present in 
             'summary',
             'measurements',
             'medicines',
-            'diagnosesMentioned',
+            'diagnoses',
             'recommendations',
             'nextVisit',
             'confidence',
@@ -526,29 +458,13 @@ Response structured schema:
     "followUpActions": [],
     "questionsForDoctor": []
   },
-  "measurements": {
-    "fetalHeartRate": null,
-    "crl": null,
-    "bpd": null,
-    "hc": null,
-    "ac": null,
-    "fl": null,
-    "estimatedFetalWeight": null,
-    "placenta": null,
-    "amnioticFluid": null,
-    "cervixLength": null,
-    "hemoglobin": null,
-    "bloodGroup": null,
-    "rhFactor": null,
-    "tsh": null,
-    "bloodSugar": null,
-    "vitaminD": null,
-    "vitaminB12": null,
-    "iron": null,
-    "bloodPressure": null,
-    "weight": null,
-    "other": {}
-  },
+  "measurements": [
+    {
+      "name": "e.g., Fetal Heart Rate, Weight, Blood Pressure",
+      "value": "140",
+      "unit": "bpm"
+    }
+  ],
   "medicines": [
     {
       "name": "",
@@ -557,7 +473,7 @@ Response structured schema:
       "duration": ""
     }
   ],
-  "diagnosesMentioned": [],
+  "diagnoses": [],
   "recommendations": [],
   "nextVisit": null,
   "confidence": 0.0
@@ -634,31 +550,15 @@ The document is in the attached PDF. Extract only what is explicitly present in 
               },
             },
             measurements: {
-              type: 'OBJECT',
-              properties: {
-                fetalHeartRate: { type: 'STRING' },
-                crl: { type: 'STRING' },
-                bpd: { type: 'STRING' },
-                hc: { type: 'STRING' },
-                ac: { type: 'STRING' },
-                fl: { type: 'STRING' },
-                estimatedFetalWeight: { type: 'STRING' },
-                placenta: { type: 'STRING' },
-                amnioticFluid: { type: 'STRING' },
-                cervixLength: { type: 'STRING' },
-                hemoglobin: { type: 'STRING' },
-                bloodGroup: { type: 'STRING' },
-                rhFactor: { type: 'STRING' },
-                tsh: { type: 'STRING' },
-                bloodSugar: { type: 'STRING' },
-                vitaminD: { type: 'STRING' },
-                vitaminB12: { type: 'STRING' },
-                iron: { type: 'STRING' },
-                bloodPressure: { type: 'STRING' },
-                weight: { type: 'STRING' },
-                other: {
-                  type: 'OBJECT',
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  name: { type: 'STRING' },
+                  value: { type: 'STRING' },
+                  unit: { type: 'STRING' },
                 },
+                required: ['name', 'value'],
               },
             },
             medicines: {
@@ -673,7 +573,7 @@ The document is in the attached PDF. Extract only what is explicitly present in 
                 },
               },
             },
-            diagnosesMentioned: {
+            diagnoses: {
               type: 'ARRAY',
               items: { type: 'STRING' },
             },
@@ -690,7 +590,7 @@ The document is in the attached PDF. Extract only what is explicitly present in 
             'summary',
             'measurements',
             'medicines',
-            'diagnosesMentioned',
+            'diagnoses',
             'recommendations',
             'nextVisit',
             'confidence',
