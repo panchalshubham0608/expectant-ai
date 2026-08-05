@@ -19,7 +19,6 @@ import { useAuth } from '../../auth/useAuth';
 import { useProfile } from '../../hooks/useProfile';
 import ShareProfileDialog from '../profile/ShareProfileDialog';
 import ApiKeyDialog from '../profile/ApiKeyDialog';
-import path from 'path';
 
 function BottomNav() {
   const { id } = useParams();
