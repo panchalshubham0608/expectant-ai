@@ -14,15 +14,15 @@ import {
   FlaskConical 
 } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
-import type { MedicalRecord } from '../models/medical';
-import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../services/medical-records/medicalRecordsService';
+import type { Report } from '../models/report';
+import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../services/reports/medicalReportService';
 import { getGeminiApiKey } from '../services/profiles/profileService';
 import { summarizePdfReport } from '../services/ai/reportSummaryService';
-import { uploadReportToGoogleDrive } from '../services/medical-records/reportsService';
+import { uploadReportToGoogleDrive } from '../services/reports/reportsService';
 
 import UploadReportDialog from '../features/health/components/UploadReportDialog';
 import ProcessingModal, { type StepStatus } from '../features/health/components/ProcessingModal';
-import MedicalRecordDetails from '../features/health/components/MedicalRecordDetails';
+import ReportDetails from '../features/health/components/ReportDetails';
 
 const formatReportDate = (dateString: string) => {
   if (!dateString) return "";
@@ -49,14 +49,14 @@ const getReportIcon = (type: string) => {
   }
 };
 
-function MedicalRecords() {
+function Reports() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   
-  const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<Report | null>(null);
   const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false);
   const [uploadStep, setUploadStep] = useState<StepStatus>('pending');
   const [analyzeStep, setAnalyzeStep] = useState<StepStatus>('pending');
@@ -67,8 +67,8 @@ function MedicalRecords() {
       return;
     }
 
-    const unsubscribeMedical = subscribeToMedicalReports(user.uid, id, (nextRecords) => {
-      setMedicalRecords(nextRecords);
+    const unsubscribeMedical = subscribeToMedicalReports(user.uid, id, (nextRecords : Report[]) => {
+      setReports(nextRecords);
       setIsLoading(false);
     }, () => {
       setIsLoading(false);
@@ -131,14 +131,14 @@ function MedicalRecords() {
               <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-teal-500" />
               <p className="mt-1 text-sm text-gray-500">Loading reports...</p>
             </div>
-          ) : medicalRecords.length === 0 ? (
+          ) : reports.length === 0 ? (
             <div className="rounded-[2rem] bg-white p-10 text-center shadow-sm ring-1 ring-gray-100">
               <FileText className="mx-auto mb-3 h-12 w-12 text-gray-300" />
               <h3 className="text-lg font-medium text-gray-900">No medical reports</h3>
               <p className="mt-1 text-sm text-gray-500">Upload a PDF report to extract insights.</p>
             </div>
           ) : (
-            medicalRecords.map((record) => {
+            reports.map((record) => {
               const formattedDate = formatReportDate(record.reportDate);
               const dateParts = formattedDate.split(' ');
               const month = dateParts.length > 1 ? dateParts[0] : '';
@@ -182,10 +182,10 @@ function MedicalRecords() {
       />
 
       {selectedRecord && (
-        <MedicalRecordDetails report={selectedRecord} onClose={() => setSelectedRecord(null)} />
+        <ReportDetails report={selectedRecord} onClose={() => setSelectedRecord(null)} />
       )}
     </div>
   );
 }
 
-export default MedicalRecords;
+export default Reports;

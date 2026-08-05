@@ -58,7 +58,7 @@ export default function ProcessingModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={uploadStep === 'processing' || analyzeStep === 'processing'}
+            disabled={!error &&  (uploadStep === 'processing' || analyzeStep === 'processing')}
             className="rounded-full bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Close

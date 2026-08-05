@@ -1,26 +1,26 @@
 import { useEffect, useState } from 'react';
-import '../../../styles/features/health/components/MedicalRecordsCard.css';
+import '../../../styles/features/health/components/ReportsCard.css';
 import { FileText } from 'lucide-react';
 import { useAuth } from '../../../auth/useAuth';
 import { useParams } from 'react-router-dom';
-import type { MedicalRecord } from '../../../models/medical';
+import type { Report } from '../../../models/report';
 import { getGeminiApiKey } from '../../../services/profiles/profileService';
-import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../../../services/medical-records/medicalRecordsService';
+import { saveAnalyzedMedicalReport, subscribeToMedicalReports } from '../../../services/reports/medicalReportService';
 import { summarizePdfReport } from '../../../services/ai/reportSummaryService';
-import { uploadReportToGoogleDrive } from '../../../services/medical-records/reportsService';
+import { uploadReportToGoogleDrive } from '../../../services/reports/reportsService';
 import UploadReportDialog from './UploadReportDialog';
 import ProcessingModal, { type StepStatus } from './ProcessingModal';
-import MedicalRecordDetails from './MedicalRecordDetails';
+import ReportDetails from './ReportDetails';
 
-interface MedicalRecordsCardProps {
-  records: MedicalRecord[];
+interface ReportsCardProps {
+  records: Report[];
 }
 
-export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps) {
+export default function ReportsCard({ records }: ReportsCardProps) {
   const { user } = useAuth();
   const { id : profileId } = useParams<{ id: string }>();
   const [recordList, setRecordList] = useState(records);
-  const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<Report | null>(null);
   const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false);
   const [uploadStep, setUploadStep] = useState<StepStatus>('pending');
   const [analyzeStep, setAnalyzeStep] = useState<StepStatus>('pending');
@@ -35,7 +35,7 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
       return;
     }
 
-    const unsubscribe = subscribeToMedicalReports(user.uid, profileId, (nextRecords: MedicalRecord[]) => {
+    const unsubscribe = subscribeToMedicalReports(user.uid, profileId, (nextRecords: Report[]) => {
       setRecordList(nextRecords);
     }, () => undefined);
 
@@ -113,7 +113,7 @@ export default function MedicalRecordsCard({ records }: MedicalRecordsCardProps)
       </div>
 
       {selectedRecord && (
-        <MedicalRecordDetails report={selectedRecord} onClose={() => setSelectedRecord(null)} />
+        <ReportDetails report={selectedRecord} onClose={() => setSelectedRecord(null)} />
       )}
     </section>
   );

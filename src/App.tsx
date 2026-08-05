@@ -12,7 +12,7 @@ import Health from './pages/Health';
 import RequireAuth from './auth/RequireAuth';
 import ProfilePage from './pages/ProfilePage';
 import AppointmentsPage from './pages/AppointmentsPage';
-import MedicalRecords from './pages/MedicalRecords';
+import Reports from './pages/Reports';
 
 function App() {
   return (
@@ -29,7 +29,7 @@ function App() {
             <Route path="health" element={<Health />} />
             <Route path="appointments" element={<AppointmentsPage />} />
             <Route path="expectant" element={<ProfilePage />} />
-            <Route path="reports" element={<MedicalRecords />} />
+            <Route path="reports" element={<Reports />} />
           </Route>
         </Route>
       </Routes>

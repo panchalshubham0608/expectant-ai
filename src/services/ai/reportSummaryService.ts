@@ -1,16 +1,9 @@
+import { SUMMARIZE_REPORT_PROMPT } from "../../prompts/summarize_report";
+
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
-type ReportType =
-  | 'ultrasound'
-  | 'blood-test'
-  | 'urine-test'
-  | 'prescription'
-  | 'consultation'
-  | 'vaccination'
-  | 'hospital'
-  | 'genetic-screening'
-  | 'other';
+import type { ReportType } from '../../models/report';
 
 export interface GeminiPregnancyReportResponse {
   reportType: ReportType;
@@ -30,13 +23,15 @@ export interface GeminiPregnancyReportResponse {
   measurements: Array<{
     name: string;
     value: string;
-    unit: string | null;
+    unit?: string;
+    measuredAt?: string;
   }>;
   medicines: Array<{
     name: string;
-    dose: string;
-    frequency: string;
-    duration: string | null;
+    dose?: string;
+    frequency?: string;
+    duration?: string;
+    instructions?: string;
   }>;
   diagnoses: string[];
   recommendations: string[];
@@ -84,36 +79,6 @@ const readGeminiError = async (response: Response) => {
   }
 };
 
-const normalizePublicReportLink = (reportUrl: string) => {
-  const trimmed = reportUrl.trim();
-
-  if (!trimmed) {
-    throw new Error('Please provide a report link.');
-  }
-
-  return trimmed.replace(/^https?:\/\//i, 'https://');
-};
-
-const getPdfBytes = async (reportUrl: string) => {
-  const normalizedUrl = normalizePublicReportLink(reportUrl);
-  const response = await fetch(normalizedUrl, {
-    headers: {
-      Accept: 'application/pdf,application/octet-stream,*/*',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Unable to fetch the public report link. ${response.status} ${response.statusText}`);
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType && !contentType.includes('pdf') && !/\.pdf(?:$|[?#])/i.test(normalizedUrl)) {
-    throw new Error('The report link must point directly to a PDF document.');
-  }
-
-  return response.arrayBuffer();
-};
-
 const encodePdfToBase64 = async (file: File) => {
   const arrayBuffer = await file.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
@@ -155,34 +120,29 @@ const getStructuredSummary = (payload: GeminiResponse): GeminiPregnancyReportRes
         questionsForDoctor: readArray(parsed.summary?.questionsForDoctor),
       },
       measurements: Array.isArray(parsed.measurements)
-        ? parsed.measurements.map((m: any) => ({
-            name: readString(m?.name) ?? '',
-            value: readString(m?.value) ?? '',
-            unit: readString(m?.unit),
+        ? parsed.measurements.map((m) => ({
+            name: readString(m.name) ?? '',
+            value: readString(m.value) ?? '',
+            unit: readString(m.unit) || undefined,
+            measuredAt: readString(m.measuredAt) || undefined,
           }))
         : [],
       medicines: Array.isArray(parsed.medicines)
-        ? parsed.medicines.map(
-            (medicine: {
-              name?: unknown;
-              dose?: unknown;
-              frequency?: unknown;
-              duration?: unknown;
-            }) => ({
-              name: readString(medicine?.name) ?? '',
-              dose: readString(medicine?.dose) ?? '',
-              frequency: readString(medicine?.frequency) ?? '',
-              duration: readString(medicine?.duration),
-            }),
-          )
+        ? parsed.medicines.map((m) => ({
+            name: readString(m.name) ?? '',
+            dose: readString(m.dose) || undefined,
+            frequency: readString(m.frequency) || undefined,
+            duration: readString(m.duration) || undefined,
+            instructions: readString(m.instructions) || undefined,
+          }))
         : [],
-      diagnoses: readArray(parsed.diagnoses || (parsed as any).diagnosesMentioned),
+      diagnoses: readArray(parsed.diagnoses),
       recommendations: readArray(parsed.recommendations),
       nextVisit: readString(parsed.nextVisit),
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
     };
   } catch {
-    throw new Error('Gemini did not return valid JSON for the PDF summary.');
+    throw new Error('Gemini did not return valid response for the PDF summary.');
   }
 };
 
@@ -212,67 +172,7 @@ export const summarizePdfReport = async (file: File, userApiKey?: string): Promi
   const { apiKey, model } = getGeminiConfig(userApiKey);
   const pdfData = await encodePdfToBase64(file);
 
-  const prompt = `You are an AI assistant that helps organize pregnancy medical records.
-
-Your job is to extract factual information from a pregnancy-related medical document.
-
-Instructions:
-- Never diagnose medical conditions.
-- Never recommend treatment.
-- Never infer values that are not explicitly present.
-- Preserve medical terminology exactly as written.
-- If a field is unavailable, return null.
-- If you are uncertain, return null instead of guessing.
-- Return ONLY valid JSON.
-- Do not wrap the JSON in markdown.
-
-Tasks:
-1. Determine the report type.
-2. Extract metadata.
-3. Extract measurements.
-4. Extract medicines if present.
-5. Extract doctor recommendations.
-6. Generate a concise factual summary.
-7. Suggest questions that the patient may wish to ask their healthcare provider (only based on information present in the report).
-
-Response structured schema:
-{
-  "reportType": "ultrasound | blood-test | urine-test | prescription | consultation | vaccination | hospital | genetic-screening | other",
-  "metadata": {
-    "title": null,
-    "hospital": null,
-    "doctor": null,
-    "reportDate": null,
-    "pregnancyWeek": null
-  },
-  "summary": {
-    "plainEnglish": "",
-    "importantFindings": [],
-    "followUpActions": [],
-    "questionsForDoctor": []
-  },
-  "measurements": [
-    {
-      "name": "e.g., Fetal Heart Rate, Weight, Blood Pressure",
-      "value": "140",
-      "unit": "bpm"
-    }
-  ],
-  "medicines": [
-    {
-      "name": "",
-      "dose": "",
-      "frequency": "",
-      "duration": ""
-    }
-  ],
-  "diagnoses": [],
-  "recommendations": [],
-  "nextVisit": null,
-  "confidence": 0.0
-}
-
-The document is in the attached PDF. Extract only what is explicitly present in the document and avoid any diagnosis or treatment advice.`;
+  const prompt = SUMMARIZE_REPORT_PROMPT.trim();
 
   const summaryResponse = await fetch(`${GEMINI_API_URL}/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
@@ -350,6 +250,7 @@ The document is in the attached PDF. Extract only what is explicitly present in 
                   name: { type: 'STRING' },
                   value: { type: 'STRING' },
                   unit: { type: 'STRING' },
+                  measuredAt: { type: 'STRING' },
                 },
                 required: ['name', 'value'],
               },
@@ -363,213 +264,7 @@ The document is in the attached PDF. Extract only what is explicitly present in 
                   dose: { type: 'STRING' },
                   frequency: { type: 'STRING' },
                   duration: { type: 'STRING' },
-                },
-              },
-            },
-            diagnoses: {
-              type: 'ARRAY',
-              items: { type: 'STRING' },
-            },
-            recommendations: {
-              type: 'ARRAY',
-              items: { type: 'STRING' },
-            },
-            nextVisit: { type: 'STRING' },
-            confidence: { type: 'NUMBER' },
-          },
-          required: [
-            'reportType',
-            'metadata',
-            'summary',
-            'measurements',
-            'medicines',
-            'diagnoses',
-            'recommendations',
-            'nextVisit',
-            'confidence',
-          ],
-        },
-      },
-    }),
-  });
-
-  if (!summaryResponse.ok) {
-    const message = await readGeminiError(summaryResponse);
-    throw new Error(`Failed to generate a report summary: ${message}`);
-  }
-
-  const summaryPayload = (await summaryResponse.json()) as GeminiResponse;
-
-  return getStructuredSummary(summaryPayload);
-};
-
-export const summarizePublicReportUrl = async (reportUrl: string, userApiKey?: string): Promise<GeminiPregnancyReportResponse> => {
-  if (!reportUrl.trim()) {
-    throw new Error('Please provide a public report link.');
-  }
-
-  const { apiKey, model } = getGeminiConfig(userApiKey);
-  const pdfBuffer = await getPdfBytes(reportUrl);
-  const bytes = new Uint8Array(pdfBuffer);
-  let binary = '';
-
-  for (let index = 0; index < bytes.length; index += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-  }
-
-  const pdfData = btoa(binary);
-
-  const prompt = `You are an AI assistant that helps organize pregnancy medical records.
-
-Your job is to extract factual information from a pregnancy-related medical document.
-
-Instructions:
-- Never diagnose medical conditions.
-- Never recommend treatment.
-- Never infer values that are not explicitly present.
-- Preserve medical terminology exactly as written.
-- If a field is unavailable, return null.
-- If you are uncertain, return null instead of guessing.
-- Return ONLY valid JSON.
-- Do not wrap the JSON in markdown.
-
-Tasks:
-1. Determine the report type.
-2. Extract metadata.
-3. Extract measurements.
-4. Extract medicines if present.
-5. Extract doctor recommendations.
-6. Generate a concise factual summary.
-7. Suggest questions that the patient may wish to ask their healthcare provider (only based on information present in the report).
-
-Response structured schema:
-{
-  "reportType": "ultrasound | blood-test | urine-test | prescription | consultation | vaccination | hospital | genetic-screening | other",
-  "metadata": {
-    "title": null,
-    "hospital": null,
-    "doctor": null,
-    "reportDate": null,
-    "pregnancyWeek": null
-  },
-  "summary": {
-    "plainEnglish": "",
-    "importantFindings": [],
-    "followUpActions": [],
-    "questionsForDoctor": []
-  },
-  "measurements": [
-    {
-      "name": "e.g., Fetal Heart Rate, Weight, Blood Pressure",
-      "value": "140",
-      "unit": "bpm"
-    }
-  ],
-  "medicines": [
-    {
-      "name": "",
-      "dose": "",
-      "frequency": "",
-      "duration": ""
-    }
-  ],
-  "diagnoses": [],
-  "recommendations": [],
-  "nextVisit": null,
-  "confidence": 0.0
-}
-
-The document is in the attached PDF. Extract only what is explicitly present in the document and avoid any diagnosis or treatment advice.`;
-
-  const summaryResponse = await fetch(`${GEMINI_API_URL}/${model}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              text: prompt,
-            },
-            {
-              inlineData: {
-                mimeType: 'application/pdf',
-                data: pdfData,
-              },
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: {
-            reportType: {
-              type: 'STRING',
-              enum: [
-                'ultrasound',
-                'blood-test',
-                'urine-test',
-                'prescription',
-                'consultation',
-                'vaccination',
-                'hospital',
-                'genetic-screening',
-                'other',
-              ],
-            },
-            metadata: {
-              type: 'OBJECT',
-              properties: {
-                title: { type: 'STRING' },
-                hospital: { type: 'STRING' },
-                doctor: { type: 'STRING' },
-                reportDate: { type: 'STRING' },
-                pregnancyWeek: { type: 'STRING' },
-              },
-            },
-            summary: {
-              type: 'OBJECT',
-              properties: {
-                plainEnglish: { type: 'STRING' },
-                importantFindings: {
-                  type: 'ARRAY',
-                  items: { type: 'STRING' },
-                },
-                followUpActions: {
-                  type: 'ARRAY',
-                  items: { type: 'STRING' },
-                },
-                questionsForDoctor: {
-                  type: 'ARRAY',
-                  items: { type: 'STRING' },
-                },
-              },
-            },
-            measurements: {
-              type: 'ARRAY',
-              items: {
-                type: 'OBJECT',
-                properties: {
-                  name: { type: 'STRING' },
-                  value: { type: 'STRING' },
-                  unit: { type: 'STRING' },
-                },
-                required: ['name', 'value'],
-              },
-            },
-            medicines: {
-              type: 'ARRAY',
-              items: {
-                type: 'OBJECT',
-                properties: {
-                  name: { type: 'STRING' },
-                  dose: { type: 'STRING' },
-                  frequency: { type: 'STRING' },
-                  duration: { type: 'STRING' },
+                  instructions: { type: 'STRING' },
                 },
               },
             },

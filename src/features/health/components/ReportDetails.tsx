@@ -1,4 +1,4 @@
-import type { MedicalRecord } from '../../../models/medical';
+import type { Report } from '../../../models/report';
 import {
     Activity,
     AlertCircle,
@@ -14,12 +14,12 @@ import {
     X,
 } from 'lucide-react';
 
-interface MedicalRecordDetailsProps {
-    report: MedicalRecord;
+interface ReportDetailsProps {
+    report: Report;
     onClose: () => void;
 }
 
-function MedicalRecordDetails({ report, onClose }: MedicalRecordDetailsProps) {
+function ReportDetails({ report, onClose }: ReportDetailsProps) {
     return (
         <div className="medical-records-card__modal">
             <div className="medical-records-card__modal-card">
@@ -216,4 +216,4 @@ function MedicalRecordDetails({ report, onClose }: MedicalRecordDetailsProps) {
     )
 };
 
-export default MedicalRecordDetails;
+export default ReportDetails;
