@@ -26,8 +26,9 @@ jobs:
       - name: Run Daily Moment Generation Script
         env:
           # Pass required secrets to the environment so the script can authenticate
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
-          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           # JSON string containing an array of targets: [["userId", "profileId", "apiKey?"]]
           TARGETS_JSON: ${{ secrets.DAILY_MOMENT_TARGETS }}
         run: npx tsx src/scripts/generate_daily_moment.ts
