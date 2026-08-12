@@ -33,7 +33,8 @@ export const generateDailyMoment = async (
   userApiKey?: string
 ): Promise<DailyMomentResponse> => {
   const ai = getGeminiClient(userApiKey);
-  const model = import.meta.env.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const env = typeof process !== 'undefined' && process.env ? process.env : (import.meta as any).env;
+  const model = env?.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
   const userPrompt = `Please generate a daily moment for the following specifics:
 - Pregnancy Week: ${request.pregnancyWeek}

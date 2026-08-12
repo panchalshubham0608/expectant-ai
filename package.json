@@ -20,6 +20,7 @@
     "@tanstack/react-query": "^5.101.2",
     "date-fns": "^4.4.0",
     "firebase": "^12.16.0",
+    "firebase-admin": "^14.2.0",
     "lucide-react": "^1.25.0",
     "pdfjs": "^2.5.4",
     "pdfjs-dist": "^6.1.200",
