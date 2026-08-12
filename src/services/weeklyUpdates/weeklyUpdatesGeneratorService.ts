@@ -6,16 +6,14 @@ import { generateImage } from '../ai/imageGenerationService';
 import { uploadFileToGoogleDrive } from '../storage/googleDriveService';
 import type { WeeklyUpdate } from "../../models/weeklyUpdate";
 
-const dataURItoFile = (dataURI: string, filename: string): File => {
-  const arr = dataURI.split(',');
-  const mime = arr[0].match(/:(.*?);/)![1];
-  const bstr = atob(arr[1]);
+const base64ToFile = (base64: string, mimeType: string, filename: string): File => {
+  const bstr = atob(base64);
   let n = bstr.length;
   const u8arr = new Uint8Array(n);
   while (n--) {
     u8arr[n] = bstr.charCodeAt(n);
   }
-  return new File([u8arr], filename, { type: mime });
+  return new File([u8arr], filename, { type: mimeType });
 };
 
 export const generateAndSaveWeeklyUpdate = async (
@@ -78,8 +76,9 @@ export const generateAndSaveWeeklyUpdate = async (
       weeklyUpdate.visuals.map(async (visual) => {
         if (!visual.url) {
           try {
-            const imageDataUri = await generateImage(visual.prompt, userApiKey);
-            const imageFile = dataURItoFile(imageDataUri, `${visual.type}-${pregnancyWeek}.png`);
+            const generatedImage = await generateImage(visual.prompt, userApiKey);
+            const extension = generatedImage.mimeType.split('/')[1] || 'png';
+            const imageFile = base64ToFile(generatedImage.data, generatedImage.mimeType, `${visual.type}-${pregnancyWeek}.${extension}`);
             const driveUrl = await uploadFileToGoogleDrive(imageFile);
             hasNewImages = true;
             return { ...visual, url: driveUrl };
