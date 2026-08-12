@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, CalendarHeart, Sparkles, AlertCircle, Baby, Heart, Lightbulb } from 'lucide-react';
+import { Loader2, CalendarHeart, Sparkles, AlertCircle, Baby, Heart, Lightbulb, RefreshCw, Users, Calendar } from 'lucide-react';
 import { generateAndSaveWeeklyUpdate, getWeeklyUpdateForCurrentWeek } from '../../services/weeklyUpdates/weeklyUpdatesGeneratorService';
 import type { WeeklyUpdate } from '../../models/weeklyUpdate';
 import { getGeminiApiKey } from '../../services/profiles/profileService';
@@ -123,7 +123,16 @@ export default function WeeklyUpdateCard({ userId, profileId }: WeeklyUpdateCard
   }
 
   return (
-    <div className="overflow-hidden rounded-[2.5rem] bg-white shadow-sm ring-1 ring-gray-100">
+    <div className="relative overflow-hidden rounded-[2.5rem] bg-white shadow-sm ring-1 ring-gray-100">
+      <button
+        onClick={handleGenerate}
+        disabled={isGenerating}
+        className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-gray-700 shadow-sm ring-1 ring-gray-900/5 backdrop-blur-md transition-all hover:bg-white hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+        title="Regenerate missing visuals"
+      >
+        <RefreshCw size={18} className={isGenerating ? 'animate-spin' : ''} />
+      </button>
+
       {/* Cover Image (if available) */}
       {update.visuals && update.visuals.length > 0 && update.visuals[0].url && (
         <div className="relative h-48 w-full bg-gray-100 sm:h-64">
@@ -225,6 +234,26 @@ export default function WeeklyUpdateCard({ userId, profileId }: WeeklyUpdateCard
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Couple Moment */}
+          {update.coupleMoment && (
+            <div>
+              <h4 className="mb-2 flex items-center gap-2 text-base font-bold text-gray-900">
+                <Users size={18} className="text-teal-500" /> {update.coupleMoment.title}
+              </h4>
+              <p className="text-sm leading-relaxed text-gray-600">{update.coupleMoment.content}</p>
+            </div>
+          )}
+
+          {/* Coming Up */}
+          {update.comingUp && (
+            <div>
+              <h4 className="mb-2 flex items-center gap-2 text-base font-bold text-gray-900">
+                <Calendar size={18} className="text-indigo-500" /> {update.comingUp.title}
+              </h4>
+              <p className="text-sm leading-relaxed text-gray-600">{update.comingUp.content}</p>
             </div>
           )}
 
