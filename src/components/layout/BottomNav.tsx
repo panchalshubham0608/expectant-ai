@@ -14,6 +14,7 @@ import {
   Stethoscope,
   FileText,
   BellRing,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -35,6 +36,11 @@ function BottomNav() {
       name: 'Home',
       path: basePath,
       icon: Home,
+    },
+    {
+      name: 'Week',
+      path: `${basePath}/weekly-updates`,
+      icon: Sparkles,
     },
     {
       name: 'Journal',
@@ -65,7 +71,7 @@ function BottomNav() {
       name: 'Reminders',
       path: `${basePath}/reminders`,
       icon: BellRing,
-    }
+    },
   ];
 
   return (

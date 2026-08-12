@@ -14,6 +14,7 @@ import ExpectantProfile from './pages/ExpectantProfile';
 import AppointmentsPage from './pages/AppointmentsPage';
 import Reports from './pages/Reports';
 import Reminders from './pages/Reminders';
+import WeeklyUpdates from './pages/WeeklyUpdates';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
             <Route path="expectant" element={<ExpectantProfile />} />
             <Route path="reports" element={<Reports />} />
             <Route path="reminders" element={<Reminders />} />
+            <Route path="weekly-updates" element={<WeeklyUpdates />} />
           </Route>
         </Route>
       </Routes>
