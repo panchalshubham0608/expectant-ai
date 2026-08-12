@@ -63,7 +63,6 @@ export default function DailyMomentNotificationWorker({ userId, profileId }: Dai
                 return;
               }
             }
-            alert(`Notification: ${title}\n\n${options.body}`); // Fallback for browsers without SW support
             new Notification(title, options);
           }
         } catch (error) {
