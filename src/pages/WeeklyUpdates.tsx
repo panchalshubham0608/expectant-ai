@@ -1,10 +1,64 @@
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useProfile } from '../hooks/useProfile';
 import WeeklyUpdateCard from '../components/home/WeeklyUpdateCard';
+import { getPregnancyAge } from '../utils/pregnancyUtils';
+import { generateAndSaveWeeklyUpdate, subscribeToWeeklyUpdates } from '../services/weeklyUpdates/weeklyUpdatesGeneratorService';
+import { getGeminiApiKey } from '../services/profiles/profileService';
+import type { WeeklyUpdate } from '../models/weeklyUpdate';
 
 export default function WeeklyUpdates() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const userId = user?.uid;
+
+  const { profile } = useProfile(userId, id);
+  const age = profile ? getPregnancyAge(profile.lastMenstrualPeriod, profile.ultrasoundLastMenstrualPeriod) : null;
+  const currentWeek = age ? (age.days === 0 ? age.weeks : age.weeks + 1) : null;
+
+  const [updates, setUpdates] = useState<WeeklyUpdate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId || !id) return;
+    let mounted = true;
+
+    const unsubscribe = subscribeToWeeklyUpdates(
+      userId,
+      id,
+      (fetchedUpdates) => {
+        if (mounted) {
+          setUpdates(fetchedUpdates);
+          setIsLoading(false);
+        }
+      },
+      (err) => {
+        if (mounted) {
+          setError(err.message || 'Failed to load weekly updates');
+          setIsLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [userId, id]);
+
+  const handleGenerate = async () => {
+    if (!userId || !id) return;
+    const apiKey = await getGeminiApiKey(userId, id).catch(() => undefined);
+    await generateAndSaveWeeklyUpdate(userId, id, apiKey || undefined);
+  };
+
+  const handleRegenerate = async (week: number) => {
+    if (!userId || !id) return;
+    const apiKey = await getGeminiApiKey(userId, id).catch(() => undefined);
+    await generateAndSaveWeeklyUpdate(userId, id, apiKey || undefined);
+  };
 
   return (
     <div className="-mx-4 -mt-6 pb-24">
@@ -23,7 +77,16 @@ export default function WeeklyUpdates() {
 
       {/* Main Content */}
       <div className="relative z-20 -mt-8 px-4">
-        {user?.uid && id && <WeeklyUpdateCard userId={user.uid} profileId={id} />}
+        {userId && id && (
+          <WeeklyUpdateCard
+            updates={updates}
+            currentWeek={currentWeek}
+            isLoading={isLoading}
+            error={error}
+            onGenerate={handleGenerate}
+            onRegenerate={handleRegenerate}
+          />
+        )}
       </div>
     </div>
   );

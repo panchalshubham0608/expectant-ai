@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { getProfilesCollection, getWeeklyUpdatesCollection } from '../../lib/collections';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
 import { generateWeeklyUpdate } from '../ai/weeklyUpdateService';
@@ -127,4 +127,28 @@ export const getWeeklyUpdateForCurrentWeek = async (
   }
 
   return null;
+};
+
+export const subscribeToWeeklyUpdates = (
+  userId: string,
+  profileId: string,
+  onUpdate: (updates: WeeklyUpdate[]) => void,
+  onError?: (error: Error) => void
+) => {
+  const q = query(
+    getWeeklyUpdatesCollection(userId, profileId),
+    orderBy('pregnancyWeek', 'desc')
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const updates = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as WeeklyUpdate[];
+      onUpdate(updates);
+    },
+    (error) => {
+      if (onError) onError(error);
+      else console.error('Failed to subscribe to weekly updates:', error);
+    }
+  );
 };
