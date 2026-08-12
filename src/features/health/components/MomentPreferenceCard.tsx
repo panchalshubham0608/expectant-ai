@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../../auth/useAuth';
 import { subscribeToReminders, saveReminder } from '../../../services/reminders/reminderService';
