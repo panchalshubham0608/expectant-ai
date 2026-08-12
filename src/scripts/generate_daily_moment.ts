@@ -111,20 +111,20 @@ if (isCLI) {
   let TARGETS: DailyMomentTarget[] = [];
 
   try {
-    if (process.env.TARGETS_JSON) {
-      TARGETS = JSON.parse(process.env.TARGETS_JSON) as DailyMomentTarget[];
+    if (process.env.DAILY_MOMENT_TARGETS) {
+      TARGETS = JSON.parse(process.env.DAILY_MOMENT_TARGETS) as DailyMomentTarget[];
       console.log(`Successfully parsed ${TARGETS.length} targets from environment.`);
     } else {
       // Fallback/Hardcoded targets here when running manually without env var
       TARGETS = [];
     }
   } catch (err) {
-    console.error('❌ [Error] Failed to parse TARGETS_JSON from environment:', err);
+    console.error('❌ [Error] Failed to parse DAILY_MOMENT_TARGETS from environment:', err);
     process.exit(1);
   }
 
   if (TARGETS.length === 0) {
-    console.warn('⚠️ No targets defined in TARGETS array or TARGETS_JSON environment variable.');
+    console.warn('⚠️ No targets defined in TARGETS array or DAILY_MOMENT_TARGETS environment variable.');
   } else {
     executeGeneration(TARGETS).then(() => process.exit(0)).catch(() => process.exit(1));
   }
