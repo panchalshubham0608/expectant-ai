@@ -48,14 +48,13 @@ export default function DailyMomentNotificationWorker({ userId, profileId }: Dai
 
         try {
           const moment = await getDailyMoment(userId, profileId, todayId);
+          const title = `✨ ${moment?.header || '✨ Today\'s little wonder'}`;
+          const options = {
+            body: `${moment?.notification || `See what today's little surprise has in store.`}`,
+            tag: `daily-moment-${todayId}`,
+            requireInteraction: true,
+          };
           if (moment) {
-            const title = `✨ ${moment.header}`;
-            const options = {
-              body: `${moment.card.title}\n\n${moment.card.content}`,
-              tag: `daily-moment-${todayId}`,
-              requireInteraction: true,
-            };
-
             // Try using the Service Worker if available for better mobile support, otherwise fallback to native
             if ('serviceWorker' in navigator) {
               const reg = await navigator.serviceWorker.getRegistration();
