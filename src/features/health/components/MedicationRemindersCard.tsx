@@ -52,7 +52,6 @@ export default function MedicationRemindersCard() {
         // If the time matches, the user hasn't checked it off, and we haven't already notified them
         if (reminder.time === timeString && !takenItems.has(reminder.id) && !notifiedItems.current.has(reminder.id)) {
           notifiedItems.current.add(reminder.id);
-          console.log(`Triggering notification for: ${reminder.name}`);
           fireNotification('Medication Reminder 💊', {
             body: `It's time to take your ${reminder.name} (${reminder.dose}).`,
             tag: reminder.id, // Prevents duplicate spamming
@@ -100,7 +99,6 @@ export default function MedicationRemindersCard() {
 
   const sendTestNotification = () => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      console.log('Sending test notification...');
       fireNotification('Test Reminder 💊', {
         body: 'This is a test notification! Your browser permissions are working.',
         requireInteraction: true,

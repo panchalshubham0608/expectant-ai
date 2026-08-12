@@ -7,7 +7,7 @@ import FileChooser from '../common/FileChooser';
 import { uploadReportToGoogleDrive } from '../../services/reports/reportsService';
 import FileUploadProgressModal, { type FileStatus } from '../common/FileUploadProgressModal';
 import { useParams } from 'react-router-dom';
-import { useAuth } from '../../auth/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 
 interface CompleteAppointmentFormDialogProps {
   appointment: Appointment;

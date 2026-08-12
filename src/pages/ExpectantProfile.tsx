@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import ProfileFormDialog from "../components/profile/ProfileFormDialog";
 import { useParams } from "react-router-dom";
-import { useAuth } from "../auth/useAuth";
+import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
 import { updateProfile, type ProfileInput } from "../services/profiles/profileService";
 import { getPregnancyAge } from "../utils/pregnancyUtils";
@@ -33,7 +33,7 @@ const formatDate = (date: string) => {
   }
 };
 
-export default function ProfilePage() {
+export default function ExpectantProfile() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { error, isLoading, profile } = useProfile(user?.uid, id);
@@ -133,7 +133,6 @@ export default function ProfilePage() {
 
       {/* Content Sections */}
       <div className="mt-6 space-y-5 px-4">
-
         {/* Pregnancy Details */}
         <div className="relative overflow-hidden rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-gray-100">
           <div className="absolute -right-4 -top-4 opacity-[0.03]">

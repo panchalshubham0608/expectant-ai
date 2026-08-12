@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bell, Clock, Plus, Edit3, Trash2, Loader2 } from 'lucide-react';
-import type { Reminder } from '../models/reminder';
+import type { Reminder } from '../../models/reminder';
 import ReminderFormDialog from './ReminderFormDialog';
-import { useAuth } from '../auth/useAuth';
-import { subscribeToReminders, saveReminder, deleteReminder } from './reminderService';
+import { useAuth } from '../../hooks/useAuth';
+import { subscribeToReminders, saveReminder, deleteReminder } from '../../services/reminders/reminderService';
 
 export default function RemindersCard() {
   const { id } = useParams<{ id: string }>();

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
-import { generateAndSaveDailyMomentForToday } from '../services/dailyMoments/dailyMomentsGeneratorService';
-import type { DailyMoment } from '../models/dailyMoment';
-import { getGeminiApiKey } from '../services/profiles/profileService';
+import { generateAndSaveDailyMomentForToday } from '../../services/dailyMoments/dailyMomentsGeneratorService';
+import type { DailyMoment } from '../../models/dailyMoment';
+import { getGeminiApiKey } from '../../services/profiles/profileService';
 
 interface DailyMomentCardProps {
   userId: string;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Droplets, LogOut, MapPin, Phone, Stethoscope } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import ProfileFormDialog from '../components/profile/ProfileFormDialog';
 import { createProfile, subscribeToProfiles, type ProfileInput } from '../services/profiles/profileService';
 import type { ExpectantProfile } from '../models/profile';
