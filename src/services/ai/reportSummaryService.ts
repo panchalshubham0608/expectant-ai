@@ -1,7 +1,5 @@
 import { SUMMARIZE_REPORT_PROMPT } from "../../prompts/summarize_report";
-
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
+import { getGeminiClient, DEFAULT_GEMINI_MODEL } from './geminiCore';
 
 import type { ReportType } from '../../models/report';
 
@@ -39,45 +37,6 @@ export interface GeminiPregnancyReportResponse {
   confidence: number;
 }
 
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
-    };
-    finishReason?: string;
-  }>;
-  error?: {
-    message?: string;
-  };
-}
-
-const getGeminiConfig = (userApiKey?: string) => {
-  const apiKey = userApiKey || import.meta.env.VITE_GEMINI_API_KEY;
-  const model = import.meta.env.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-
-  if (!apiKey) {
-    throw new Error('Gemini API key is not configured. Please add it from the "More" menu in your profile.');
-  }
-
-  return { apiKey, model };
-};
-
-const readGeminiError = async (response: Response) => {
-  const payload = await response.text();
-
-  if (!payload) {
-    return `${response.status} ${response.statusText}`;
-  }
-
-  try {
-    const parsed = JSON.parse(payload) as { error?: { message?: string } };
-    return parsed.error?.message || payload;
-  } catch {
-    return payload;
-  }
-};
 
 const encodePdfToBase64 = async (file: File) => {
   const arrayBuffer = await file.arrayBuffer();
@@ -101,13 +60,7 @@ const readString = (value: unknown) => {
 };
 const readArray = (value: unknown) => (Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []);
 
-const getStructuredSummary = (payload: GeminiResponse): GeminiPregnancyReportResponse => {
-  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!text) {
-    throw new Error('Gemini returned an empty response for this PDF summary.');
-  }
-
+const getStructuredSummary = (text: string): GeminiPregnancyReportResponse => {
   try {
     const parsed = JSON.parse(text) as Partial<GeminiPregnancyReportResponse>;
 
@@ -176,33 +129,24 @@ export const summarizePdfReport = async (file: File, userApiKey?: string): Promi
     throw new Error('Please upload a PDF file.');
   }
 
-  const { apiKey, model } = getGeminiConfig(userApiKey);
+  const ai = getGeminiClient(userApiKey);
+  const model = import.meta.env.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const pdfData = await encodePdfToBase64(file);
 
-  const prompt = SUMMARIZE_REPORT_PROMPT.trim();
-
-  const summaryResponse = await fetch(`${GEMINI_API_URL}/${model}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  try {
+    const response = await ai.models.generateContent({
+      model: model,
       contents: [
+        { text: 'Please summarize this medical report.' },
         {
-          parts: [
-            {
-              text: prompt,
-            },
-            {
-              inlineData: {
-                mimeType: 'application/pdf',
-                data: pdfData,
-              },
-            },
-          ],
+          inlineData: {
+            mimeType: 'application/pdf',
+            data: pdfData,
+          },
         },
       ],
-      generationConfig: {
+      config: {
+        systemInstruction: SUMMARIZE_REPORT_PROMPT.trim(),
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'OBJECT',
@@ -298,16 +242,15 @@ export const summarizePdfReport = async (file: File, userApiKey?: string): Promi
             'confidence',
           ],
         },
-      },
-    }),
-  });
+      }
+    });
 
-  if (!summaryResponse.ok) {
-    const message = await readGeminiError(summaryResponse);
-    throw new Error(`Failed to generate a report summary: ${message}`);
+    if (!response.text) {
+      throw new Error('Gemini returned an empty response for this PDF summary.');
+    }
+
+    return getStructuredSummary(response.text);
+  } catch (error: any) {
+    throw new Error(`Failed to generate a report summary: ${error.message || 'Unknown error'}`);
   }
-
-  const summaryPayload = (await summaryResponse.json()) as GeminiResponse;
-
-  return getStructuredSummary(summaryPayload);
 };

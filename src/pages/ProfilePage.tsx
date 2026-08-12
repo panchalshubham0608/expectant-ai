@@ -15,12 +15,12 @@ import {
   Map,
   ClockCheck
 } from "lucide-react";
-import { differenceInDays } from "date-fns";
 import ProfileFormDialog from "../components/profile/ProfileFormDialog";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useProfile } from "../hooks/useProfile";
 import { updateProfile, type ProfileInput } from "../services/profiles/profileService";
+import { getPregnancyAge } from "../utils/pregnancyUtils";
 
 const formatDate = (date: string) => {
   if (!date) return "Not specified";
@@ -64,22 +64,18 @@ export default function ProfilePage() {
   }
 
   let gestationalAgeText = "Not available";
-  if (profile.lastMenstrualPeriod) {
-    try {
-      const lmpDate = new Date(`${profile.ultrasoundLastMenstrualPeriod || profile.lastMenstrualPeriod}T00:00:00`);
-      const today = new Date();
-      const totalDays = differenceInDays(today, lmpDate);
-      if (totalDays >= 0) {
-        const weeks = Math.floor(totalDays / 7);
-        const days = totalDays % 7;
-        gestationalAgeText = `${weeks} week${weeks !== 1 ? 's' : ''}, ${days} day${days !== 1 ? 's' : ''}`;
-      } else {
-        gestationalAgeText = "LMP is in the future";
-      }
-    } catch {
-      gestationalAgeText = "Invalid date";
+  const age = getPregnancyAge(profile.lastMenstrualPeriod, profile.ultrasoundLastMenstrualPeriod);
+
+  if (age) {
+    if (age.isFuture) {
+      gestationalAgeText = "LMP is in the future";
+    } else {
+      gestationalAgeText = `${age.weeks} week${age.weeks !== 1 ? 's' : ''}, ${age.days} day${age.days !== 1 ? 's' : ''}`;
     }
+  } else if (profile.lastMenstrualPeriod) {
+    gestationalAgeText = "Invalid date";
   }
+
   const getInitials = (name: string) => {
     return name
       .split(" ")

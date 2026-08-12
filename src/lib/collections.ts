@@ -22,3 +22,4 @@ export const getAppointmentsCollection = (userId: string, profileId: string) => 
 export const getReportsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'reports');
 export const getUploadedFilesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'uploaded_files');
 export const getRemindersCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'reminders');
+export const getDailyMomentsCollectionRef = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'dailyMoments');
