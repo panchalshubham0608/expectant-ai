@@ -23,3 +23,4 @@ export const getReportsCollection = (userId: string, profileId: string) => getPr
 export const getUploadedFilesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'uploaded_files');
 export const getRemindersCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'reminders');
 export const getDailyMomentsCollectionRef = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'dailyMoments');
+export const getWeeklyUpdatesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'weeklyUpdates');
