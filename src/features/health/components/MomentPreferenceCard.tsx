@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import { useAuth } from '../../../auth/useAuth';
+import { useAuth } from '../../../hooks/useAuth';
 import { subscribeToReminders, saveReminder } from '../../../services/reminders/reminderService';
 import type { Reminder } from '../../../models/reminder';
 

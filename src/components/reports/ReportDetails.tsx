@@ -1,4 +1,4 @@
-import type { Report } from '../../../models/report';
+import type { Report } from '../../models/report';
 import {
     Activity,
     AlertCircle,
@@ -173,7 +173,7 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                         </div>
                         <ul className="space-y-3">
                             {report.diagnoses.length > 0 ? (
-                                report.diagnoses.map((item) => (
+                                report.diagnoses.map((item : string) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
                                         <span>{item}</span>
@@ -192,7 +192,7 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                         </div>
                         <ul className="space-y-3">
                             {report.recommendations.length > 0 ? (
-                                report.recommendations.map((item) => (
+                                report.recommendations.map((item : string) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-400" />
                                         <span>{item}</span>

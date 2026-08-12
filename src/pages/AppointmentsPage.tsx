@@ -13,7 +13,7 @@ import type { Appointment } from "../models/appointment";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
 import CompleteAppointmentFormDialog from "../components/appointments/CompleteAppointmentFormDialog";
 import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
-import { useAuth } from "../auth/useAuth";
+import { useAuth } from "../hooks/useAuth";
 import { useParams } from "react-router-dom";
 import { useAppointments } from "../hooks/useAppointments";
 import { saveAppointment, updateAppointment, deleteAppointment } from "../services/appointments/appointmentService";

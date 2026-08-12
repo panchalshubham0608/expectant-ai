@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { Bell, Clock, Plus, Trash2, Edit2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import type { Reminder } from '../../../models/reminder';
-import { useAuth } from '../../../auth/useAuth';
+import { useAuth } from '../../../hooks/useAuth';
 import { subscribeToReminders, saveReminder, deleteReminder } from '../../../services/reminders/reminderService';
-import ReminderFormDialog from '../../../lib/ReminderFormDialog';
+import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
 
 export default function RemindersCard() {
   const { user } = useAuth();

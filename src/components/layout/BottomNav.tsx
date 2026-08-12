@@ -15,7 +15,7 @@ import {
   FileText,
   BellRing,
 } from 'lucide-react';
-import { useAuth } from '../../auth/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
 import ShareProfileDialog from '../profile/ShareProfileDialog';
 import ApiKeyDialog from '../profile/ApiKeyDialog';

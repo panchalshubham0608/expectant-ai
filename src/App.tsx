@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import AppLayout from './components/layout/AppLayout';
 
-import Home from './pages/Home';
+import AppHome from './pages/AppHome';
 import Dashboard from './pages/Dashboard';
 import ProfileDetail from './pages/ProfileDetail';
 import Journal from './pages/Journal';
@@ -19,7 +19,7 @@ function App() {
   return (
     <BrowserRouter basename="/expectant-ai">
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<AppHome />} />
         <Route element={<RequireAuth />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile/:id" element={<AppLayout />}>

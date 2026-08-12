@@ -6,7 +6,7 @@ import ActiveMedicationsFormDialog from './ActiveMedicationsFormDialog';
 import DiscontinueMedicationDialog from './DiscontinueMedicationDialog';
 import DeleteMedicationDialog from './DeleteMedicationDialog';
 import ContinueMedicationDialog from './ContinueMedicationDialog';
-import { useAuth } from '../../../auth/useAuth';
+import { useAuth } from '../../../hooks/useAuth';
 import { subscribeToMedications, syncMedicationsList, deleteMedication, discontinueMedication, resumeMedication } from '../../../services/medication/medicationService';
 
 export default function ActiveMedicationsCard() {

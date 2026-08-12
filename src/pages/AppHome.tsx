@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import appIcon from '../assets/expectant-ai.ico';
 
-function Home() {
+function AppHome() {
   const [error, setError] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
   const navigate = useNavigate();
@@ -64,4 +64,4 @@ function Home() {
   );
 }
 
-export default Home;
+export default AppHome;

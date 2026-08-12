@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
-import type { Reminder, ReminderFrequency } from '../models/reminder';
+import type { Reminder, ReminderFrequency } from '../../models/reminder';
 
 interface ReminderFormDialogProps {
   initialValues?: Reminder;

@@ -1,14 +1,12 @@
 import { useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import type { Measurement } from '../models/measurement';
 import { useProfile } from '../hooks/useProfile';
 import { useMeasurements } from '../hooks/useMeasurements';
 import { updateMeasurements } from '../services/measurements/measurementsService';
-import {
-  MeasurementsCard,
-} from '../features/health';
-import ActiveMedicationsCard from '../features/health/components/ActiveMedicationsCard';
+import MeasurementsCard from '../components/health/measurements/MeasurementsCard';
+import ActiveMedicationsCard from '../components/health/medication/ActiveMedicationsCard';
 
 function Health() {
   const { id } = useParams<{ id: string }>();
@@ -62,7 +60,7 @@ function Health() {
       <div className="relative overflow-hidden rounded-b-[2.5rem] bg-gradient-to-br from-purple-600 to-fuchsia-800 px-6 pb-20 pt-12 shadow-lg">
         <div className="absolute -right-8 -top-8 h-48 w-48 rounded-full bg-white opacity-10 blur-2xl"></div>
         <div className="absolute -left-8 top-16 h-32 w-32 rounded-full bg-white opacity-10 blur-2xl"></div>
-        
+
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-bold tracking-tight text-white">Pregnancy Health</h1>

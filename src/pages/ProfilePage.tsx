@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import ProfileFormDialog from "../components/profile/ProfileFormDialog";
 import { useParams } from "react-router-dom";
-import { useAuth } from "../auth/useAuth";
+import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
 import { updateProfile, type ProfileInput } from "../services/profiles/profileService";
 import { getPregnancyAge } from "../utils/pregnancyUtils";

@@ -14,16 +14,16 @@ import {
   FlaskConical,
   AlertTriangle
 } from 'lucide-react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import type { Report } from '../models/report';
 import { saveAnalyzedMedicalReport, subscribeToMedicalReports, deleteMedicalReport } from '../services/reports/medicalReportService';
 import { getGeminiApiKey } from '../services/profiles/profileService';
 import { summarizePdfReport } from '../services/ai/reportSummaryService';
 import { uploadReportToGoogleDrive } from '../services/reports/reportsService';
 
-import UploadReportDialog from '../features/health/components/UploadReportDialog';
-import ProcessingModal, { type StepStatus } from '../features/health/components/ProcessingModal';
-import ReportDetails from '../features/health/components/ReportDetails';
+import UploadReportDialog from '../components/reports/UploadReportDialog';
+import ProcessingModal, { type StepStatus } from '../components/reports/ProcessingModal';
+import ReportDetails from '../components/reports/ReportDetails';
 
 const formatReportDate = (dateString: string) => {
   if (!dateString) return "";
