@@ -36,6 +36,11 @@ export default function MomentPreferenceCard() {
     if (!user?.uid || !profileId) return;
     const isActive = reminder?.isActive ?? false;
 
+    // Request browser notification permissions if they are turning it on
+    if (!isActive && 'Notification' in window && Notification.permission !== 'granted') {
+      await Notification.requestPermission();
+    }
+
     if (!reminder) {
       // Create it seamlessly on the first toggle
       await saveReminder(user.uid, profileId, {
