@@ -1,31 +1,48 @@
-import { useState } from 'react';
-import { Bell, Clock, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bell, Clock, Plus, Trash2, Edit2 } from 'lucide-react';
+import { useParams } from 'react-router-dom';
 import type { Reminder } from '../../../models/reminder';
-
-const mockReminders: Reminder[] = [
-  {
-    id: 'r1',
-    title: 'Hydration',
-    description: 'Drink a glass of water',
-    frequency: 'daily',
-    interval: 1,
-    intervalUnit: 'hours',
-    startTime: '07:00',
-    endTime: '21:00',
-    isActive: true,
-  },
-  {
-    id: 'r2',
-    title: 'Prenatal Vitamins',
-    description: 'Take your daily vitamins with food',
-    frequency: 'daily',
-    times: ['10:00', '21:00'],
-    isActive: true,
-  }
-];
+import { useAuth } from '../../../auth/useAuth';
+import { subscribeToReminders, saveReminder, deleteReminder } from '../../../services/reminders/reminderService';
+import ReminderFormDialog from '../../../lib/ReminderFormDialog';
 
 export default function RemindersCard() {
-  const [reminders, setReminders] = useState<Reminder[]>(mockReminders);
+  const { user } = useAuth();
+  const { id: profileId } = useParams<{ id: string }>();
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingReminder, setEditingReminder] = useState<Reminder | undefined>();
+
+  useEffect(() => {
+    if (!user?.uid || !profileId) return;
+
+    const unsubscribe = subscribeToReminders(
+      user.uid,
+      profileId,
+      (fetched : Reminder[]) => setReminders(fetched),
+      (err : Error) => console.error('Error fetching reminders:', err)
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid, profileId]);
+
+  const handleSave = async (reminderData: Partial<Reminder>) => {
+    if (!user?.uid || !profileId) return;
+    await saveReminder(user.uid, profileId, reminderData);
+    setIsFormOpen(false);
+    setEditingReminder(undefined);
+  };
+
+  const handleDelete = async (reminderId: string) => {
+    if (!user?.uid || !profileId) return;
+    await deleteReminder(user.uid, profileId, reminderId);
+  };
+
+  const toggleStatus = async (reminder: Reminder) => {
+    if (!user?.uid || !profileId) return;
+    await saveReminder(user.uid, profileId, { id: reminder.id, isActive: !reminder.isActive });
+  };
+
   
   const formatTime = (time24?: string) => {
     if (!time24) return '';
@@ -46,6 +63,9 @@ export default function RemindersCard() {
     return reminder.frequency;
   };
 
+  // Filter out the daily moment preference so it doesn't render twice!
+  const displayReminders = reminders.filter((r) => r.id !== 'daily-moment');
+
   return (
     <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-gray-100">
       <div className="flex items-center justify-between mb-5">
@@ -53,16 +73,22 @@ export default function RemindersCard() {
           <Bell className="text-blue-500" size={20} />
           Scheduled Reminders
         </h3>
-        <button
-          className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
-        >
-          <Plus size={16} />
-          <span>Add</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setEditingReminder(undefined); setIsFormOpen(true); }}
+            className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+          >
+            <Plus size={16} />
+            <span>Add</span>
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
-        {reminders.map((reminder) => (
+        {displayReminders.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-4">No reminders scheduled yet.</p>
+        ) : (
+          displayReminders.map((reminder) => (
           <div
             key={reminder.id}
             className="relative flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-white hover:shadow-sm"
@@ -82,7 +108,21 @@ export default function RemindersCard() {
                 </div>
               </div>
               
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="flex items-center gap-1 mr-2">
+                  <button
+                    onClick={() => { setEditingReminder(reminder); setIsFormOpen(true); }}
+                    className="p-1.5 text-gray-400 hover:text-blue-600 transition"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(reminder.id!)}
+                    className="p-1.5 text-gray-400 hover:text-rose-600 transition"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
                 <button
                   type="button"
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
@@ -90,7 +130,7 @@ export default function RemindersCard() {
                   }`}
                   role="switch"
                   aria-checked={reminder.isActive}
-                  onClick={() => setReminders(reminders.map(r => r.id === reminder.id ? { ...r, isActive: !r.isActive } : r))}
+                  onClick={() => toggleStatus(reminder)}
                 >
                   <span
                     aria-hidden="true"
@@ -102,8 +142,16 @@ export default function RemindersCard() {
               </div>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
+      {isFormOpen && (
+        <ReminderFormDialog
+          initialValues={editingReminder}
+          onClose={() => { setIsFormOpen(false); setEditingReminder(undefined); }}
+          onSubmit={handleSave}
+        />
+      )}
     </div>
   );
 }
