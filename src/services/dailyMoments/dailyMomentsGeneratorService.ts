@@ -1,8 +1,9 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { getProfilesCollection } from '../../lib/collections';
 import { generateDailyMoment, type DailyMomentCategory } from '../ai/dailyMomentService';
-import { getDailyMoment, saveDailyMoment, type DailyMoment } from './dailyMomentsService';
+import { getDailyMoment, saveDailyMoment } from './dailyMomentsService';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
+import type { DailyMoment } from '../../models/dailyMoment';
 
 const CATEGORIES: DailyMomentCategory[] = [
   'baby-fact',

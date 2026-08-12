@@ -1,14 +1,6 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import type { DailyMomentResponse } from '../ai/dailyMomentService';
 import { getDailyMomentsCollectionRef } from '../../lib/collections';
-
-export interface DailyMoment extends DailyMomentResponse {
-  id: string; // The date string, e.g., '2026-08-12'
-  date: string;
-  pregnancyWeek: number;
-  pregnancyDay: number;
-  createdAt: number;
-}
+import type { DailyMoment } from '../../models/dailyMoment';
 
 export const getDailyMoment = async (
   userId: string,
