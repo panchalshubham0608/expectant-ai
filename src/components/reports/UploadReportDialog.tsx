@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import '../../styles/features/health/components/UploadReportDialog.css';
+import '../../styles/features/reports/UploadReportDialog.css';
 import { LoaderCircle, UploadCloud } from 'lucide-react';
 
 interface UploadReportDialogProps {

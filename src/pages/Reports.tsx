@@ -24,6 +24,7 @@ import { uploadReportToGoogleDrive } from '../services/reports/reportsService';
 import UploadReportDialog from '../components/reports/UploadReportDialog';
 import ProcessingModal, { type StepStatus } from '../components/reports/ProcessingModal';
 import ReportDetails from '../components/reports/ReportDetails';
+import '../styles/features/reports/ReportsCard.css';
 
 const formatReportDate = (dateString: string) => {
   if (!dateString) return "";
