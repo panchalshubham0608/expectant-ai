@@ -1,4 +1,4 @@
-import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
@@ -22,6 +22,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(
         'Firebase is not configured. Add the VITE_FIREBASE_* values to your .env file.',
       );
+    await setPersistence(auth, browserLocalPersistence);
     await signInWithPopup(auth, googleProvider);
   };
 
