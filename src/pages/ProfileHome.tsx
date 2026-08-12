@@ -154,9 +154,6 @@ function ProfileDetail() {
           >
             <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white opacity-10 blur-2xl transition-transform duration-500 group-hover:scale-125"></div>
             <div className="relative z-10 flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white shadow-sm backdrop-blur-md">
-                <Sparkles size={24} />
-              </div>
               <div>
                 <h3 className="text-lg font-bold text-white">This week with your little one 💛</h3>
                 <p className="text-sm font-medium text-purple-100/90">See what's happening, what's changing, and what's coming next.</p>
