@@ -2,6 +2,8 @@ import { Link, useParams } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { useProfile } from '../hooks/useProfile';
+import DailyMomentCard from '../components/DailyMomentCard';
+import DailyMomentNotificationWorker from '../workers/DailyMomentNotificationWorker';
 
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(
@@ -66,6 +68,14 @@ function ProfileDetail() {
           {getInitials(profile.fullName)}
         </div>
       </div>
+
+      {user?.uid && (
+        <>
+          <DailyMomentCard userId={user.uid} profileId={profile.id} />
+          <DailyMomentNotificationWorker userId={user.uid} profileId={profile.id} />
+        </>
+      )}
+
       <div className="rounded-3xl bg-white p-5 shadow-sm">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-3xl bg-[#effaf3] p-4">
