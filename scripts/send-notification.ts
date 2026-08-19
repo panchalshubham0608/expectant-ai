@@ -1,5 +1,9 @@
 import admin from "firebase-admin";
 
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("FIREBASE_SERVICE_ACCOUNT is not set");
+  process.exit(1);
+}
 const serviceAccount = JSON.parse(
   process.env.FIREBASE_SERVICE_ACCOUNT
 );
