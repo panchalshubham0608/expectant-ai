@@ -48,7 +48,7 @@ export async function registerForNotifications(
         serviceWorkerUrl
     );
 
-    await navigator.serviceWorker.register(serviceWorkerUrl);
+    const registration = await navigator.serviceWorker.register(serviceWorkerUrl);
 
     const messaging = getMessaging(app);
 
@@ -63,7 +63,11 @@ export async function registerForNotifications(
             savePushSubscription(
                 userId,
                 installationId
-            ).catch((err) => {
+            ).then(() => {
+                console.log(
+                    "[FCM] Push subscription saved to Firestore."
+                );
+            }).catch((err) => {
                 console.error(
                     "[FCM] Failed to save push subscription to Firestore:",
                     err
@@ -75,6 +79,7 @@ export async function registerForNotifications(
 
         register(messaging, {
             vapidKey: VAPID_KEY,
+            serviceWorkerRegistration: registration,
         }).then(() => {
             console.log(
                 "[FCM] register() completed successfully."

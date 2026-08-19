@@ -1,85 +1,63 @@
-import { cert, initializeApp } from "firebase-admin/app";
-import { getMessaging } from "firebase-admin/messaging";
+import admin from "firebase-admin";
 
-function getServiceAccount() {
-  const value = process.env.FIREBASE_SERVICE_ACCOUNT;
+const serviceAccount = JSON.parse(
+  process.env.FIREBASE_SERVICE_ACCOUNT
+);
 
-  if (!value) {
-    throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT environment variable is not set."
-    );
-  }
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
-  try {
-    return JSON.parse(value);
-  } catch {
-    throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT is not valid JSON."
-    );
-  }
-}
+const db = admin.firestore();
+const messaging = admin.messaging();
 
-function initializeFirebase() {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+async function sendNotifications() {
+  const usersSnapshot = await db.collection("users").get();
 
-  if (!projectId) {
-    throw new Error(
-      "FIREBASE_PROJECT_ID environment variable is not set."
-    );
-  }
+  for (const userDoc of usersSnapshot.docs) {
+    const subscriptionsSnapshot = await db
+      .collection("users")
+      .doc(userDoc.id)
+      .collection("pushSubscriptions")
+      .get();
 
-  const serviceAccount = getServiceAccount();
+    const fids = subscriptionsSnapshot.docs.map(doc => doc.data().installationId);
 
-  initializeApp({
-    credential: cert(serviceAccount),
-    projectId,
-  });
-}
-
-async function sendNotification() {
-  const fid = process.env.FCM_INSTALLATION_ID;
-
-  if (!fid) {
-    throw new Error(
-      "FCM_INSTALLATION_ID environment variable is not set."
-    );
-  }
-
-  const messaging = getMessaging();
-
-  const message = {
-    fid,
-    data: {
-      title: "Expectant AI",
-      message: "This is your 30-minute test notification.",
-      url: "/expectant-ai/",
-    },
-  };
-
-  console.log("Sending notification...");
-
-  const messageId = await messaging.send(message);
-
-  console.log("Notification sent successfully.");
-  console.log(`FCM message ID: ${messageId}`);
-}
-
-async function main() {
-  try {
-    initializeFirebase();
-    await sendNotification();
-  } catch (error) {
-    console.error("Failed to send notification:");
-
-    if (error instanceof Error) {
-      console.error(error.message);
-      console.error(error.stack);
-    } else {
-      console.error(error);
+    if (fids.length === 0) {
+      continue;
     }
 
-    process.exit(1);
+    console.log(
+      `Sending notification to ${fids.length} device(s) for user ${userDoc.id}`
+    );
+
+    const message = {
+      data: {
+        title: "Expectant AI",
+        message: "This is your 30-minute test notification.",
+        url: "/expectant-ai/",
+      },
+      fids,
+    };
+
+    try {
+      const response =
+        await messaging.sendEachForMulticast(message);
+
+      console.log(
+        `Success: ${response.successCount}, ` +
+        `Failure: ${response.failureCount}`
+      );
+    } catch (error) {
+      console.error(
+        `Failed for user ${userDoc.id}:`,
+        error
+      );
+    }
   }
 }
 
-main();
+sendNotifications().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

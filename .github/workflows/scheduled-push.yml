@@ -23,6 +23,4 @@ jobs:
       - name: Send Push Notification via Firebase
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FCM_INSTALLATION_ID: ${{ secrets.FCM_INSTALLATION_ID }}
         run: npx tsx scripts/send-notification.ts
