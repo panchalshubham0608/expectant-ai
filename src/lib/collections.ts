@@ -15,6 +15,7 @@ export const getProfilesCollection = (userId: string) => collection(requireDb(),
 const getProfileSubcollection = (userId: string, profileId: string, subcollection: string) =>
   collection(doc(getProfilesCollection(userId), profileId), subcollection);
 
+export const getPushSubscriptionsCollection = (userId: string) => collection(requireDb(), 'users', userId, 'pushSubscriptions');
 export const getKeysCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'keys');
 export const getMedicationsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'medications');
 export const getMeasurementsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'measurements');

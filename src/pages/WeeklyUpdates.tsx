@@ -54,7 +54,7 @@ export default function WeeklyUpdates() {
     await generateAndSaveWeeklyUpdate(userId, id, apiKey || undefined);
   };
 
-  const handleRegenerate = async (week: number) => {
+  const handleRegenerate = async (_: number) => {
     if (!userId || !id) return;
     const apiKey = await getGeminiApiKey(userId, id).catch(() => undefined);
     await generateAndSaveWeeklyUpdate(userId, id, apiKey || undefined);
