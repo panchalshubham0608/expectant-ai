@@ -29,3 +29,5 @@ export const getFavoriteBabyNamesCollection = (userId: string, profileId: string
 export const getGeneratedBabyNamesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'generatedBabyNames');
 export const getWeeklyUpdatesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'weeklyUpdates');
 export const getNotificationsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'notifications');
+export const getDailyLogsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'dailyLogs');
+export const getJournalChatsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'journalChats');
