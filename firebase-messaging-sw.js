@@ -19,21 +19,41 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 const iconUrl = "/expectant-ai/expectant-ai.png";
 
+self.addEventListener("install", () => {
+  console.log("[firebase-messaging-sw.js] Installing new version");
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  console.log("[firebase-messaging-sw.js] Activating new version");
+
+  event.waitUntil(
+    clients.claim()
+  );
+});
+
 messaging.onBackgroundMessage((payload) => {
-  console.log("[firebase-messaging-sw.js] Background message:", payload);
+  try {
+    console.log("[firebase-messaging-sw.js] Background message:", payload);
 
-  const title = payload.data?.title ?? "Expectant AI";
-  const message = payload.data?.message ?? "You have a new notification.";
-  const options = {
-    body: message,
-    icon: iconUrl,
-    badge: iconUrl,
-    data: {
-      url: payload.data?.url ?? "/expectant-ai/",
-    },
-  };
+    const title = payload.data?.title ?? "Expectant AI";
+    const message = payload.data?.message ?? "You have a new notification.";
+    const options = {
+      body: message,
+      icon: iconUrl,
+      badge: iconUrl,
+      data: {
+        url: payload.data?.url ?? "/expectant-ai/",
+      },
+    };
+    console.log("[firebase-messaging-sw.js] Options:", options);
 
-  self.registration.showNotification(title, options);
+    return self.registration.showNotification(title, options).catch((err) => {
+      console.error("[firebase-messaging-sw.js] Failed to show notification:", err);
+    });
+  } catch (error) {
+    console.error("[firebase-messaging-sw.js] Execution error in onBackgroundMessage:", error);
+  }
 });
 
 self.addEventListener("notificationclick", (event) => {
