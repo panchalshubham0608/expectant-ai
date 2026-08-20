@@ -42,15 +42,19 @@ messaging.onBackgroundMessage((payload) => {
       body: message,
       icon: iconUrl,
       badge: iconUrl,
+      requireInteraction: true,
       data: {
         url: payload.data?.url ?? "/expectant-ai/",
       },
     };
-    console.log("[firebase-messaging-sw.js] Options:", options);
 
-    return self.registration.showNotification(title, options).catch((err) => {
-      console.error("[firebase-messaging-sw.js] Failed to show notification:", err);
-    });
+    return self.registration.showNotification(title, options)
+      .then(() => {
+        console.log("[firebase-messaging-sw.js] Notification successfully handed off to browser.");
+      })
+      .catch((err) => {
+        console.error("[firebase-messaging-sw.js] Failed to show notification:", err);
+      });
   } catch (error) {
     console.error("[firebase-messaging-sw.js] Execution error in onBackgroundMessage:", error);
   }
