@@ -2,7 +2,9 @@ import * as admin from "firebase-admin";
 import { initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { FieldValue } from "firebase-admin/firestore";
 import { getActiveReminders } from "./get-active-reminders";
+import { type Notification } from "../src/models/notification";
 
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -65,10 +67,10 @@ async function sendNotifications() {
 
     for (const profileDoc of profilesSnapshot.docs) {
       const now = new Date();
-      const thirtyMinsAgo = new Date(now.getTime() - 30 * 60 * 1000);
+      const thirtyMinsAgo = new Date(now.getTime() - 60 * 60 * 1000);
       const startTimeStr = getISTTimeStr(thirtyMinsAgo);
       const endTimeStr = getISTTimeStr(now);
-
+      
       // fetch last time of notification capture
       const remindersToFire = await getActiveReminders(
         db,
@@ -80,10 +82,28 @@ async function sendNotifications() {
 
       console.log(`Found ${remindersToFire.length} reminders to fire for user ${userDoc.id}`);
       for (const reminder of remindersToFire) {
-        if (!reminder.title || !reminder.description) continue;
+        if (!reminder.title || !reminder.description || !reminder.fireTimeMinutes) continue;
+        const notificationDocId = `${reminder.id}_${reminder.fireTimeMinutes};`
+        const notificationsRef = db
+          .collection("users")
+          .doc(userDoc.id)
+          .collection("profiles")
+          .doc(profileDoc.id)
+          .collection("notifications");
+
+        // Generate a deterministic document ID for this specific reminder and time slot
+        const notificationDocRef = notificationsRef.doc(notificationDocId);
+        const notificationDocSnap = await notificationDocRef.get();
+
+        if (notificationDocSnap.exists) {
+          console.log(`Notification for reminder ${reminder.id} already fired for time ${reminder.fireTimeMinutes}. Skipping.`);
+          continue;
+        }
+
         const message = {
           data: {
-            id: reminder.id,
+            id: notificationDocId,
+            reminderId: reminder.id,
             title: reminder.title,
             message: reminder.description,
             url: `/expectant-ai/`,
@@ -99,6 +119,19 @@ async function sendNotifications() {
             `Success: ${response.successCount}, ` +
             `Failure: ${response.failureCount}`
           );
+
+          // Record the notification to prevent it from firing again
+          if (response.successCount > 0) {
+            const notification = {
+              id: notificationDocId,
+              reminderId: reminder.id,
+              title: reminder.title,
+              description: reminder.description,
+              firedAt: FieldValue.serverTimestamp(),
+              status: 'sent',
+            } as unknown as Notification;
+            await notificationDocRef.set(notification);
+          }
         } catch (error) {
           console.error(
             `Failed for user ${userDoc.id}:`,
