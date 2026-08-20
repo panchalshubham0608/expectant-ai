@@ -17,7 +17,7 @@ import {
 import type { DocumentData, DocumentSnapshot, Unsubscribe } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import type { ExpectantProfile } from "../../models/profile";
-import { getProfilesCollection, getKeysCollection } from '../../lib/collections';
+import { getUsersCollection, getProfilesCollection, getKeysCollection } from '../../lib/collections';
 
 
 export type ProfileInput = Omit<
@@ -80,6 +80,15 @@ const getUpdatableProfileDocSnap = async (
 };
 
 export const createProfile = async (userId: string, profile: ProfileInput) => {
+  const userRef = doc(getUsersCollection(), userId);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }
+
   const reference = await addDoc(getProfilesCollection(userId), {
     ...profile,
     creatorId: userId,
