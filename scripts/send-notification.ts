@@ -1,11 +1,21 @@
 import admin from "firebase-admin";
 
-const serviceAccount = JSON.parse(
-  process.env.FIREBASE_SERVICE_ACCOUNT
-);
+const projectId = process.env.FIREBASE_PROJECT_ID;
+const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
+if (!projectId || !clientEmail || !privateKey) {
+    console.error("Missing required Firebase credentials. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY.");
+    process.exit(1);
+}
+
+const key = privateKey.includes("\\n") ? privateKey.replace(/\\n/g, "\n") : privateKey;
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+    credential: admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey: key,
+    }),
 });
 
 const db = admin.firestore();
