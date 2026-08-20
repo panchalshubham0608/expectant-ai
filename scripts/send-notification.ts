@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import { initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { getActiveReminders } from "./get-active-reminders";
 
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -24,6 +25,14 @@ initializeApp({
 const app = getApp();
 const db = getFirestore(app);
 const messaging = getMessaging(app);
+
+function getISTTimeStr(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
 async function sendNotifications() {
   console.log("Sending notifications...")
@@ -48,28 +57,55 @@ async function sendNotifications() {
       `Sending notification to ${fids.length} device(s) for user ${userDoc.id}`
     );
 
-    const message = {
-      data: {
-        title: "Expectant AI",
-        message: "This is your 30-minute test notification.",
-        url: "/expectant-ai/",
-      },
-      fids,
-    };
+    const profilesSnapshot = await db
+      .collection("users")
+      .doc(userDoc.id)
+      .collection("profiles")
+      .get();
 
-    try {
-      const response =
-        await messaging.sendEachForMulticast(message);
+    for (const profileDoc of profilesSnapshot.docs) {
+      const now = new Date();
+      const thirtyMinsAgo = new Date(now.getTime() - 30 * 60 * 1000);
+      const startTimeStr = getISTTimeStr(thirtyMinsAgo);
+      const endTimeStr = getISTTimeStr(now);
 
-      console.log(
-        `Success: ${response.successCount}, ` +
-        `Failure: ${response.failureCount}`
+      // fetch last time of notification capture
+      const remindersToFire = await getActiveReminders(
+        db,
+        userDoc.id,
+        profileDoc.id,
+        startTimeStr,
+        endTimeStr
       );
-    } catch (error) {
-      console.error(
-        `Failed for user ${userDoc.id}:`,
-        error
-      );
+
+      console.log(`Found ${remindersToFire.length} reminders to fire for user ${userDoc.id}`);
+      for (const reminder of remindersToFire) {
+        if (!reminder.title || !reminder.description) continue;
+        const message = {
+          data: {
+            title: reminder.title,
+            message: reminder.description,
+            url: `/expectant-ai/profile/${profileDoc.id}`,
+          },
+          fids,
+        };
+
+        try {
+          const response =
+            await messaging.sendEachForMulticast(message);
+
+          console.log(
+            `Success: ${response.successCount}, ` +
+            `Failure: ${response.failureCount}`
+          );
+        } catch (error) {
+          console.error(
+            `Failed for user ${userDoc.id}:`,
+            error
+          );
+        }
+      }
+
     }
   }
 }
