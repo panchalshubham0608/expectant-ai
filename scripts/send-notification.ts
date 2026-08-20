@@ -16,7 +16,7 @@ initializeApp({
   credential: admin.cert({
     projectId,
     clientEmail,
-    privateKey
+    privateKey: privateKey.includes("\\n") ? privateKey.replace(/\\n/g, "\n") : privateKey,
   }),
   projectId,
 });

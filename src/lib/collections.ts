@@ -16,6 +16,7 @@ export const getProfilesCollection = (userId: string) => collection(requireDb(),
 const getProfileSubcollection = (userId: string, profileId: string, subcollection: string) =>
   collection(doc(getProfilesCollection(userId), profileId), subcollection);
 
+export const getPushSubscriptionsCollection = (userId: string) => collection(requireDb(), 'users', userId, 'pushSubscriptions');
 export const getKeysCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'keys');
 export const getMedicationsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'medications');
 export const getMeasurementsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'measurements');
@@ -25,5 +26,4 @@ export const getUploadedFilesCollection = (userId: string, profileId: string) =>
 export const getRemindersCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'reminders');
 export const getDailyMomentsCollectionRef = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'dailyMoments');
 export const getWeeklyUpdatesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'weeklyUpdates');
-export const getPushSubscriptionsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'pushSubscriptions');
 
