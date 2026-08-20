@@ -1,4 +1,4 @@
-name: 30-Minute Push Notification
+name: Push Notification Job
 
 on:
   # schedule:
@@ -8,6 +8,7 @@ on:
 jobs:
   send-notification:
     runs-on: ubuntu-latest
+    environment: send-notification
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
