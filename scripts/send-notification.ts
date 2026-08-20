@@ -67,9 +67,10 @@ async function sendNotifications() {
 
     for (const profileDoc of profilesSnapshot.docs) {
       const now = new Date();
-      const thirtyMinsAgo = new Date(now.getTime() - 60 * 60 * 1000);
-      const startTimeStr = getISTTimeStr(thirtyMinsAgo);
-      const endTimeStr = getISTTimeStr(now);
+      const thirtyMinutesBefore = new Date(now.getTime() - 30 * 60 * 1000);
+      const thirtyMinutesAfter = new Date(now.getTime() + 30 * 60 * 1000);
+      const startTimeStr = getISTTimeStr(thirtyMinutesBefore);
+      const endTimeStr = getISTTimeStr(thirtyMinutesAfter);
       
       // fetch last time of notification capture
       const remindersToFire = await getActiveReminders(
