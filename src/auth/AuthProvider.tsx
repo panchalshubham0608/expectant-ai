@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase';
 import { AuthContext } from './AuthContext';
+import { registerForNotifications } from '../lib/messaging'; 
 
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -16,6 +17,13 @@ function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    registerForNotifications(user.uid).catch((error) => {
+      console.log("Failed to register for notifications", error);
+    });
+  }, [user]);
 
   const signInWithGoogle = async () => {
     if (!auth)
