@@ -12,7 +12,8 @@ import {
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 export async function registerForNotifications(
-    userId: string
+    userId: string,
+    profileId: string
 ): Promise<string | null> {
     console.log("[FCM] Starting notification registration...");
     if (app == null) {
@@ -62,6 +63,7 @@ export async function registerForNotifications(
 
             savePushSubscription(
                 userId,
+                profileId,
                 installationId
             ).then(() => {
                 console.log(
