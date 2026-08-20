@@ -31,12 +31,14 @@ export async function getActiveReminders(db: FirebaseFirestore.Firestore, userId
         const data = doc.data();
         let shouldFire = false;
 
+        let fireTimeMinutes;
         if (data.times && data.times.length > 0) {
             // Specific times mode
             for (const t of data.times) {
                 const m = timeToMinutes(t);
                 if (isTimeInWindow(m, startMins, endMins)) {
                     shouldFire = true;
+                    fireTimeMinutes = m;
                     break;
                 }
             }
@@ -49,6 +51,7 @@ export async function getActiveReminders(db: FirebaseFirestore.Firestore, userId
             for (let m = rStart; m <= rEnd; m += step) {
                 if (isTimeInWindow(m, startMins, endMins)) {
                     shouldFire = true;
+                    fireTimeMinutes = m;
                     break;
                 }
             }
@@ -60,7 +63,8 @@ export async function getActiveReminders(db: FirebaseFirestore.Firestore, userId
                 userId,
                 profileId,
                 path: doc.ref.path,
-                ...data
+                ...data,
+                fireTimeMinutes,
             });
         }
     });

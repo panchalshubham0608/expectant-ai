@@ -1,18 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { BellRing, CheckCircle2, Circle, ChevronDown, ChevronUp, Smartphone } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '../../../hooks/useAuth';
+import { notificationService } from '../../../services/notifications/notificationService';
+import type { Notification } from '../../../models/notification';
 
-export default function MedicationRemindersCard() {
+export default function TodayRemindersCard() {
+  const { user } = useAuth();
+  const { id: profileId } = useParams<{ id: string }>();
+
   const [isExpanded, setIsExpanded] = useState(true);
   const [pushEnabled, setPushEnabled] = useState(false);
-  const [takenItems, setTakenItems] = useState<Set<string>>(new Set());
-  const notifiedItems = useRef<Set<string>>(new Set());
-
-  // Mock data for today's reminders
-  const mockReminders = [
-    { id: 'r1', time: '09:55 PM', name: 'Prenatal Vitamins', dose: '1 tablet' },
-    { id: 'r2', time: '02:00 PM', name: 'Iron Supplement', dose: '65 mg' },
-    { id: 'r3', time: '08:00 PM', name: 'Progesterone', dose: '200 mg' },
-  ];
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // Modern browsers prefer notifications to be routed through a Service Worker
   const fireNotification = async (title: string, options: NotificationOptions) => {
@@ -35,47 +34,42 @@ export default function MedicationRemindersCard() {
     }
   }, []);
 
-  // The Local Frontend Background Scheduler
   useEffect(() => {
-    if (!pushEnabled || !('Notification' in window)) return;
+    if (!user?.uid || !profileId) return;
 
-    // Check every minute to see if any reminder matches the current time
-    const interval = setInterval(() => {
-      const now = new Date();
-      // Formats current time to match the mock format exactly, e.g. "08:00 AM"
-      const timeString = now.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+    const fetchNotifications = async () => {
+      try {
+        const data = await notificationService.getNotifications(user.uid, profileId);
+        setNotifications(data);
+      } catch (error) {
+        console.error("Failed to fetch notifications:", error);
+      }
+    };
 
-      mockReminders.forEach((reminder) => {
-        // If the time matches, the user hasn't checked it off, and we haven't already notified them
-        if (reminder.time === timeString && !takenItems.has(reminder.id) && !notifiedItems.current.has(reminder.id)) {
-          notifiedItems.current.add(reminder.id);
-          fireNotification('Medication Reminder 💊', {
-            body: `It's time to take your ${reminder.name} (${reminder.dose}).`,
-            tag: reminder.id, // Prevents duplicate spamming
-            requireInteraction: true,
-          });
-        }
-      });
-    }, 1000); // 60,000 ms = 1 minute
-
-    // We also run the check immediately on mount/update so we don't have to wait 60s
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pushEnabled, takenItems]);
+    fetchNotifications();
+  }, [user?.uid, profileId]);
 
 
-  const toggleTaken = (id: string, e: React.MouseEvent) => {
+  const toggleTaken = async (notification: Notification, e: React.MouseEvent) => {
     e.stopPropagation();
-    const newSet = new Set(takenItems);
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
+    if (!user?.uid || !profileId) return;
+
+    const newStatus = notification.status === 'acknowledged' ? 'sent' : 'acknowledged';
+
+    // Optimistic update
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notification.id ? { ...n, status: newStatus } : n))
+    );
+
+    try {
+      await notificationService.updateNotificationStatus(user.uid, profileId, notification.id, newStatus);
+    } catch (error) {
+      console.error('Failed to update status', error);
+      // Revert on error
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, status: notification.status } : n))
+      );
     }
-    setTakenItems(newSet);
   };
 
   const handleTogglePush = async (e: React.MouseEvent) => {
@@ -103,6 +97,19 @@ export default function MedicationRemindersCard() {
         body: 'This is a test notification! Your browser permissions are working.',
         requireInteraction: true,
       });
+    }
+  };
+
+  const formatTime = (isoString?: string) => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return '';
     }
   };
 
@@ -168,11 +175,14 @@ export default function MedicationRemindersCard() {
 
           {/* Reminders List */}
           <div className="space-y-3">
-            {mockReminders.map((reminder) => {
-              const isTaken = takenItems.has(reminder.id);
+            {notifications.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No recent notifications.</p>
+            ) : (
+            notifications.map((notification) => {
+              const isTaken = notification.status === 'acknowledged';
               return (
                 <div
-                  key={reminder.id}
+                  key={notification.id}
                   className={`relative flex items-center justify-between gap-3 rounded-2xl p-4 transition-all duration-200 ${
                     isTaken
                       ? 'bg-slate-50 opacity-75 ring-1 ring-slate-100'
@@ -182,7 +192,7 @@ export default function MedicationRemindersCard() {
                   <div className="flex items-center gap-3.5">
                     <button
                       type="button"
-                      onClick={(e) => toggleTaken(reminder.id, e)}
+                      onClick={(_) => {}}
                       className={`flex shrink-0 transition-colors ${
                         isTaken ? 'text-green-500' : 'text-slate-300 hover:text-blue-500'
                       }`}
@@ -195,19 +205,21 @@ export default function MedicationRemindersCard() {
                           isTaken ? 'text-slate-500 line-through decoration-slate-300' : 'text-slate-900'
                         }`}
                       >
-                        {reminder.name}
+                        {notification.title}
                       </h4>
-                      <div className="mt-0.5 flex items-center gap-2">
+                      <div className="mt-0.5">
+                        {notification.description && (
+                          <span className="text-xs text-slate-500 line-clamp-1">{notification.description}</span>
+                        )}
                         <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                          {reminder.time}
+                          {formatTime(notification.firedAt)}
                         </span>
-                        <span className="text-xs text-slate-500">{reminder.dose}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
       )}

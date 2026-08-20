@@ -1,4 +1,4 @@
-import MedicationRemindersCard from '../features/health/components/MedicationRemindersCard';
+import TodayRemindersCard from '../features/health/components/TodayRemindersCard';
 import RemindersCard from '../features/health/components/RemindersCard';
 import MomentPreferenceCard from '../features/health/components/MomentPreferenceCard';
 
@@ -22,7 +22,7 @@ export default function Reminders() {
       <div className="relative z-20 -mt-8 px-4">
         <div className="flex flex-col gap-5">
           <MomentPreferenceCard />
-          <MedicationRemindersCard />
+          <TodayRemindersCard />
           <RemindersCard />
         </div>
       </div>
