@@ -56,6 +56,7 @@ export default function MomentPreferenceCard() {
       await saveReminder(user.uid, profileId, {
         id: 'daily-moment',
         isActive: !isActive,
+        times: reminder.times?.length ? reminder.times : ['09:00'],
       });
     }
   };
