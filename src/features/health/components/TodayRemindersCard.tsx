@@ -49,29 +49,6 @@ export default function TodayRemindersCard() {
     fetchNotifications();
   }, [user?.uid, profileId]);
 
-
-  const toggleTaken = async (notification: Notification, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user?.uid || !profileId) return;
-
-    const newStatus = notification.status === 'acknowledged' ? 'sent' : 'acknowledged';
-
-    // Optimistic update
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notification.id ? { ...n, status: newStatus } : n))
-    );
-
-    try {
-      await notificationService.updateNotificationStatus(user.uid, profileId, notification.id, newStatus);
-    } catch (error) {
-      console.error('Failed to update status', error);
-      // Revert on error
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notification.id ? { ...n, status: notification.status } : n))
-      );
-    }
-  };
-
   const handleTogglePush = async (e: React.MouseEvent) => {
     e.stopPropagation();
     
