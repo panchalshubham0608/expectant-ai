@@ -5,7 +5,6 @@ import { useProfile } from '../hooks/useProfile';
 import DailyMomentCard from '../components/home/DailyMomentCard';
 import { Calendar, Baby, Clock, Sparkles, ChevronRight } from 'lucide-react';
 import { getPregnancyAge } from '../utils/pregnancyUtils';
-import { registerForNotifications } from '../lib/messaging';
 
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(
@@ -57,13 +56,6 @@ function ProfileDetail() {
       localStorage.setItem('lastProfileId', id);
     }
   }, [id]);
-
-  useEffect(() => {
-    if (!user?.uid || !id) return;
-    registerForNotifications(user?.uid, id);
-  }, [
-    user?.uid, id
-  ]);
 
   if (isLoading)
     return (
