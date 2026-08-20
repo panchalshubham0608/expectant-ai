@@ -83,9 +83,10 @@ async function sendNotifications() {
         if (!reminder.title || !reminder.description) continue;
         const message = {
           data: {
+            id: reminder.id,
             title: reminder.title,
             message: reminder.description,
-            url: `/expectant-ai/profile/${profileDoc.id}`,
+            url: `/expectant-ai/`,
           },
           fids,
         };

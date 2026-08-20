@@ -46,6 +46,7 @@ messaging.onBackgroundMessage((payload) => {
       data: {
         url: payload.data?.url ?? "/expectant-ai/",
       },
+      tag: `expectant-ai-notification-${payload.data?.id ?? "default"}`
     };
 
     return self.registration.showNotification(title, options)
