@@ -70,7 +70,7 @@ export default function TodayRemindersCard() {
 
   const sendTestNotification = () => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      fireNotification('Test Reminder 💊', {
+      fireNotification('Test Reminder', {
         body: 'This is a test notification! Your browser permissions are working.',
         requireInteraction: true,
       });
@@ -90,6 +90,8 @@ export default function TodayRemindersCard() {
     }
   };
 
+  const unreadCount = notifications.filter((n) => n.status === 'sent').length;
+
   return (
     <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-gray-100">
       <div
@@ -99,6 +101,11 @@ export default function TodayRemindersCard() {
         <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900">
           <BellRing className="text-blue-500" size={20} />
           Today's Reminders
+          {unreadCount > 0 && (
+            <span className="ml-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-bold text-white">
+              {unreadCount}
+            </span>
+          )}
         </h3>
         <div className="flex items-center gap-3">
           {isExpanded ? (

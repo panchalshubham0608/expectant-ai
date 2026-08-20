@@ -4,6 +4,7 @@ import {
   updateDoc,
   deleteDoc,
   query,
+  where,
   orderBy,
   limit,
   QueryDocumentSnapshot,
@@ -42,8 +43,13 @@ export const notificationService = {
    */
   getNotifications: async (userId: string, profileId: string, limitCount: number = 50): Promise<Notification[]> => {
     const notificationsRef = getNotificationsCollection(userId, profileId);
+    
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const q = query(
       notificationsRef,
+      where("firedAt", ">=", startOfToday),
       orderBy("firedAt", "desc"),
       limit(limitCount)
     );
