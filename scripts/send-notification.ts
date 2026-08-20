@@ -85,7 +85,7 @@ async function sendNotifications() {
           data: {
             title: reminder.title,
             message: reminder.description,
-            url: `/expectant-ai/profile/${profileDoc.id}`,
+            url: `/expectant-ai/`,
           },
           fids,
         };
