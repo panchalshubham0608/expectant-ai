@@ -19,7 +19,14 @@ export default function RemindersCard() {
     const unsubscribe = subscribeToReminders(
       user.uid,
       profileId,
-      (fetched : Reminder[]) => setReminders(fetched),
+      (fetched : Reminder[]) => {
+        const sorted = [...fetched].sort((a, b) => {
+          const timeA = a.interval ? (a.startTime || "24:00") : (a.times?.length ? [...a.times].sort()[0] : "24:00");
+          const timeB = b.interval ? (b.startTime || "24:00") : (b.times?.length ? [...b.times].sort()[0] : "24:00");
+          return timeA.localeCompare(timeB);
+        });
+        setReminders(sorted);
+      },
       (err : Error) => console.error('Error fetching reminders:', err)
     );
 
@@ -58,7 +65,7 @@ export default function RemindersCard() {
       return `Every ${reminder.interval} ${reminder.intervalUnit} between ${formatTime(reminder.startTime)} and ${formatTime(reminder.endTime)}`;
     }
     if (reminder.times && reminder.times.length > 0) {
-      return `At ${reminder.times.map(formatTime).join(' and ')}`;
+      return `At ${[...reminder.times].sort().map(formatTime).join(' and ')}`;
     }
     return reminder.frequency;
   };

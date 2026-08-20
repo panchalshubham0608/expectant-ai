@@ -45,8 +45,8 @@ export default function MomentPreferenceCard() {
       // Create it seamlessly on the first toggle
       await saveReminder(user.uid, profileId, {
         id: 'daily-moment',
-        title: 'Daily Moment',
-        description: 'Receive your personalized daily pregnancy update',
+        title: '✨ Today’s little wonder is ready',
+        description: 'Here’s something amazing about you and your growing little one.',
         frequency: 'daily',
         times: ['09:00'],
         isActive: true,
@@ -56,6 +56,7 @@ export default function MomentPreferenceCard() {
       await saveReminder(user.uid, profileId, {
         id: 'daily-moment',
         isActive: !isActive,
+        times: reminder.times?.length ? reminder.times : ['09:00'],
       });
     }
   };

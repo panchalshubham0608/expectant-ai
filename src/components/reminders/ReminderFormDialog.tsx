@@ -53,12 +53,7 @@ export default function ReminderFormDialog({
 
     if (timeMode === 'times') {
       reminder.times = times;
-      reminder.interval = undefined;
-      reminder.intervalUnit = undefined;
-      reminder.startTime = undefined;
-      reminder.endTime = undefined;
     } else {
-      reminder.times = undefined;
       reminder.interval = interval;
       reminder.intervalUnit = intervalUnit;
       reminder.startTime = startTime;
