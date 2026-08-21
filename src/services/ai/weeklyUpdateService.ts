@@ -8,14 +8,6 @@ export interface WeeklyUpdateRequest {
   endDate: string;
 }
 
-// I've added an optional `url` field to store the result from the image generation step.
-export interface WeeklyVisual {
-  type: "baby-development" | "size-comparison" | "highlight";
-  title: string;
-  prompt: string;
-  url?: string;
-}
-
 export interface WeeklyUpdateResponse {
   week: number;
 
@@ -59,8 +51,6 @@ export interface WeeklyUpdateResponse {
   };
 
   emoji: string;
-
-  visuals: WeeklyVisual[];
 }
 
 /**
@@ -142,18 +132,6 @@ async function generateWeeklyUpdateContent(
               required: ['title', 'content'],
             },
             emoji: { type: 'STRING' },
-            visuals: {
-              type: 'ARRAY',
-              items: {
-                type: 'OBJECT',
-                properties: {
-                  type: { type: 'STRING' },
-                  title: { type: 'STRING' },
-                  prompt: { type: 'STRING' },
-                },
-                required: ['type', 'title', 'prompt'],
-              },
-            },
           },
           required: [
             'week',
@@ -167,7 +145,6 @@ async function generateWeeklyUpdateContent(
             'coupleMoment',
             'comingUp',
             'emoji',
-            'visuals',
           ],
         },
       },

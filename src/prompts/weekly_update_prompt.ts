@@ -129,42 +129,6 @@ forward to in the coming weeks.
 Do not make promises about medical appointments or
 developmental events occurring on an exact date.
 
-8. VISUALS
-
-Create EXACTLY THREE visual-generation prompts.
-
-Visual 1:
-BABY DEVELOPMENT
-
-A tasteful illustration representing the baby's development
-around this stage.
-
-Visual 2:
-SIZE COMPARISON
-
-A charming visual representing the baby's approximate size
-using the selected comparison.
-
-Visual 3:
-HIGHLIGHT
-
-A visual representation of one particularly interesting
-developmental highlight from this week's content.
-
-VISUAL STYLE
-
-All three visuals must share a consistent visual identity.
-
-Use this general visual direction:
-
-"Premium editorial pregnancy illustration, warm and gentle
-aesthetic, scientifically informed, tasteful, non-clinical,
-reassuring, soft natural composition, suitable for a modern
-pregnancy companion application."
-
-Do not create graphic, anatomical, frightening, or
-photorealistic medical imagery.
-
 FACTUAL SAFETY
 
 - Use reliable medical and scientific knowledge.
