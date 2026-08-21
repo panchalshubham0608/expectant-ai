@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "707884032173",
+    "project_id": "expectant-ai",
+    "storage_bucket": "expectant-ai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:707884032173:android:ba4d1a476c08961ee2a624",
+        "android_client_info": {
+          "package_name": "com.shubham.expectant_ai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "707884032173-vd7ldl8honeded4hpkqf07n8269i4jt0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeqNH8RbjIAxOQ5xe8urFSqiRmjW9NZy4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "707884032173-vd7ldl8honeded4hpkqf07n8269i4jt0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
