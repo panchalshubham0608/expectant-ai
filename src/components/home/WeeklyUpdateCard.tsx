@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Loader2, CalendarHeart, Sparkles, AlertCircle, Baby, Heart, Lightbulb, RefreshCw, Users, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import type { WeeklyUpdate } from '../../models/weeklyUpdate';
+import WeeklyVisuals from './WeeklyVisuals';
 
 interface WeeklyUpdateCardProps {
   updates: WeeklyUpdate[];
@@ -161,17 +162,6 @@ export default function WeeklyUpdateCard({
 
               {isExpanded && (
                 <div className="border-t border-gray-100 animate-in slide-in-from-top-2 fade-in duration-200">
-                  {update.visuals && update.visuals.length > 0 && update.visuals[0].url && (
-                    <div className="relative h-48 w-full bg-gray-100 sm:h-64">
-                      <img
-                        src={update.visuals[0].url}
-                        alt={update.visuals[0].title}
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                    </div>
-                  )}
-
                   <div className="p-6 relative">
                     {String(displayWeek) === String(currentWeek) && (
                       <button
@@ -198,6 +188,10 @@ export default function WeeklyUpdateCard({
                         </div>
                       </div>
                     )}
+
+                    <div className="mb-8">
+                      <WeeklyVisuals week={update.week} />
+                    </div>
 
                     <div className="space-y-6">
                       {update.baby && (
