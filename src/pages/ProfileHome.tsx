@@ -80,7 +80,7 @@ function ProfileDetail() {
     );
 
   const age = getPregnancyAge(profile.lastMenstrualPeriod, profile.ultrasoundLastMenstrualPeriod);
-  const week = age ? Math.max(1, Math.min(42, age.weeks + 1)) : 1;
+  const week = age?.weeks || 0;
   const stage = week < 14 ? 'First trimester' : week < 28 ? 'Second trimester' : 'Third trimester';
 
   let gestationalAgeText = 'Not available';

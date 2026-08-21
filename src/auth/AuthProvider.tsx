@@ -2,8 +2,6 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signOut as firebaseSignOut,
-  setPersistence,
-  browserLocalPersistence,
   GoogleAuthProvider,
   signInWithCredential
 } from 'firebase/auth';
@@ -76,14 +74,19 @@ function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(
         'Firebase is not configured. Add the VITE_FIREBASE_* values to your .env file.',
       );
-    await setPersistence(auth, browserLocalPersistence);
 
     if (window.Android) {
       console.log("[ANDROID] Using window.Android.signInWithGoogle()");
       await window.Android.signInWithGoogle();
     } else {
-      console.log("[WEB] Using signInWithPopup()")
-      await signInWithPopup(auth, googleProvider);
+      console.log("[WEB] Using signInWithPopup()");
+      // signInWithPopup slides up perfectly over iOS PWAs and avoids the redirect data wipe.
+      // Note: We do not `await` anything prior to this call, otherwise Safari's popup blocker will kill it.
+      try {
+        await signInWithPopup(auth, googleProvider);
+      } catch (error) {
+        console.error("Web login failed:", error);
+      }
     }
   };
 

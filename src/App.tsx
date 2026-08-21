@@ -25,7 +25,7 @@ function App() {
   const Router = isAndroid ? HashRouter : BrowserRouter;
 
   return (
-    <Router basename={isAndroid ? "" : "/expectant-ai"}>
+    <Router basename={isAndroid ? "" : "/expectant-ai/"}>
       <Routes>
         <Route path="/" element={user ? <Navigate to={lastProfileId ? `/profile/${lastProfileId}` : "/dashboard"} replace /> : <AppHome />} />
         <Route element={<RequireAuth />}>
