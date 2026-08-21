@@ -5,8 +5,8 @@ import tailwindcss from "@tailwindcss/vite";
 import fs from 'fs';
 import path from 'path';
 
-export default defineConfig({
-  base: "/expectant-ai/",
+export default defineConfig(({ mode }) => ({
+  base: mode === "android" ? "./" : "/expectant-ai/",
   plugins: [
     tailwindcss(),
     react(),
@@ -57,4 +57,4 @@ export default defineConfig({
     // Let Vite use its default self-signed/https behaviour
     return { host: true, https: {} };
   })(),
-});
+}));

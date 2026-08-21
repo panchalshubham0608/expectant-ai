@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import AppLayout from './components/layout/AppLayout';
 
@@ -21,8 +21,11 @@ function App() {
   const { user } = useAuth();
   const lastProfileId = localStorage.getItem('lastProfileId');
 
+  const isAndroid = import.meta.env.MODE === "android";
+  const Router = isAndroid ? HashRouter : BrowserRouter;
+
   return (
-    <BrowserRouter basename="/expectant-ai">
+    <Router basename={isAndroid ? "" : "/expectant-ai"}>
       <Routes>
         <Route path="/" element={user ? <Navigate to={lastProfileId ? `/profile/${lastProfileId}` : "/dashboard"} replace /> : <AppHome />} />
         <Route element={<RequireAuth />}>
@@ -41,7 +44,7 @@ function App() {
           </Route>
         </Route>
       </Routes>
-    </BrowserRouter>
+    </Router>
   );
 }
 
