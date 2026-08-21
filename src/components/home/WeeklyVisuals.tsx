@@ -9,13 +9,16 @@ interface WeeklyVisualsProps {
 export default function WeeklyVisuals({ week }: WeeklyVisualsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  if (week !== 12) {
+  // Check if provided week supports visuals
+  if (week < 12 || week > 13) {
     return <></>;
   }
 
-  // Use Vite's import.meta.glob to automatically import all images from the directory
-  const week12Modules = import.meta.glob("../../assets/weeks/12/*.{png,jpg,jpeg,svg,webp}", { eager: true, import: 'default' });
-  const images = Object.values(week12Modules) as string[];
+  // import.meta.glob requires a static string literal, so we import all weeks and filter dynamically
+  const allModules = import.meta.glob('../../assets/weeks/*/*.{png,jpg,jpeg,svg,webp}', { eager: true, import: 'default' });
+  const images = Object.keys(allModules)
+    .filter((path) => path.startsWith(`../../assets/weeks/${week}/`))
+    .map((path) => allModules[path] as string);
 
   if (images.length === 0) {
     return <></>;
