@@ -92,25 +92,8 @@ class GoogleAuthManager(
                                         "${auth.currentUser?.email}"
                             )
 
-                            auth.currentUser
-                                ?.getIdToken(false)
-                                ?.addOnSuccessListener { tokenResult ->
-
-                                    val token = tokenResult.token
-
-                                    if (token != null) {
-                                        onSuccess(token)
-                                    } else {
-                                        onFailure(
-                                            Exception(
-                                                "Firebase ID token is null"
-                                            )
-                                        )
-                                    }
-                                }
-                                ?.addOnFailureListener {
-                                    onFailure(it)
-                                }
+                            // Send the Google ID token to the web app, NOT the Firebase ID token
+                            onSuccess(googleCredential.idToken)
 
                         } else {
                             onFailure(
