@@ -19,6 +19,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
+import androidx.core.net.toUri
 
 class MainActivity : ComponentActivity() {
 
@@ -28,9 +29,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var webView: WebView
-
     private lateinit var reminderScheduler: ReminderScheduler
-
     private lateinit var googleAuthManager: GoogleAuthManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,12 +38,13 @@ class MainActivity : ComponentActivity() {
         WebView.setWebContentsDebuggingEnabled(true)
 
         reminderScheduler = ReminderScheduler(this)
-
         googleAuthManager = GoogleAuthManager(this)
 
         setupWebView()
-
         requestNotificationPermission()
+        requestExactAlarmPermission()
+
+        reminderScheduler.scheduleTestNotification(this)
     }
 
     private fun setupWebView() {
@@ -268,9 +268,7 @@ class MainActivity : ComponentActivity() {
 
                 val intent = Intent(
                     Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                    Uri.parse(
-                        "package:$packageName"
-                    )
+                    "package:$packageName".toUri()
                 )
 
                 startActivity(intent)
@@ -279,18 +277,13 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-
         webView.apply {
-
             removeJavascriptInterface(
                 "Android"
             )
-
             stopLoading()
-
             destroy()
         }
-
         super.onDestroy()
     }
 }

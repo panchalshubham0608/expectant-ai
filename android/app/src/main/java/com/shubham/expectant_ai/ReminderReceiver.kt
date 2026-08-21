@@ -63,10 +63,6 @@ class ReminderReceiver : BroadcastReceiver() {
                 reminderId.hashCode(),
                 notification
             )
-
-        if (intent.getBooleanExtra("is_test_reminder", false)) {
-            ReminderScheduler(context).scheduleTestReminder()
-        }
     }
 
     private fun createNotificationChannel(
