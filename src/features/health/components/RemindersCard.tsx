@@ -18,6 +18,8 @@ export default function RemindersCard() {
   const [editingReminder, setEditingReminder] = useState<Reminder | undefined>();
   const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [reminderToDelete, setReminderToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!user?.uid || !profileId) return;
@@ -56,9 +58,15 @@ export default function RemindersCard() {
     setEditingReminder(undefined);
   };
 
-  const handleDelete = async (reminderId: string) => {
-    if (!user?.uid || !profileId) return;
-    await deleteReminder(user.uid, profileId, reminderId);
+  const confirmDelete = async () => {
+    if (!user?.uid || !profileId || !reminderToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteReminder(user.uid, profileId, reminderToDelete);
+    } finally {
+      setIsDeleting(false);
+      setReminderToDelete(null);
+    }
   };
 
   const toggleStatus = async (reminder: Reminder) => {
@@ -196,7 +204,7 @@ export default function RemindersCard() {
                     <Edit2 size={16} />
                   </button>
                   <button
-                    onClick={() => handleDelete(reminder.id!)}
+                    onClick={() => setReminderToDelete(reminder.id!)}
                     className="p-1.5 text-gray-400 hover:text-rose-600 transition"
                   >
                     <Trash2 size={16} />
@@ -233,6 +241,16 @@ export default function RemindersCard() {
         isConfirming={isSyncingCalendar}
         onConfirm={confirmDisconnect}
         onCancel={() => setShowDisconnectConfirm(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!reminderToDelete}
+        title="Delete Reminder?"
+        description="Are you sure you want to delete this reminder? This action cannot be undone."
+        confirmText="Delete"
+        isConfirming={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setReminderToDelete(null)}
       />
 
       {isFormOpen && (
