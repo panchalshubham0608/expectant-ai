@@ -77,7 +77,6 @@ export async function syncReminderToCalendar(reminder: Reminder, accessToken: st
       end: { dateTime: endDate.toISOString(), timeZone },
       recurrence: ['RRULE:FREQ=DAILY'],
     };
-    console.log(event);
 
     const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
       method: 'POST',
@@ -95,4 +94,47 @@ export async function syncReminderToCalendar(reminder: Reminder, accessToken: st
   }
 
   return { ...reminder, googleCalendarEventIds: [...(reminder.googleCalendarEventIds || []), ...eventIds] };
+}
+
+export async function deleteCalendarEvent(eventId: string, accessToken: string): Promise<void> {
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    console.error(`Failed to delete calendar event ${eventId}: ${response.statusText}`);
+  }
+}
+
+export async function clearAllCalendarEvents(accessToken: string): Promise<{ successCount: number; failureCount: number }> {
+  let pageToken: string | undefined = undefined;
+  let successCount = 0;
+  let failureCount = 0;
+
+  do {
+    const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+    if (pageToken) url.searchParams.append('pageToken', pageToken);
+    
+    const searchRes = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    
+    const data = await searchRes.json();
+    if (!data.items || data.items.length === 0) break;
+
+    for (const event of data.items) {
+      const delRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (delRes.ok) successCount++;
+      else failureCount++;
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return { successCount, failureCount };
 }

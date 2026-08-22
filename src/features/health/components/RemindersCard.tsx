@@ -8,7 +8,7 @@ import { subscribeToReminders, saveReminder, deleteReminder } from '../../../ser
 import { subscribeToProfile, toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
 import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
 import ConfirmDialog from './ConfirmDialog';
-import { syncReminderToCalendar, getCalendarAccessToken } from '../../../services/calendar/calendarService';
+import { syncReminderToCalendar, getCalendarAccessToken, deleteCalendarEvent } from '../../../services/calendar/calendarService';
 
 export default function RemindersCard() {
   const { user } = useAuth();
@@ -52,42 +52,21 @@ export default function RemindersCard() {
     };
   }, [user?.uid, profileId]);
 
-  useEffect(() => {
-    if (!profile?.syncRemindersToCalendar || !user?.uid || !profileId || reminders.length === 0) return;
-
-    const syncPendingReminders = async () => {
-      const pendingReminders = reminders.filter(
-        (r) => r.frequency === 'daily' && (!r.googleCalendarEventIds || r.googleCalendarEventIds.length === 0)
-      );
-
-      if (pendingReminders.length === 0) return;
-
-      let accessToken: string;
-      try {
-        accessToken = await getCalendarAccessToken();
-      } catch (error) {
-        console.error('Failed to authenticate with Google Calendar:', error);
-        return;
-      }
-
-      for (const reminder of pendingReminders) {
-        try {
-          const updatedReminder = await syncReminderToCalendar(reminder, accessToken);
-          if (updatedReminder.googleCalendarEventIds && updatedReminder.googleCalendarEventIds.length > 0) {
-            await saveReminder(user.uid, profileId, updatedReminder);
-          }
-        } catch (error) {
-          console.error('Failed to sync reminder to calendar:', error);
-        }
-      }
-    };
-
-    syncPendingReminders();
-  }, [reminders, profile?.syncRemindersToCalendar, user?.uid, profileId]);
-
   const handleSave = async (reminderData: Partial<Reminder>) => {
     if (!user?.uid || !profileId) return;
-    await saveReminder(user.uid, profileId, reminderData);
+
+    let dataToSave = { ...reminderData };
+
+    if (profile?.syncRemindersToCalendar && dataToSave.frequency === 'daily' && (!dataToSave.googleCalendarEventIds || dataToSave.googleCalendarEventIds.length === 0)) {
+      try {
+        const accessToken = await getCalendarAccessToken();
+        dataToSave = await syncReminderToCalendar(dataToSave as Reminder, accessToken);
+      } catch (error) {
+        console.error('Failed to sync new reminder to calendar:', error);
+      }
+    }
+
+    await saveReminder(user.uid, profileId, dataToSave);
     setIsFormOpen(false);
     setEditingReminder(undefined);
   };
@@ -96,6 +75,17 @@ export default function RemindersCard() {
     if (!user?.uid || !profileId || !reminderToDelete) return;
     setIsDeleting(true);
     try {
+      const reminder = reminders.find(r => r.id === reminderToDelete);
+      if (reminder?.googleCalendarEventIds && reminder.googleCalendarEventIds.length > 0) {
+        try {
+          const accessToken = await getCalendarAccessToken();
+          for (const eventId of reminder.googleCalendarEventIds) {
+            await deleteCalendarEvent(eventId, accessToken);
+          }
+        } catch (error) {
+          console.error('Failed to delete calendar events for reminder:', error);
+        }
+      }
       await deleteReminder(user.uid, profileId, reminderToDelete);
     } finally {
       setIsDeleting(false);
@@ -109,7 +99,7 @@ export default function RemindersCard() {
   };
 
   const handleCalendarToggle = async () => {
-    if (!profile) return;
+    if (!profile || !user?.uid || !profileId) return;
 
     if (profile.syncRemindersToCalendar) {
       setShowDisconnectConfirm(true);
@@ -118,6 +108,30 @@ export default function RemindersCard() {
 
     setIsSyncingCalendar(true);
     try {
+      let accessToken: string;
+      try {
+        accessToken = await getCalendarAccessToken();
+      } catch (error) {
+        console.error('Failed to authenticate with Google Calendar:', error);
+        setIsSyncingCalendar(false);
+        return;
+      }
+
+      const pendingReminders = reminders.filter(
+        (r) => r.frequency === 'daily' && (!r.googleCalendarEventIds || r.googleCalendarEventIds.length === 0)
+      );
+
+      for (const reminder of pendingReminders) {
+        try {
+          const updatedReminder = await syncReminderToCalendar(reminder, accessToken);
+          if (updatedReminder.googleCalendarEventIds && updatedReminder.googleCalendarEventIds.length > 0) {
+            await saveReminder(user.uid, profileId, updatedReminder);
+          }
+        } catch (error) {
+          console.error('Failed to sync reminder to calendar:', error);
+        }
+      }
+
       await toggleSyncRemindersToCalendar(profile.id, true);
     } catch (error) {
       console.error('Failed to toggle calendar sync:', error);
@@ -127,9 +141,22 @@ export default function RemindersCard() {
   };
 
   const confirmDisconnect = async () => {
-    if (!profile) return;
+    if (!user?.uid || !profileId || !profile) return;
     setIsSyncingCalendar(true);
     try {
+      try {
+        const accessToken = await getCalendarAccessToken();
+        for (const reminder of reminders) {
+          if (reminder.googleCalendarEventIds && reminder.googleCalendarEventIds.length > 0) {
+            for (const eventId of reminder.googleCalendarEventIds) {
+              await deleteCalendarEvent(eventId, accessToken);
+            }
+            await saveReminder(user.uid, profileId, { ...reminder, googleCalendarEventIds: [] });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to clear calendar events during disconnect:', error);
+      }
       await toggleSyncRemindersToCalendar(profile.id, false);
     } catch (error) {
       console.error('Failed to disconnect calendar sync:', error);
