@@ -8,6 +8,7 @@ import { subscribeToReminders, saveReminder, deleteReminder } from '../../../ser
 import { subscribeToProfile, toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
 import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
 import ConfirmDialog from './ConfirmDialog';
+import { syncReminderToCalendar } from '../../../services/calendar/calendarService';
 
 export default function RemindersCard() {
   const { user } = useAuth();
@@ -50,6 +51,31 @@ export default function RemindersCard() {
       unsubscribeProfile();
     };
   }, [user?.uid, profileId]);
+
+  useEffect(() => {
+    if (!profile?.syncRemindersToCalendar || !user?.uid || !profileId || reminders.length === 0) return;
+
+    const syncPendingReminders = async () => {
+      const pendingReminders = reminders.filter(
+        (r) => r.frequency === 'daily' && (!r.googleCalendarEventIds || r.googleCalendarEventIds.length === 0)
+      );
+
+      if (pendingReminders.length === 0) return;
+
+      for (const reminder of pendingReminders) {
+        try {
+          const updatedReminder = await syncReminderToCalendar(reminder);
+          if (updatedReminder.googleCalendarEventIds && updatedReminder.googleCalendarEventIds.length > 0) {
+            await saveReminder(user.uid, profileId, updatedReminder);
+          }
+        } catch (error) {
+          console.error('Failed to sync reminder to calendar:', error);
+        }
+      }
+    };
+
+    syncPendingReminders();
+  }, [reminders, profile?.syncRemindersToCalendar, user?.uid, profileId]);
 
   const handleSave = async (reminderData: Partial<Reminder>) => {
     if (!user?.uid || !profileId) return;

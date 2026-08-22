@@ -22,4 +22,7 @@ export interface Reminder {
   endDate?: string;
 
   isActive: boolean;
+
+  // Store synced Google Calendar Event IDs
+  googleCalendarEventIds?: string[];
 }
