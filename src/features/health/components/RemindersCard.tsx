@@ -1,22 +1,28 @@
 import { useState, useEffect } from 'react';
-import { Bell, Clock, Plus, Trash2, Edit2 } from 'lucide-react';
+import { Bell, Clock, Plus, Trash2, Edit2, Calendar, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import type { Reminder } from '../../../models/reminder';
+import type { ExpectantProfile } from '../../../models/profile';
 import { useAuth } from '../../../hooks/useAuth';
 import { subscribeToReminders, saveReminder, deleteReminder } from '../../../services/reminders/reminderService';
+import { subscribeToProfile, toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
 import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function RemindersCard() {
   const { user } = useAuth();
   const { id: profileId } = useParams<{ id: string }>();
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [profile, setProfile] = useState<ExpectantProfile | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | undefined>();
+  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   useEffect(() => {
     if (!user?.uid || !profileId) return;
 
-    const unsubscribe = subscribeToReminders(
+    const unsubscribeReminders = subscribeToReminders(
       user.uid,
       profileId,
       (fetched : Reminder[]) => {
@@ -30,7 +36,17 @@ export default function RemindersCard() {
       (err : Error) => console.error('Error fetching reminders:', err)
     );
 
-    return () => unsubscribe();
+    const unsubscribeProfile = subscribeToProfile(
+      user.uid,
+      profileId,
+      (fetchedProfile) => setProfile(fetchedProfile),
+      (err) => console.error('Error fetching profile:', err)
+    );
+
+    return () => {
+      unsubscribeReminders();
+      unsubscribeProfile();
+    };
   }, [user?.uid, profileId]);
 
   const handleSave = async (reminderData: Partial<Reminder>) => {
@@ -50,7 +66,37 @@ export default function RemindersCard() {
     await saveReminder(user.uid, profileId, { id: reminder.id, isActive: !reminder.isActive });
   };
 
-  
+  const handleCalendarToggle = async () => {
+    if (!profile) return;
+
+    if (profile.syncRemindersToCalendar) {
+      setShowDisconnectConfirm(true);
+      return;
+    }
+
+    setIsSyncingCalendar(true);
+    try {
+      await toggleSyncRemindersToCalendar(profile.id, true);
+    } catch (error) {
+      console.error('Failed to toggle calendar sync:', error);
+    } finally {
+      setIsSyncingCalendar(false);
+    }
+  };
+
+  const confirmDisconnect = async () => {
+    if (!profile) return;
+    setIsSyncingCalendar(true);
+    try {
+      await toggleSyncRemindersToCalendar(profile.id, false);
+    } catch (error) {
+      console.error('Failed to disconnect calendar sync:', error);
+    } finally {
+      setIsSyncingCalendar(false);
+      setShowDisconnectConfirm(false);
+    }
+  };
+
   const formatTime = (time24?: string) => {
     if (!time24) return '';
     const [hours, minutes] = time24.split(':');
@@ -89,6 +135,32 @@ export default function RemindersCard() {
             <span>Add</span>
           </button>
         </div>
+      </div>
+
+      <div className="mb-6 flex items-center justify-between rounded-2xl bg-blue-50/50 p-4 ring-1 ring-blue-100/50">
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm ring-1 ring-blue-100">
+            <Calendar size={20} />
+          </div>
+          <div>
+            <h4 className="font-semibold text-slate-900">Google Calendar</h4>
+            <p className="text-xs text-slate-500">Sync reminders automatically</p>
+          </div>
+        </div>
+        <button
+          onClick={handleCalendarToggle}
+          disabled={isSyncingCalendar}
+          className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm ring-1 transition-colors ${
+            profile?.syncRemindersToCalendar 
+              ? 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200' 
+              : 'bg-white text-blue-600 ring-blue-200 hover:bg-blue-50'
+          } ${isSyncingCalendar ? 'opacity-75 cursor-not-allowed' : ''}`}
+        >
+          {isSyncingCalendar && <Loader2 size={14} className="animate-spin" />}
+          {profile?.syncRemindersToCalendar 
+            ? (isSyncingCalendar ? 'Disconnecting...' : 'Disconnect') 
+            : (isSyncingCalendar ? 'Connecting...' : 'Connect')}
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -152,6 +224,17 @@ export default function RemindersCard() {
           ))
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={showDisconnectConfirm}
+        title="Disconnect Google Calendar?"
+        description="You will no longer see your expectant reminders in your Google Calendar. Are you sure you want to disconnect?"
+        confirmText="Disconnect"
+        isConfirming={isSyncingCalendar}
+        onConfirm={confirmDisconnect}
+        onCancel={() => setShowDisconnectConfirm(false)}
+      />
+
       {isFormOpen && (
         <ReminderFormDialog
           initialValues={editingReminder}

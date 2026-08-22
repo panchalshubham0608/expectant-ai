@@ -22,6 +22,10 @@ export interface ExpectantProfile {
   primaryHospitalLocation?: string;
   emergencyContact?: string;
 
+  // Integrations
+  syncRemindersToCalendar?: boolean;
+  syncAppointmentsToCalendar?: boolean;
+
   // Status
   status: "active" | "completed" | "archived";
 
