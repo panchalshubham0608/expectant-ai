@@ -59,7 +59,7 @@ export function getBaseTimesForDailyReminder(reminder: Reminder): Date[] {
   return timestamps;
 }
 
-export async function syncReminderToCalendar(reminder: Reminder): Promise<Reminder> {
+export async function syncReminderToCalendar(reminder: Reminder, accessToken: string): Promise<Reminder> {
   if (reminder.frequency !== 'daily') {
     return reminder;
   }
@@ -67,17 +67,17 @@ export async function syncReminderToCalendar(reminder: Reminder): Promise<Remind
   const timestamps = getBaseTimesForDailyReminder(reminder);
   const eventIds: string[] = [];
 
-  const accessToken = await getCalendarAccessToken();
-
   for (const timestamp of timestamps) {
     const endDate = new Date(timestamp.getTime() + 15 * 60000); // Default 15 minute duration
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const event = {
       summary: reminder.title,
       description: reminder.description || '',
-      start: { dateTime: timestamp.toISOString() },
-      end: { dateTime: endDate.toISOString() },
+      start: { dateTime: timestamp.toISOString(), timeZone },
+      end: { dateTime: endDate.toISOString(), timeZone },
       recurrence: ['RRULE:FREQ=DAILY'],
     };
+    console.log(event);
 
     const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
       method: 'POST',
