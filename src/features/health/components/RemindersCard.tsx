@@ -228,7 +228,7 @@ export default function RemindersCard() {
       <ConfirmDialog
         isOpen={showDisconnectConfirm}
         title="Disconnect Google Calendar?"
-        description="You will no longer see your expectant reminders in your Google Calendar. Are you sure you want to disconnect?"
+        description="You will no longer see your reminders in your Google Calendar. Are you sure you want to disconnect?"
         confirmText="Disconnect"
         isConfirming={isSyncingCalendar}
         onConfirm={confirmDisconnect}

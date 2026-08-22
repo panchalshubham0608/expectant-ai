@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Calendar, 
   Clock, 
@@ -10,13 +10,16 @@ import {
   Loader2
 } from "lucide-react";
 import type { Appointment } from "../models/appointment";
+import type { ExpectantProfile } from "../models/profile";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
 import CompleteAppointmentFormDialog from "../components/appointments/CompleteAppointmentFormDialog";
 import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
+import ConfirmDialog from "../features/health/components/ConfirmDialog";
 import { useAuth } from "../hooks/useAuth";
 import { useParams } from "react-router-dom";
 import { useAppointments } from "../hooks/useAppointments";
 import { saveAppointment, updateAppointment, deleteAppointment } from "../services/appointments/appointmentService";
+import { subscribeToProfile, toggleSyncAppointmentsToCalendar } from "../services/profiles/profileService";
 
 const formatDateTime = (dateString: string) => {
   try {
@@ -42,11 +45,60 @@ export default function AppointmentsPage() {
   const [completingAppt, setCompletingAppt] = useState<Appointment | null>(null);
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
+  const [profile, setProfile] = useState<ExpectantProfile | null>(null);
+  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   const upcomingAppointments = appointments.filter(a => a.status === 'scheduled' && new Date(a.scheduledAt).getTime() >= Date.now());
   const pastAppointments = appointments.filter(a => new Date(a.scheduledAt).getTime() < Date.now());
 
   const displayAppointments = activeTab === "upcoming" ? upcomingAppointments : pastAppointments;
+
+  useEffect(() => {
+    if (!user?.uid || !profileId) return;
+
+    const unsubscribeProfile = subscribeToProfile(
+      user.uid,
+      profileId,
+      (fetchedProfile) => setProfile(fetchedProfile),
+      (err) => console.error('Error fetching profile:', err)
+    );
+
+    return () => {
+      unsubscribeProfile();
+    };
+  }, [user?.uid, profileId]);
+
+  const handleCalendarToggle = async () => {
+    if (!profile) return;
+
+    if (profile.syncAppointmentsToCalendar) {
+      setShowDisconnectConfirm(true);
+      return;
+    }
+
+    setIsSyncingCalendar(true);
+    try {
+      await toggleSyncAppointmentsToCalendar(profile.id, true);
+    } catch (error) {
+      console.error('Failed to toggle calendar sync:', error);
+    } finally {
+      setIsSyncingCalendar(false);
+    }
+  };
+
+  const confirmDisconnect = async () => {
+    if (!profile) return;
+    setIsSyncingCalendar(true);
+    try {
+      await toggleSyncAppointmentsToCalendar(profile.id, false);
+    } catch (error) {
+      console.error('Failed to disconnect calendar sync:', error);
+    } finally {
+      setIsSyncingCalendar(false);
+      setShowDisconnectConfirm(false);
+    }
+  };
 
   const handleAddAppointment = async (newAppt: Partial<Appointment>) => {
     if (!user?.uid || !profileId) return;
@@ -225,6 +277,32 @@ export default function AppointmentsPage() {
             })
           )}
         </div>
+
+        <div className="mt-6 flex items-center justify-between rounded-2xl bg-indigo-50/50 p-4 ring-1 ring-indigo-100/50">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100">
+              <Calendar size={20} />
+            </div>
+            <div>
+              <h4 className="font-semibold text-slate-900">Google Calendar</h4>
+              <p className="text-xs text-slate-500">Sync appointments automatically</p>
+            </div>
+          </div>
+          <button
+            onClick={handleCalendarToggle}
+            disabled={isSyncingCalendar}
+            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm ring-1 transition-colors ${
+              profile?.syncAppointmentsToCalendar 
+                ? 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200' 
+                : 'bg-white text-indigo-600 ring-indigo-200 hover:bg-indigo-50'
+            } ${isSyncingCalendar ? 'opacity-75 cursor-not-allowed' : ''}`}
+          >
+            {isSyncingCalendar && <Loader2 size={14} className="animate-spin" />}
+            {profile?.syncAppointmentsToCalendar 
+              ? (isSyncingCalendar ? 'Disconnecting...' : 'Disconnect') 
+              : (isSyncingCalendar ? 'Connecting...' : 'Connect')}
+          </button>
+        </div>
       </div>
 
       {/* Appointment Details Modal */}
@@ -302,6 +380,16 @@ export default function AppointmentsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={showDisconnectConfirm}
+        title="Disconnect Google Calendar?"
+        description="You will no longer see your appointments in your Google Calendar. Are you sure you want to disconnect?"
+        confirmText="Disconnect"
+        isConfirming={isSyncingCalendar}
+        onConfirm={confirmDisconnect}
+        onCancel={() => setShowDisconnectConfirm(false)}
+      />
     </div>
   );
 }
