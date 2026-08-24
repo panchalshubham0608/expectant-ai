@@ -187,3 +187,22 @@ export async function clearAllCalendarEvents(accessToken: string): Promise<{ suc
 
   return { successCount, failureCount };
 }
+
+export async function deleteAllCalendarEventsForReminder(reminder: Reminder, accessToken: string): Promise<Reminder> {
+  if (reminder.googleCalendarEventIds && reminder.googleCalendarEventIds.length > 0) {
+    for (const eventId of reminder.googleCalendarEventIds) {
+      await deleteCalendarEvent(eventId, accessToken);
+    }
+  }
+  return { ...reminder, googleCalendarEventIds: [] };
+}
+
+export async function resyncReminderToCalendar(reminder: Reminder, accessToken: string, syncEnabled: boolean): Promise<Reminder> {
+  let updatedReminder = await deleteAllCalendarEventsForReminder(reminder, accessToken);
+
+  if (syncEnabled && updatedReminder.isActive !== false) {
+    updatedReminder = await syncReminderToCalendar(updatedReminder, accessToken);
+  }
+
+  return updatedReminder;
+}

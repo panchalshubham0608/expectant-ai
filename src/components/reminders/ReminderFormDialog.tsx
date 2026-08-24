@@ -1,9 +1,10 @@
 import { useId, useState } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Loader2 } from 'lucide-react';
 import type { Reminder, ReminderFrequency } from '../../models/reminder';
 
 interface ReminderFormDialogProps {
   initialValues?: Reminder;
+  isSaving?: boolean;
   onClose: () => void;
   onSubmit: (reminder: Partial<Reminder>) => void;
 }
@@ -13,6 +14,7 @@ const inputClass =
 
 export default function ReminderFormDialog({
   initialValues,
+  isSaving,
   onClose,
   onSubmit,
 }: ReminderFormDialogProps) {
@@ -120,11 +122,12 @@ export default function ReminderFormDialog({
               value={frequency}
               onChange={(e) => setFrequency(e.target.value as ReminderFrequency)}
               className={inputClass}
+              disabled
             >
               <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
+              {/* <option value="weekly">Weekly</option>
               <option value="once">Once</option>
-              <option value="custom">Custom</option>
+              <option value="custom">Custom</option> */}
             </select>
           </div>
 
@@ -185,8 +188,9 @@ export default function ReminderFormDialog({
           </div>
 
           <div className="mt-8 flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
-            <button type="button" onClick={onClose} className="rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100">Cancel</button>
-            <button type="submit" className="rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
+            <button type="button" onClick={onClose} disabled={isSaving} className="rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={isSaving} className="flex items-center justify-center gap-2 rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-70">
+              {isSaving && <Loader2 size={16} className="animate-spin" />}
               {initialValues ? 'Save Changes' : 'Add Reminder'}
             </button>
           </div>

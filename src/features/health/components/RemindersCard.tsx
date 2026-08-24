@@ -8,7 +8,7 @@ import { subscribeToReminders, saveReminder, deleteReminder } from '../../../ser
 import { subscribeToProfile, toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
 import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
 import ConfirmDialog from './ConfirmDialog';
-import { syncReminderToCalendar, getCalendarAccessToken, deleteCalendarEvent } from '../../../services/calendar/calendarService';
+import { syncReminderToCalendar, getCalendarAccessToken, resyncReminderToCalendar, deleteAllCalendarEventsForReminder } from '../../../services/calendar/calendarService';
 
 export default function RemindersCard() {
   const { user } = useAuth();
@@ -21,6 +21,7 @@ export default function RemindersCard() {
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [reminderToDelete, setReminderToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [savingReminderId, setSavingReminderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.uid || !profileId) return;
@@ -28,7 +29,7 @@ export default function RemindersCard() {
     const unsubscribeReminders = subscribeToReminders(
       user.uid,
       profileId,
-      (fetched : Reminder[]) => {
+      (fetched: Reminder[]) => {
         const sorted = [...fetched].sort((a, b) => {
           const timeA = a.interval ? (a.startTime || "24:00") : (a.times?.length ? [...a.times].sort()[0] : "24:00");
           const timeB = b.interval ? (b.startTime || "24:00") : (b.times?.length ? [...b.times].sort()[0] : "24:00");
@@ -36,7 +37,7 @@ export default function RemindersCard() {
         });
         setReminders(sorted);
       },
-      (err : Error) => console.error('Error fetching reminders:', err)
+      (err: Error) => console.error('Error fetching reminders:', err)
     );
 
     const unsubscribeProfile = subscribeToProfile(
@@ -55,20 +56,30 @@ export default function RemindersCard() {
   const handleSave = async (reminderData: Partial<Reminder>) => {
     if (!user?.uid || !profileId) return;
 
-    let dataToSave = { ...reminderData };
+    setSavingReminderId(reminderData.id || 'new');
+    let dataToSave = { ...(editingReminder || {}), ...reminderData };
 
-    if (profile?.syncRemindersToCalendar && dataToSave.frequency === 'daily' && (!dataToSave.googleCalendarEventIds || dataToSave.googleCalendarEventIds.length === 0)) {
+    const needsCalendarAction = (dataToSave.googleCalendarEventIds && dataToSave.googleCalendarEventIds.length > 0) ||
+      (profile?.syncRemindersToCalendar && dataToSave.frequency === 'daily' && dataToSave.isActive !== false);
+
+    if (needsCalendarAction) {
       try {
         const accessToken = await getCalendarAccessToken();
-        dataToSave = await syncReminderToCalendar(dataToSave as Reminder, accessToken);
+        dataToSave = await resyncReminderToCalendar(dataToSave as Reminder, accessToken, !!profile?.syncRemindersToCalendar);
       } catch (error) {
-        console.error('Failed to sync new reminder to calendar:', error);
+        console.error('Failed to manage calendar events for reminder:', error);
       }
     }
 
-    await saveReminder(user.uid, profileId, dataToSave);
-    setIsFormOpen(false);
-    setEditingReminder(undefined);
+    try {
+      await saveReminder(user.uid, profileId, dataToSave);
+    } catch (error) {
+      console.error('Failed to save reminder:', error);
+    } finally {
+      setIsFormOpen(false);
+      setEditingReminder(undefined);
+      setSavingReminderId(null);
+    }
   };
 
   const confirmDelete = async () => {
@@ -79,9 +90,7 @@ export default function RemindersCard() {
       if (reminder?.googleCalendarEventIds && reminder.googleCalendarEventIds.length > 0) {
         try {
           const accessToken = await getCalendarAccessToken();
-          for (const eventId of reminder.googleCalendarEventIds) {
-            await deleteCalendarEvent(eventId, accessToken);
-          }
+          await deleteAllCalendarEventsForReminder(reminder, accessToken);
         } catch (error) {
           console.error('Failed to delete calendar events for reminder:', error);
         }
@@ -95,7 +104,7 @@ export default function RemindersCard() {
 
   const toggleStatus = async (reminder: Reminder) => {
     if (!user?.uid || !profileId) return;
-    await saveReminder(user.uid, profileId, { id: reminder.id, isActive: !reminder.isActive });
+    await handleSave({ ...reminder, isActive: !reminder.isActive });
   };
 
   const handleCalendarToggle = async () => {
@@ -118,7 +127,7 @@ export default function RemindersCard() {
       }
 
       const pendingReminders = reminders.filter(
-        (r) => r.frequency === 'daily' && (!r.googleCalendarEventIds || r.googleCalendarEventIds.length === 0)
+        (r) => r.frequency === 'daily' && r.isActive !== false && (!r.googleCalendarEventIds || r.googleCalendarEventIds.length === 0)
       );
 
       for (const reminder of pendingReminders) {
@@ -148,10 +157,8 @@ export default function RemindersCard() {
         const accessToken = await getCalendarAccessToken();
         for (const reminder of reminders) {
           if (reminder.googleCalendarEventIds && reminder.googleCalendarEventIds.length > 0) {
-            for (const eventId of reminder.googleCalendarEventIds) {
-              await deleteCalendarEvent(eventId, accessToken);
-            }
-            await saveReminder(user.uid, profileId, { ...reminder, googleCalendarEventIds: [] });
+            const updatedReminder = await deleteAllCalendarEventsForReminder(reminder, accessToken);
+            await saveReminder(user.uid, profileId, updatedReminder);
           }
         }
       } catch (error) {
@@ -219,15 +226,14 @@ export default function RemindersCard() {
         <button
           onClick={handleCalendarToggle}
           disabled={isSyncingCalendar}
-          className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm ring-1 transition-colors ${
-            profile?.syncRemindersToCalendar 
-              ? 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200' 
+          className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm ring-1 transition-colors ${profile?.syncRemindersToCalendar
+              ? 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'
               : 'bg-white text-blue-600 ring-blue-200 hover:bg-blue-50'
-          } ${isSyncingCalendar ? 'opacity-75 cursor-not-allowed' : ''}`}
+            } ${isSyncingCalendar ? 'opacity-75 cursor-not-allowed' : ''}`}
         >
           {isSyncingCalendar && <Loader2 size={14} className="animate-spin" />}
-          {profile?.syncRemindersToCalendar 
-            ? (isSyncingCalendar ? 'Disconnecting...' : 'Disconnect') 
+          {profile?.syncRemindersToCalendar
+            ? (isSyncingCalendar ? 'Disconnecting...' : 'Disconnect')
             : (isSyncingCalendar ? 'Connecting...' : 'Connect')}
         </button>
       </div>
@@ -237,59 +243,65 @@ export default function RemindersCard() {
           <p className="text-sm text-gray-500 text-center py-4">No reminders scheduled yet.</p>
         ) : (
           displayReminders.map((reminder) => (
-          <div
-            key={reminder.id}
-            className="relative flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-white hover:shadow-sm"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h4 className="font-semibold text-slate-900">{reminder.title}</h4>
-                {reminder.description && (
-                  <p className="mt-1 text-sm text-slate-500">{reminder.description}</p>
-                )}
-                
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50/50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100/50">
-                    <Clock size={12} className="text-blue-500" />
-                    {getFrequencyText(reminder)}
-                  </span>
+            <div
+              key={reminder.id}
+              className="relative flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-white hover:shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="font-semibold text-slate-900">{reminder.title}</h4>
+                  {reminder.description && (
+                    <p className="mt-1 text-sm text-slate-500">{reminder.description}</p>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50/50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100/50">
+                      <Clock size={12} className="text-blue-500" />
+                      {getFrequencyText(reminder)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="flex shrink-0 items-center gap-3">
-                <div className="flex items-center gap-1 mr-2">
-                  <button
-                    onClick={() => { setEditingReminder(reminder); setIsFormOpen(true); }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 transition"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => setReminderToDelete(reminder.id!)}
-                    className="p-1.5 text-gray-400 hover:text-rose-600 transition"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+
+                <div className="flex shrink-0 items-center gap-3">
+                  <div className="flex items-center gap-1 mr-2">
+                    <button
+                      onClick={() => { setEditingReminder(reminder); setIsFormOpen(true); }}
+                  disabled={savingReminderId === reminder.id}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={() => setReminderToDelete(reminder.id!)}
+                  disabled={savingReminderId === reminder.id}
+                  className="p-1.5 text-gray-400 hover:text-rose-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+              {savingReminderId === reminder.id ? (
+                <div className="flex h-6 w-11 items-center justify-center">
+                  <Loader2 size={18} className="animate-spin text-blue-600" />
                 </div>
+              ) : (
                 <button
                   type="button"
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
-                    reminder.isActive ? 'bg-blue-600' : 'bg-slate-200'
-                  }`}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${reminder.isActive ? 'bg-blue-600' : 'bg-slate-200'
+                    }`}
                   role="switch"
                   aria-checked={reminder.isActive}
                   onClick={() => toggleStatus(reminder)}
                 >
                   <span
                     aria-hidden="true"
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      reminder.isActive ? 'translate-x-5' : 'translate-x-0.5'
-                    }`}
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${reminder.isActive ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
                   />
                 </button>
+              )}
+                </div>
               </div>
             </div>
-          </div>
           ))
         )}
       </div>
@@ -317,6 +329,7 @@ export default function RemindersCard() {
       {isFormOpen && (
         <ReminderFormDialog
           initialValues={editingReminder}
+          isSaving={!!savingReminderId}
           onClose={() => { setIsFormOpen(false); setEditingReminder(undefined); }}
           onSubmit={handleSave}
         />
