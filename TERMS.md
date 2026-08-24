@@ -27,4 +27,4 @@ In no event shall Expectant AI, nor its directors, employees, partners, agents, 
 We reserve the right, at our sole discretion, to modify or replace these Terms at any time. What constitutes a material change will be determined at our sole discretion.
 
 ## 8. Contact Us
-If you have any questions about these Terms, please contact us at support@expectantai.com.
+If you have any questions about these Terms, please contact us at shubhampanchal9773@gmail.com.

@@ -19,10 +19,10 @@ We use personal information collected via our App for a variety of business purp
 ## 3. How We Share Your Information
 We only share information with your consent, to comply with laws, to provide you with services, to protect your rights, or to fulfill business obligations.
 - **Cloud Infrastructure:** Your data is securely stored using Firebase (Cloud Firestore) and processed through our backend infrastructure.
-- **Third-Party Services:** If you opt-in to calendar synchronization, we share necessary appointment data with Google Calendar via their API.
+- **Third-Party Services:** If you opt-in to calendar synchronization, we share necessary appointment/reminders data with Google Calendar via their API.
 
 ## 4. Security of Your Information
-We aim to protect your personal information through a system of organizational and technical security measures. Your data is stored securely with restricted access based on authentication rules.
+We aim to protect your personal information through a system of organizational and technical security measures. Your data is stored securely with restricted access based on authentication rules allowing access to users to self-created documents.
 
 ## 5. Contact Us
-If you have questions or comments about this notice, you may email us at support@expectantai.com.
+If you have questions or comments about this notice, you may email us at shubhampanchal9773@gmail.com.
