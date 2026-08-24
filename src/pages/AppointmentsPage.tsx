@@ -1,16 +1,15 @@
 import { useState, useEffect } from "react";
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Plus, 
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Plus,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Loader2
 } from "lucide-react";
 import type { Appointment } from "../models/appointment";
-import type { ExpectantProfile } from "../models/profile";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
 import CompleteAppointmentFormDialog from "../components/appointments/CompleteAppointmentFormDialog";
 import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
@@ -19,7 +18,8 @@ import { useAuth } from "../hooks/useAuth";
 import { useParams } from "react-router-dom";
 import { useAppointments } from "../hooks/useAppointments";
 import { saveAppointment, updateAppointment, deleteAppointment } from "../services/appointments/appointmentService";
-import { subscribeToProfile, toggleSyncAppointmentsToCalendar } from "../services/profiles/profileService";
+import { toggleSyncAppointmentsToCalendar } from "../services/profiles/profileService";
+import { useProfile } from "../hooks/useProfile";
 import {
   getCalendarAccessToken,
   syncAppointmentToCalendar,
@@ -51,31 +51,16 @@ export default function AppointmentsPage() {
   const [completingAppt, setCompletingAppt] = useState<Appointment | null>(null);
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
-  const [profile, setProfile] = useState<ExpectantProfile | null>(null);
   const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const { profile } = useProfile(user?.uid, profileId);
   const upcomingAppointments = appointments.filter(a => a.status === 'scheduled' && new Date(a.scheduledAt).getTime() >= Date.now());
   const pastAppointments = appointments.filter(a => new Date(a.scheduledAt).getTime() < Date.now());
 
   const displayAppointments = activeTab === "upcoming" ? upcomingAppointments : pastAppointments;
-
-  useEffect(() => {
-    if (!user?.uid || !profileId) return;
-
-    const unsubscribeProfile = subscribeToProfile(
-      user.uid,
-      profileId,
-      (fetchedProfile) => setProfile(fetchedProfile),
-      (err) => console.error('Error fetching profile:', err)
-    );
-
-    return () => {
-      unsubscribeProfile();
-    };
-  }, [user?.uid, profileId]);
 
   const handleCalendarToggle = async () => {
     if (!profile || !user?.uid || !profileId) return;
@@ -152,11 +137,11 @@ export default function AppointmentsPage() {
     setIsSaving(true);
     try {
       const preservedEventId = originalAppointment?.googleCalendarEventId || appointmentData.googleCalendarEventId;
-      let dataToSave = { 
-        ...(originalAppointment || {}), 
+      let dataToSave = {
+        ...(originalAppointment || {}),
         ...appointmentData,
       } as Appointment;
-      
+
       if (preservedEventId) {
         dataToSave.googleCalendarEventId = preservedEventId;
       }
@@ -287,10 +272,10 @@ export default function AppointmentsPage() {
       <div className="relative overflow-hidden rounded-b-[2.5rem] bg-gradient-to-br from-indigo-600 to-blue-800 px-6 pb-20 pt-12 shadow-lg">
         <div className="absolute -right-8 -top-8 h-48 w-48 rounded-full bg-white opacity-10 blur-2xl"></div>
         <div className="absolute -left-8 top-16 h-32 w-32 rounded-full bg-white opacity-10 blur-2xl"></div>
-        
+
         <div className="relative z-10 flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight text-white">Appointments</h1>
-          <button 
+          <button
             className="flex items-center gap-1.5 rounded-full bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-all hover:bg-white/30 shadow-sm"
             onClick={() => setIsFormOpen(true)}
           >
@@ -316,21 +301,19 @@ export default function AppointmentsPage() {
         {/* Tab Navigation */}
         <div className="flex w-full rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-gray-100 mb-6">
           <button
-            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${
-              activeTab === "upcoming"
+            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${activeTab === "upcoming"
                 ? "bg-indigo-50 text-indigo-700 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
-            }`}
+              }`}
             onClick={() => setActiveTab("upcoming")}
           >
             Upcoming ({upcomingAppointments.length})
           </button>
           <button
-            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${
-              activeTab === "past"
+            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${activeTab === "past"
                 ? "bg-indigo-50 text-indigo-700 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
-            }`}
+              }`}
             onClick={() => setActiveTab("past")}
           >
             Past ({pastAppointments.length})
@@ -354,8 +337,8 @@ export default function AppointmentsPage() {
             displayAppointments.map((appt) => {
               const { date, time } = formatDateTime(appt.scheduledAt);
               return (
-                <div 
-                  key={appt.id} 
+                <div
+                  key={appt.id}
                   onClick={() => setSelectedAppt(appt)}
                   className="relative overflow-hidden rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-gray-100 transition-shadow hover:shadow-md cursor-pointer"
                 >
@@ -366,7 +349,7 @@ export default function AppointmentsPage() {
                         <span className="text-xs font-semibold uppercase tracking-wider">{date.split(' ')[0]}</span>
                         <span className="text-xl font-bold leading-none my-0.5">{date.split(' ')[1].replace(',', '')}</span>
                       </div>
-                      
+
                       <div>
                         <h3 className="text-base font-bold text-gray-900 line-clamp-1">{appt.reason || "Appointment"}</h3>
                         <p className="text-sm font-medium text-gray-600 mt-0.5">{appt.doctorName}</p>
@@ -375,7 +358,7 @@ export default function AppointmentsPage() {
                         )}
                       </div>
                     </div>
-                    
+
                     {/* Status Icon */}
                     {appt.status === "completed" && <CheckCircle2 className="text-green-500 shrink-0" size={24} />}
                     {appt.status === "cancelled" && <XCircle className="text-rose-500 shrink-0" size={24} />}
@@ -413,15 +396,14 @@ export default function AppointmentsPage() {
           <button
             onClick={handleCalendarToggle}
             disabled={isSyncingCalendar}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm ring-1 transition-colors ${
-              profile?.syncAppointmentsToCalendar 
-                ? 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200' 
+            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm ring-1 transition-colors ${profile?.syncAppointmentsToCalendar
+                ? 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'
                 : 'bg-white text-indigo-600 ring-indigo-200 hover:bg-indigo-50'
-            } ${isSyncingCalendar ? 'opacity-75 cursor-not-allowed' : ''}`}
+              } ${isSyncingCalendar ? 'opacity-75 cursor-not-allowed' : ''}`}
           >
             {isSyncingCalendar && <Loader2 size={14} className="animate-spin" />}
-            {profile?.syncAppointmentsToCalendar 
-              ? (isSyncingCalendar ? 'Disconnecting...' : 'Disconnect') 
+            {profile?.syncAppointmentsToCalendar
+              ? (isSyncingCalendar ? 'Disconnecting...' : 'Disconnect')
               : (isSyncingCalendar ? 'Connecting...' : 'Connect')}
           </button>
         </div>
@@ -429,10 +411,10 @@ export default function AppointmentsPage() {
 
       {/* Appointment Details Modal */}
       {selectedAppt && (
-        <AppointmentDetailsModal 
-          appointment={selectedAppt} 
-          onClose={() => setSelectedAppt(null)} 
-          onMarkComplete={handleMarkCompleteClick} 
+        <AppointmentDetailsModal
+          appointment={selectedAppt}
+          onClose={() => setSelectedAppt(null)}
+          onMarkComplete={handleMarkCompleteClick}
           onUpdate={handleUpdateAppointment}
           onEdit={handleEditAppointment}
           onDelete={handleDeleteAppointment}
@@ -440,16 +422,16 @@ export default function AppointmentsPage() {
       )}
 
       {isFormOpen && (
-        <AppointmentFormDialog 
+        <AppointmentFormDialog
           isSaving={isSaving}
-          onClose={() => setIsFormOpen(false)} 
-          onSubmit={handleAddAppointment} 
+          onClose={() => setIsFormOpen(false)}
+          onSubmit={handleAddAppointment}
         />
       )}
 
       {completingAppt && (
         <CompleteAppointmentFormDialog
-          appointment={completingAppt}          
+          appointment={completingAppt}
           isSaving={isSaving}
           onClose={() => {
             setSelectedAppt(completingAppt);
@@ -473,11 +455,11 @@ export default function AppointmentsPage() {
       )}
 
       {appointmentToDelete && (
-        <div 
+        <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]"
           onClick={() => setAppointmentToDelete(null)}
         >
-          <div 
+          <div
             className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-1 ring-gray-100 p-6 sm:p-8 text-center"
             onClick={(e) => e.stopPropagation()}
           >
@@ -489,13 +471,13 @@ export default function AppointmentsPage() {
               Are you sure you want to delete this appointment? This action cannot be undone.
             </p>
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button 
+              <button
                 onClick={() => setAppointmentToDelete(null)}
                 className="w-full rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 sm:w-auto"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={confirmDelete}
                 className="w-full rounded-full bg-rose-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 sm:w-auto"
               >

@@ -3,6 +3,7 @@ import { differenceInDays } from 'date-fns';
 export interface PregnancyAge {
   weeks: number;
   days: number;
+  displayWeeks: number;
   totalDays: number;
   isFuture: boolean;
 }
@@ -22,15 +23,14 @@ export const getPregnancyAge = (
     const totalDays = differenceInDays(targetDate, lmpDate);
 
     if (totalDays < 0) {
-      return { weeks: 0, days: 0, totalDays, isFuture: true };
+      return { weeks: 0, days: 0, displayWeeks: 0, totalDays, isFuture: true };
     }
 
-    return {
-      weeks: Math.floor(totalDays / 7),
-      days: totalDays % 7,
-      totalDays,
-      isFuture: false,
-    };
+    const weeks = Math.floor(totalDays / 7);
+    const days = totalDays % 7;
+    const displayWeeks = days > 0 ? weeks + 1 : weeks;
+
+    return { weeks, days, displayWeeks, totalDays, isFuture: false };
   } catch {
     return null;
   }

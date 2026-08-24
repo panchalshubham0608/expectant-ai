@@ -15,7 +15,7 @@ export default function WeeklyUpdates() {
 
   const { profile } = useProfile(userId, id);
   const age = profile ? getPregnancyAge(profile.lastMenstrualPeriod, profile.ultrasoundLastMenstrualPeriod) : null;
-  const currentWeek = age ? (age.days === 0 ? age.weeks : age.weeks + 1) : null;
+  const currentWeek = age?.displayWeeks ?? null;
 
   const [updates, setUpdates] = useState<WeeklyUpdate[]>([]);
   const [isLoading, setIsLoading] = useState(true);

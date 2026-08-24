@@ -1,20 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Bell, Clock, Plus, Trash2, Edit2, Calendar, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import type { Reminder } from '../../../models/reminder';
-import type { ExpectantProfile } from '../../../models/profile';
 import { useAuth } from '../../../hooks/useAuth';
 import { saveReminder, deleteReminder } from '../../../services/reminders/reminderService';
-import { subscribeToProfile, toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
+import { toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
 import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
 import ConfirmDialog from './ConfirmDialog';
 import { syncReminderToCalendar, getCalendarAccessToken, resyncReminderToCalendar, deleteAllCalendarEventsForReminder } from '../../../services/calendar/calendarService';
 import { useReminders } from '../../../hooks/useReminders';
+import { useProfile } from '../../../hooks/useProfile';
 
 export default function RemindersCard() {
   const { user } = useAuth();
   const { id: profileId } = useParams<{ id: string }>();
-  const [profile, setProfile] = useState<ExpectantProfile | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | undefined>();
   const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
@@ -24,21 +23,7 @@ export default function RemindersCard() {
   const [savingReminderId, setSavingReminderId] = useState<string | null>(null);
 
   const { reminders, isLoading } = useReminders(user?.uid, profileId);
-
-  useEffect(() => {
-    if (!user?.uid || !profileId) return;
-
-    const unsubscribeProfile = subscribeToProfile(
-      user.uid,
-      profileId,
-      (fetchedProfile) => setProfile(fetchedProfile),
-      (err) => console.error('Error fetching profile:', err)
-    );
-
-    return () => {
-      unsubscribeProfile();
-    };
-  }, [user?.uid, profileId]);
+  const { profile } = useProfile(user?.uid, profileId);
 
   const handleSave = async (reminderData: Partial<Reminder>) => {
     if (!user?.uid || !profileId) return;

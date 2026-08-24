@@ -5,24 +5,28 @@ import type { ExpectantProfile } from '../models/profile';
 export function useProfile(userId: string | undefined, profileId: string | undefined) {
   const [profile, setProfile] = useState<ExpectantProfile | null>(null);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(Boolean(userId && profileId));
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!userId || !profileId) {
+      setIsLoading(false);
       return;
     }
-    return subscribeToProfile(
+
+    const unsubscribe = subscribeToProfile(
       userId,
       profileId,
-      (nextProfile) => {
-        setProfile(nextProfile);
+      (fetchedProfile) => {
+        setProfile(fetchedProfile);
         setIsLoading(false);
       },
-      (nextError) => {
-        setError(nextError.message);
+      (err) => {
+        setError(err.message);
         setIsLoading(false);
-      },
+      }
     );
+
+    return () => unsubscribe();
   }, [userId, profileId]);
 
   return { error, isLoading, profile };
