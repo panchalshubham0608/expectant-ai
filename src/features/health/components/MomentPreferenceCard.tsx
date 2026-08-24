@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
