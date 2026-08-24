@@ -2,14 +2,15 @@ import type { Reminder } from '../../models/reminder';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 let cachedAccessToken: string | null = null;
+let cachedCalendarId: string | null = null;
 
 export const getCalendarAccessToken = async (): Promise<string> => {
   if (cachedAccessToken) return cachedAccessToken;
 
   const auth = getAuth();
   const provider = new GoogleAuthProvider();
-  // The calendar.events scope limits access only to reading and writing events
-  provider.addScope('https://www.googleapis.com/auth/calendar.events');
+  // The full calendar scope allows creating new calendars and managing events
+  provider.addScope('https://www.googleapis.com/auth/calendar');
 
   // 1. Authenticate & get the Google Calendar access token
   const result = await signInWithPopup(auth, provider);
@@ -22,6 +23,40 @@ export const getCalendarAccessToken = async (): Promise<string> => {
 
   cachedAccessToken = token;
   return token;
+};
+
+export const getOrCreateExpectantAiCalendar = async (accessToken: string): Promise<string> => {
+  if (cachedCalendarId) return cachedCalendarId;
+
+  // 1. Check if the calendar already exists
+  const listRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const listData = await listRes.json();
+  const existing = listData.items?.find((c: any) => c.summary === 'Expectant AI');
+  
+  if (existing) {
+    cachedCalendarId = existing.id;
+    return existing.id;
+  }
+
+  // 2. Create the calendar if it doesn't exist
+  const createRes = await fetch('https://www.googleapis.com/calendar/v3/calendars', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ summary: 'Expectant AI' })
+  });
+  const createData = await createRes.json();
+  
+  if (!createData.id) {
+    throw new Error('Failed to create Expectant AI calendar');
+  }
+
+  cachedCalendarId = createData.id;
+  return createData.id;
 };
 
 export function getBaseTimesForDailyReminder(reminder: Reminder): Date[] {
@@ -64,6 +99,7 @@ export async function syncReminderToCalendar(reminder: Reminder, accessToken: st
     return reminder;
   }
 
+  const calendarId = await getOrCreateExpectantAiCalendar(accessToken);
   const timestamps = getBaseTimesForDailyReminder(reminder);
   const eventIds: string[] = [];
 
@@ -78,7 +114,7 @@ export async function syncReminderToCalendar(reminder: Reminder, accessToken: st
       recurrence: ['RRULE:FREQ=DAILY'],
     };
 
-    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -97,12 +133,24 @@ export async function syncReminderToCalendar(reminder: Reminder, accessToken: st
 }
 
 export async function deleteCalendarEvent(eventId: string, accessToken: string): Promise<void> {
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+  const calendarId = await getOrCreateExpectantAiCalendar(accessToken);
+
+  let response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
     },
   });
+
+  // Fallback: Check if the event was created in the primary calendar before this update
+  if (!response.ok && response.status === 404) {
+    response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+  }
 
   if (!response.ok) {
     console.error(`Failed to delete calendar event ${eventId}: ${response.statusText}`);
@@ -110,12 +158,13 @@ export async function deleteCalendarEvent(eventId: string, accessToken: string):
 }
 
 export async function clearAllCalendarEvents(accessToken: string): Promise<{ successCount: number; failureCount: number }> {
+  const calendarId = await getOrCreateExpectantAiCalendar(accessToken);
   let pageToken: string | undefined = undefined;
   let successCount = 0;
   let failureCount = 0;
 
   do {
-    const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+    const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`);
     if (pageToken) url.searchParams.append('pageToken', pageToken);
     
     const searchRes = await fetch(url.toString(), {
@@ -126,7 +175,7 @@ export async function clearAllCalendarEvents(accessToken: string): Promise<{ suc
     if (!data.items || data.items.length === 0) break;
 
     for (const event of data.items) {
-      const delRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.id}`, {
+      const delRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${event.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${accessToken}` }
       });
