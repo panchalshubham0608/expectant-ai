@@ -37,7 +37,7 @@ export const generateAndSaveWeeklyUpdate = async (
 
   const pregnancyWeek = age.weeks;
   const pregnancyDay = age.days;
-  const currentWeek = pregnancyDay === 0 ? pregnancyWeek : pregnancyWeek + 1;
+  const currentWeek = age.currentWeek;
 
   const updateDocRef = doc(getWeeklyUpdatesCollection(userId, profileId), String(currentWeek));
 

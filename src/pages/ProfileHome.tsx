@@ -80,8 +80,9 @@ function ProfileDetail() {
     );
 
   const age = getPregnancyAge(profile.lastMenstrualPeriod, profile.ultrasoundLastMenstrualPeriod);
-  const week = age?.displayWeeks || 0;
-  const stage = week < 14 ? 'First trimester' : week < 28 ? 'Second trimester' : 'Third trimester';
+  const week = age?.weeks || 0;
+  const currentWeek = age?.currentWeek || 0;
+  const stage = currentWeek < 14 ? 'First trimester' : currentWeek < 28 ? 'Second trimester' : 'Third trimester';
 
   let gestationalAgeText = 'Not available';
   if (age) {
@@ -125,7 +126,7 @@ function ProfileDetail() {
             </div>
             <p className="text-xs font-bold uppercase tracking-wider text-blue-800">Current Week</p>
           </div>
-          <p className="relative z-10 mt-2 text-xl font-bold text-gray-900">Week {week}</p>
+          <p className="relative z-10 mt-2 text-xl font-bold text-gray-900">Week {currentWeek}</p>
           <p className="relative z-10 font-medium text-blue-800">{stage}</p>
         </div>
 
