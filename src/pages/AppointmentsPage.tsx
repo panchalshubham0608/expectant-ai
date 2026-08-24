@@ -55,6 +55,7 @@ export default function AppointmentsPage() {
   const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const upcomingAppointments = appointments.filter(a => a.status === 'scheduled' && new Date(a.scheduledAt).getTime() >= Date.now());
   const pastAppointments = appointments.filter(a => new Date(a.scheduledAt).getTime() < Date.now());
@@ -196,11 +197,13 @@ export default function AppointmentsPage() {
   };
 
   const handleAddAppointment = async (newAppt: Partial<Appointment>) => {
+    setSaveError(null);
     try {
       await saveAndSyncAppointment(newAppt);
       setIsFormOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to add appointment", error);
+      setSaveError(error.message || "Failed to add appointment");
     }
   };
 
@@ -211,22 +214,26 @@ export default function AppointmentsPage() {
 
   const handleSaveCompletion = async (completionData: Partial<Appointment>) => {
     if (!completingAppt) return;
+    setSaveError(null);
     try {
       const updatedAppt = await saveAndSyncAppointment(completionData, completingAppt);
       setCompletingAppt(null);
       if (updatedAppt) setSelectedAppt(updatedAppt);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to complete appointment", error);
+      setSaveError(error.message || "Failed to complete appointment");
     }
   };
 
   const handleUpdateAppointment = async (updatedData: Partial<Appointment>) => {
     if (!selectedAppt) return;
+    setSaveError(null);
     try {
       const updatedAppt = await saveAndSyncAppointment(updatedData, selectedAppt);
       if (updatedAppt) setSelectedAppt(updatedAppt);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update appointment", error);
+      setSaveError(error.message || "Failed to update appointment");
     }
   }
 
@@ -241,6 +248,7 @@ export default function AppointmentsPage() {
 
   const confirmDelete = async () => {
     if (appointmentToDelete && user?.uid && profileId) {
+      setSaveError(null);
       try {
         if (appointmentToDelete.googleCalendarEventId) {
           try {
@@ -253,20 +261,23 @@ export default function AppointmentsPage() {
         await deleteAppointment(user.uid, profileId, appointmentToDelete.id);
         setAppointmentToDelete(null);
         setSelectedAppt(null);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to delete appointment", error);
+        setSaveError(error.message || "Failed to delete appointment");
       }
     }
   };
 
   const handleSaveEdit = async (updatedData: Partial<Appointment>) => {
     if (!editingAppt) return;
+    setSaveError(null);
     try {
       const updatedAppt = await saveAndSyncAppointment(updatedData, editingAppt);
       setEditingAppt(null);
       if (updatedAppt) setSelectedAppt(updatedAppt);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update appointment", error);
+      setSaveError(error.message || "Failed to update appointment");
     }
   };
 
@@ -290,6 +301,18 @@ export default function AppointmentsPage() {
       </div>
 
       <div className="relative z-20 -mt-8 px-4">
+        {saveError && (
+          <div className="mb-6 flex items-center justify-between rounded-2xl bg-rose-50 p-4 ring-1 ring-rose-100/50">
+            <div className="flex items-center gap-3 text-rose-700">
+              <AlertTriangle size={20} />
+              <p className="text-sm font-medium">{saveError}</p>
+            </div>
+            <button onClick={() => setSaveError(null)} className="text-rose-500 hover:text-rose-700 transition">
+              <XCircle size={20} />
+            </button>
+          </div>
+        )}
+
         {/* Tab Navigation */}
         <div className="flex w-full rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-gray-100 mb-6">
           <button
