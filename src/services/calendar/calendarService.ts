@@ -1,4 +1,5 @@
 import type { Reminder } from '../../models/reminder';
+import type { Appointment } from '../../models/appointment';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 let cachedAccessToken: string | null = null;
@@ -205,4 +206,56 @@ export async function resyncReminderToCalendar(reminder: Reminder, accessToken: 
   }
 
   return updatedReminder;
+}
+
+export async function syncAppointmentToCalendar(appointment: Appointment, accessToken: string): Promise<Appointment> {
+  const calendarId = await getOrCreateExpectantAiCalendar(accessToken);
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  const startTime = new Date(appointment.scheduledAt);
+  const endTime = new Date(startTime.getTime() + 60 * 60000); // Default 1 hour duration
+
+  const event = {
+    summary: appointment.reason || 'Medical Appointment',
+    description: [
+      appointment.doctorName ? `Doctor: ${appointment.doctorName}` : '',
+      appointment.specialty ? `Specialty: ${appointment.specialty}` : '',
+      appointment.hospital ? `Hospital: ${appointment.hospital}` : '',
+    ].filter(Boolean).join('\n'),
+    start: { dateTime: startTime.toISOString(), timeZone },
+    end: { dateTime: endTime.toISOString(), timeZone },
+  };
+
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(event)
+  });
+
+  if (response.ok) {
+    const data = await response.json();
+    if (data.id) return { ...appointment, googleCalendarEventId: data.id };
+  }
+
+  return appointment;
+}
+
+export async function deleteCalendarEventForAppointment(appointment: Appointment, accessToken: string): Promise<Appointment> {
+  if (appointment.googleCalendarEventId) {
+    await deleteCalendarEvent(appointment.googleCalendarEventId, accessToken);
+  }
+  return { ...appointment, googleCalendarEventId: "" };
+}
+
+export async function resyncAppointmentToCalendar(appointment: Appointment, accessToken: string, syncEnabled: boolean): Promise<Appointment> {
+  let updatedAppointment = await deleteCalendarEventForAppointment(appointment, accessToken);
+
+  if (syncEnabled && updatedAppointment.status !== 'cancelled') {
+    updatedAppointment = await syncAppointmentToCalendar(updatedAppointment, accessToken);
+  }
+
+  return updatedAppointment;
 }

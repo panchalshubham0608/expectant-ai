@@ -64,6 +64,7 @@ export const subscribeToAppointments = (
           medicalRecordIds: data.medicalRecordIds ?? [],
           attachedFiles: data.attachedFiles ?? [],
           status: data.status ?? "scheduled",
+          googleCalendarEventId: data.googleCalendarEventId ?? "",
           createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
           updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
         } as Appointment;

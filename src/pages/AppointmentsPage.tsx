@@ -20,6 +20,12 @@ import { useParams } from "react-router-dom";
 import { useAppointments } from "../hooks/useAppointments";
 import { saveAppointment, updateAppointment, deleteAppointment } from "../services/appointments/appointmentService";
 import { subscribeToProfile, toggleSyncAppointmentsToCalendar } from "../services/profiles/profileService";
+import {
+  getCalendarAccessToken,
+  syncAppointmentToCalendar,
+  resyncAppointmentToCalendar,
+  deleteCalendarEventForAppointment
+} from "../services/calendar/calendarService";
 
 const formatDateTime = (dateString: string) => {
   try {
@@ -48,6 +54,7 @@ export default function AppointmentsPage() {
   const [profile, setProfile] = useState<ExpectantProfile | null>(null);
   const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const upcomingAppointments = appointments.filter(a => a.status === 'scheduled' && new Date(a.scheduledAt).getTime() >= Date.now());
   const pastAppointments = appointments.filter(a => new Date(a.scheduledAt).getTime() < Date.now());
@@ -70,7 +77,7 @@ export default function AppointmentsPage() {
   }, [user?.uid, profileId]);
 
   const handleCalendarToggle = async () => {
-    if (!profile) return;
+    if (!profile || !user?.uid || !profileId) return;
 
     if (profile.syncAppointmentsToCalendar) {
       setShowDisconnectConfirm(true);
@@ -79,6 +86,30 @@ export default function AppointmentsPage() {
 
     setIsSyncingCalendar(true);
     try {
+      let accessToken: string;
+      try {
+        accessToken = await getCalendarAccessToken();
+      } catch (error) {
+        console.error('Failed to authenticate with Google Calendar:', error);
+        setIsSyncingCalendar(false);
+        return;
+      }
+
+      const pendingAppointments = appointments.filter(
+        (a) => a.status !== 'cancelled' && !a.googleCalendarEventId
+      );
+
+      for (const appt of pendingAppointments) {
+        try {
+          const updatedAppt = await syncAppointmentToCalendar(appt, accessToken);
+          if (updatedAppt.googleCalendarEventId) {
+            await updateAppointment(user.uid, profileId, appt.id, updatedAppt);
+          }
+        } catch (error) {
+          console.error('Failed to sync appointment to calendar:', error);
+        }
+      }
+
       await toggleSyncAppointmentsToCalendar(profile.id, true);
     } catch (error) {
       console.error('Failed to toggle calendar sync:', error);
@@ -88,9 +119,20 @@ export default function AppointmentsPage() {
   };
 
   const confirmDisconnect = async () => {
-    if (!profile) return;
+    if (!profile || !user?.uid || !profileId) return;
     setIsSyncingCalendar(true);
     try {
+      try {
+        const accessToken = await getCalendarAccessToken();
+        for (const appt of appointments) {
+          if (appt.googleCalendarEventId) {
+            const updatedAppt = await deleteCalendarEventForAppointment(appt, accessToken);
+            await updateAppointment(user.uid, profileId, appt.id, updatedAppt);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to clear calendar events during disconnect:', error);
+      }
       await toggleSyncAppointmentsToCalendar(profile.id, false);
     } catch (error) {
       console.error('Failed to disconnect calendar sync:', error);
@@ -100,10 +142,62 @@ export default function AppointmentsPage() {
     }
   };
 
-  const handleAddAppointment = async (newAppt: Partial<Appointment>) => {
-    if (!user?.uid || !profileId) return;
+  const saveAndSyncAppointment = async (
+    appointmentData: Partial<Appointment>,
+    originalAppointment?: Appointment
+  ) => {
+    if (!user?.uid || !profileId) return null;
+
+    setIsSaving(true);
     try {
-      await saveAppointment(user.uid, profileId, newAppt as any);
+      const preservedEventId = originalAppointment?.googleCalendarEventId || appointmentData.googleCalendarEventId;
+      let dataToSave = { 
+        ...(originalAppointment || {}), 
+        ...appointmentData,
+      } as Appointment;
+      
+      if (preservedEventId) {
+        dataToSave.googleCalendarEventId = preservedEventId;
+      }
+
+      // Remove undefined values to prevent Firestore errors
+      Object.keys(dataToSave).forEach(key => {
+        if ((dataToSave as any)[key] === undefined) {
+          delete (dataToSave as any)[key];
+        }
+      });
+
+      const needsCalendarAction = !!dataToSave.googleCalendarEventId ||
+        (profile?.syncAppointmentsToCalendar && dataToSave.status !== 'cancelled');
+
+      if (needsCalendarAction) {
+        try {
+          const accessToken = await getCalendarAccessToken();
+          dataToSave = await resyncAppointmentToCalendar(
+            dataToSave,
+            accessToken,
+            !!profile?.syncAppointmentsToCalendar
+          );
+        } catch (error) {
+          console.error('Failed to manage calendar events for appointment:', error);
+        }
+      }
+
+      if (originalAppointment?.id) {
+        await updateAppointment(user.uid, profileId, originalAppointment.id, dataToSave);
+      } else {
+        await saveAppointment(user.uid, profileId, dataToSave as any);
+      }
+
+      return dataToSave;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddAppointment = async (newAppt: Partial<Appointment>) => {
+    try {
+      await saveAndSyncAppointment(newAppt);
       setIsFormOpen(false);
     } catch (error) {
       console.error("Failed to add appointment", error);
@@ -116,23 +210,21 @@ export default function AppointmentsPage() {
   };
 
   const handleSaveCompletion = async (completionData: Partial<Appointment>) => {
-    if (!completingAppt || !user?.uid || !profileId) return;
+    if (!completingAppt) return;
     try {
-      await updateAppointment(user.uid, profileId, completingAppt.id, completionData);
-      const updatedAppt = { ...completingAppt, ...completionData } as Appointment;
+      const updatedAppt = await saveAndSyncAppointment(completionData, completingAppt);
       setCompletingAppt(null);
-      setSelectedAppt(updatedAppt);
+      if (updatedAppt) setSelectedAppt(updatedAppt);
     } catch (error) {
       console.error("Failed to complete appointment", error);
     }
   };
 
   const handleUpdateAppointment = async (updatedData: Partial<Appointment>) => {
-    if (!selectedAppt || !user?.uid || !profileId) return;
+    if (!selectedAppt) return;
     try {
-      await updateAppointment(user.uid, profileId, selectedAppt.id, updatedData);
-      const updatedAppt = { ...selectedAppt, ...updatedData } as Appointment;
-      setSelectedAppt(updatedAppt);
+      const updatedAppt = await saveAndSyncAppointment(updatedData, selectedAppt);
+      if (updatedAppt) setSelectedAppt(updatedAppt);
     } catch (error) {
       console.error("Failed to update appointment", error);
     }
@@ -150,6 +242,14 @@ export default function AppointmentsPage() {
   const confirmDelete = async () => {
     if (appointmentToDelete && user?.uid && profileId) {
       try {
+        if (appointmentToDelete.googleCalendarEventId) {
+          try {
+            const accessToken = await getCalendarAccessToken();
+            await deleteCalendarEventForAppointment(appointmentToDelete, accessToken);
+          } catch (error) {
+            console.error("Failed to delete calendar events for appointment:", error);
+          }
+        }
         await deleteAppointment(user.uid, profileId, appointmentToDelete.id);
         setAppointmentToDelete(null);
         setSelectedAppt(null);
@@ -160,12 +260,11 @@ export default function AppointmentsPage() {
   };
 
   const handleSaveEdit = async (updatedData: Partial<Appointment>) => {
-    if (!editingAppt || !user?.uid || !profileId) return;
+    if (!editingAppt) return;
     try {
-      await updateAppointment(user.uid, profileId, editingAppt.id, updatedData);
-      const updatedAppt = { ...editingAppt, ...updatedData } as Appointment;
+      const updatedAppt = await saveAndSyncAppointment(updatedData, editingAppt);
       setEditingAppt(null);
-      setSelectedAppt(updatedAppt);
+      if (updatedAppt) setSelectedAppt(updatedAppt);
     } catch (error) {
       console.error("Failed to update appointment", error);
     }
@@ -319,6 +418,7 @@ export default function AppointmentsPage() {
 
       {isFormOpen && (
         <AppointmentFormDialog 
+          isSaving={isSaving}
           onClose={() => setIsFormOpen(false)} 
           onSubmit={handleAddAppointment} 
         />
@@ -327,6 +427,7 @@ export default function AppointmentsPage() {
       {completingAppt && (
         <CompleteAppointmentFormDialog
           appointment={completingAppt}          
+          isSaving={isSaving}
           onClose={() => {
             setSelectedAppt(completingAppt);
             setCompletingAppt(null);
@@ -339,6 +440,7 @@ export default function AppointmentsPage() {
         <AppointmentFormDialog
           mode="edit"
           initialValues={editingAppt}
+          isSaving={isSaving}
           onClose={() => {
             setSelectedAppt(editingAppt);
             setEditingAppt(null);
