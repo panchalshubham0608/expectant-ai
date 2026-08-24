@@ -4,16 +4,16 @@ import { useParams } from 'react-router-dom';
 import type { Reminder } from '../../../models/reminder';
 import type { ExpectantProfile } from '../../../models/profile';
 import { useAuth } from '../../../hooks/useAuth';
-import { subscribeToReminders, saveReminder, deleteReminder } from '../../../services/reminders/reminderService';
+import { saveReminder, deleteReminder } from '../../../services/reminders/reminderService';
 import { subscribeToProfile, toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
 import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
 import ConfirmDialog from './ConfirmDialog';
 import { syncReminderToCalendar, getCalendarAccessToken, resyncReminderToCalendar, deleteAllCalendarEventsForReminder } from '../../../services/calendar/calendarService';
+import { useReminders } from '../../../hooks/useReminders';
 
 export default function RemindersCard() {
   const { user } = useAuth();
   const { id: profileId } = useParams<{ id: string }>();
-  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [profile, setProfile] = useState<ExpectantProfile | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | undefined>();
@@ -23,22 +23,10 @@ export default function RemindersCard() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [savingReminderId, setSavingReminderId] = useState<string | null>(null);
 
+  const { reminders, isLoading } = useReminders(user?.uid, profileId);
+
   useEffect(() => {
     if (!user?.uid || !profileId) return;
-
-    const unsubscribeReminders = subscribeToReminders(
-      user.uid,
-      profileId,
-      (fetched: Reminder[]) => {
-        const sorted = [...fetched].sort((a, b) => {
-          const timeA = a.interval ? (a.startTime || "24:00") : (a.times?.length ? [...a.times].sort()[0] : "24:00");
-          const timeB = b.interval ? (b.startTime || "24:00") : (b.times?.length ? [...b.times].sort()[0] : "24:00");
-          return timeA.localeCompare(timeB);
-        });
-        setReminders(sorted);
-      },
-      (err: Error) => console.error('Error fetching reminders:', err)
-    );
 
     const unsubscribeProfile = subscribeToProfile(
       user.uid,
@@ -48,7 +36,6 @@ export default function RemindersCard() {
     );
 
     return () => {
-      unsubscribeReminders();
       unsubscribeProfile();
     };
   }, [user?.uid, profileId]);
@@ -239,7 +226,11 @@ export default function RemindersCard() {
       </div>
 
       <div className="space-y-4">
-        {displayReminders.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+          </div>
+        ) : displayReminders.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">No reminders scheduled yet.</p>
         ) : (
           displayReminders.map((reminder) => (
