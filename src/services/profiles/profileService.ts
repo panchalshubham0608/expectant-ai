@@ -43,6 +43,8 @@ const toProfile = (
   primaryHospital: data.primaryHospital ?? "",
   primaryHospitalLocation: data.primaryHospitalLocation ?? "",
   emergencyContact: data.emergencyContact ?? "",
+  syncRemindersToCalendar: data.syncRemindersToCalendar ?? false,
+  syncAppointmentsToCalendar: data.syncAppointmentsToCalendar ?? false,
   status: data.status ?? "active",
   creatorId: data.creatorId ?? '',
   sharedWith: data.sharedWith ?? [],
@@ -120,6 +122,22 @@ export const unshareProfile = async (profileId: string, email: string) => {
   const docSnap = await getUpdatableProfileDocSnap(profileId);
   return updateDoc(docSnap.ref, {
     sharedWith: arrayRemove(email.toLowerCase()),
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const toggleSyncRemindersToCalendar = async (profileId: string, enabled: boolean) => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId);
+  return updateDoc(docSnap.ref, {
+    syncRemindersToCalendar: enabled,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const toggleSyncAppointmentsToCalendar = async (profileId: string, enabled: boolean) => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId);
+  return updateDoc(docSnap.ref, {
+    syncAppointmentsToCalendar: enabled,
     updatedAt: serverTimestamp(),
   });
 };

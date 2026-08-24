@@ -17,7 +17,23 @@ export function useAppointments(userId: string | undefined, profileId: string | 
       userId,
       profileId,
       (nextAppointments) => {
-        setAppointments(nextAppointments);
+        const sorted = nextAppointments.sort((a, b) => {
+          const timeA = new Date(a.scheduledAt);
+          const timeB = new Date(b.scheduledAt);
+          
+          const dateA = new Date(timeA);
+          dateA.setHours(0, 0, 0, 0);
+          const dateB = new Date(timeB);
+          dateB.setHours(0, 0, 0, 0);
+          
+          const dateDiff = dateA.getTime() - dateB.getTime();
+          if (dateDiff !== 0) {
+            return dateDiff;
+          }
+          
+          return timeA.getTime() - timeB.getTime();
+        });
+        setAppointments(sorted);
         setIsLoading(false);
       },
       (nextError) => {

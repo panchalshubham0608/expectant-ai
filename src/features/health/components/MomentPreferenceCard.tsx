@@ -1,36 +1,15 @@
-import { useState, useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
-import { subscribeToReminders, saveReminder } from '../../../services/reminders/reminderService';
-import type { Reminder } from '../../../models/reminder';
+import { saveReminder } from '../../../services/reminders/reminderService';
+import { useReminders } from '../../../hooks/useReminders';
 
 export default function MomentPreferenceCard() {
   const { user } = useAuth();
   const { id: profileId } = useParams<{ id: string }>();
-  const [reminder, setReminder] = useState<Reminder | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { reminders, isLoading } = useReminders(user?.uid, profileId);
 
-  useEffect(() => {
-    if (!user?.uid || !profileId) return;
-
-    const unsubscribe = subscribeToReminders(
-      user.uid,
-      profileId,
-      (fetched: Reminder[]) => {
-        // Look specifically for our hardcoded daily moment reminder ID
-        const pref = fetched.find((r) => r.id === 'daily-moment');
-        setReminder(pref || null);
-        setIsLoading(false);
-      },
-      (err: Error) => {
-        console.error('Error fetching preferences:', err);
-        setIsLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [user?.uid, profileId]);
+  const reminder = reminders.find((r) => r.id === 'daily-moment') || null;
 
   const handleToggle = async () => {
     if (!user?.uid || !profileId) return;

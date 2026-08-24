@@ -35,32 +35,34 @@ export default function WeeklyVisuals({ week }: WeeklyVisualsProps) {
   };
 
   return (
-    <div className="relative w-full overflow-hidden rounded-3xl bg-gray-50 shadow-sm ring-1 ring-gray-100">
-      <img
-        src={images[currentIndex]}
-        alt={`Week ${week} visual ${currentIndex + 1}`}
-        className="w-full h-auto max-h-[32rem] object-contain transition-opacity duration-300"
-        loading="lazy"
-      />
+    <div className="flex flex-col gap-3">
+      <div className="relative w-full overflow-hidden rounded-3xl bg-gray-50 shadow-sm ring-1 ring-gray-100">
+        <img
+          src={images[currentIndex]}
+          alt={`Week ${week} visual ${currentIndex + 1}`}
+          className="w-full h-auto max-h-[32rem] object-contain transition-opacity duration-300"
+          loading="lazy"
+        />
+      </div>
 
       {images.length > 1 && (
-        <>
-          <div className="absolute right-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-            {currentIndex + 1} / {images.length}
-          </div>
+        <div className="flex items-center justify-center gap-4 px-2">
           <button
             onClick={handlePrev}
-            className="absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-gray-800 shadow-sm backdrop-blur-sm transition-all hover:bg-white"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-700 shadow-sm ring-1 ring-gray-200 transition-all hover:bg-gray-200"
           >
             <ChevronLeft size={20} />
           </button>
+          <div className="min-w-[48px] text-center text-sm font-semibold text-gray-500">
+            {currentIndex + 1} / {images.length}
+          </div>
           <button
             onClick={handleNext}
-            className="absolute right-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-gray-800 shadow-sm backdrop-blur-sm transition-all hover:bg-white"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-700 shadow-sm ring-1 ring-gray-200 transition-all hover:bg-gray-200"
           >
             <ChevronRight size={20} />
           </button>
-        </>
+        </div>
       )}
     </div>
   );

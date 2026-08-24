@@ -35,6 +35,8 @@ export interface Appointment {
 
   status: "scheduled" | "completed" | "cancelled";
 
+  googleCalendarEventId?: string;
+
   createdAt: string;
   updatedAt: string;
 }

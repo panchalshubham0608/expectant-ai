@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 
 interface CompleteAppointmentFormDialogProps {
   appointment: Appointment;
+  isSaving?: boolean;
   onClose: () => void;
   onSubmit: (data: Partial<Appointment>) => void | Promise<void>;
 }
@@ -18,7 +19,7 @@ interface CompleteAppointmentFormDialogProps {
 const inputClass = 'mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100';
 const textareaClass = `${inputClass} min-h-[100px] resize-y`;
 
-export default function CompleteAppointmentFormDialog({ appointment, onClose, onSubmit }: CompleteAppointmentFormDialogProps) {
+export default function CompleteAppointmentFormDialog({ appointment, isSaving, onClose, onSubmit }: CompleteAppointmentFormDialogProps) {
   const { id: profileId } = useParams<{ id: string }>();
   const { user } = useAuth();
 
@@ -219,12 +220,12 @@ export default function CompleteAppointmentFormDialog({ appointment, onClose, on
           </div>
 
           <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
-            <button type="button" onClick={onClose} className="rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100">
+            <button type="button" onClick={onClose} disabled={isSubmitting || isSaving} className="rounded-full px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" disabled={isSubmitting} className="flex items-center justify-center gap-2 rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-70">
-              {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-              {isSubmitting ? 'Saving...' : 'Save Completion Details'}
+            <button type="submit" disabled={isSubmitting || isSaving} className="flex items-center justify-center gap-2 rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:opacity-70">
+              {(isSubmitting || isSaving) && <Loader2 size={16} className="animate-spin" />}
+              {(isSubmitting || isSaving) ? 'Saving...' : 'Save Completion Details'}
             </button>
           </div>
         </form>
