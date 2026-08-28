@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import type { Report } from '../models/report';
-import { saveAnalyzedMedicalReport, subscribeToMedicalReports, deleteMedicalReport } from '../services/reports/medicalReportService';
+import { saveAnalyzedMedicalReport, subscribeToMedicalReports, deleteMedicalReport, fetchMedicalReports } from '../services/reports/medicalReportService';
 import { getGeminiApiKey } from '../services/profiles/profileService';
 import { summarizePdfReport } from '../services/ai/reportSummaryService';
 import { uploadReportToGoogleDrive } from '../services/reports/reportsService';
@@ -113,7 +113,8 @@ function Reports() {
       setUploadStep('done');
 
       setAnalyzeStep('processing');
-      const generatedSummary = await summarizePdfReport(file, apiKey || undefined);
+      const historicalReports = await fetchMedicalReports(user.uid, id);
+      const generatedSummary = await summarizePdfReport(file, historicalReports || [], apiKey || undefined);
       await saveAnalyzedMedicalReport(user.uid, id, reportUrl, generatedSummary);
       setAnalyzeStep('done');
     } catch (error) {

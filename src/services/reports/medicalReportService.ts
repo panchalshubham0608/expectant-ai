@@ -1,4 +1,4 @@
-import { doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
 import type { Report, ReportType } from '../../models/report';
 import type { GeminiPregnancyReportResponse } from '../ai/reportSummaryService';
 import type { Measurement } from '../../models/measurement';
@@ -52,6 +52,7 @@ export const saveAnalyzedMedicalReport = async (
     diagnoses: summary.diagnoses || [],
     recommendations: summary.recommendations || [],
     nextVisit: summary.nextVisit || '',
+    historicalComparison: summary.historicalComparison || [],
     confidence: summary.confidence || 0,
     reportUrl,
     createdAt: serverTimestamp(),
@@ -62,6 +63,13 @@ export const saveAnalyzedMedicalReport = async (
 
   await setDoc(newReportRef, report);
   return newReportRef.id;
+};
+
+export const fetchMedicalReports = async (userId: string, profileId: string): Promise<Report[]> => {
+  const reportsRef = getReportsCollection(userId, profileId);
+  const q = query(reportsRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => docSnap.data() as Report);
 };
 
 export const subscribeToMedicalReports = (

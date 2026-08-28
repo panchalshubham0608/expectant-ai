@@ -44,6 +44,22 @@ export interface Report {
   recommendations: string[];
   nextVisit?: string;
   confidence: number;
+  historicalComparison?: {
+    measurement: string;
+    current: {
+      value: string;
+      unit?: string | null;
+      reportDate?: string | null;
+      pregnancyWeek?: number | null;
+    };
+    previous: {
+      value: string;
+      unit?: string | null;
+      reportDate?: string | null;
+      pregnancyWeek?: number | null;
+    }[];
+    observation: string;
+  }[];
   reportUrl: string;
   createdAt: string;
   updatedAt: string;
