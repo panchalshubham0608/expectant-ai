@@ -1,7 +1,7 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { getProfilesCollection } from '../../lib/collections';
 import { generateDailyMoment, type DailyMomentCategory } from '../ai/dailyMomentService';
-import { getDailyMoment, saveDailyMoment } from './dailyMomentsService';
+import { getDailyMoment, saveDailyMoment, getRecentDailyMoments } from './dailyMomentsService';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
 import type { DailyMoment } from '../../models/dailyMoment';
 
@@ -53,10 +53,14 @@ export const generateAndSaveDailyMomentForToday = async (
   // 5. Select a random category
   const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
 
-  // 6. Generate moment using the AI Service
-  const aiResponse = await generateDailyMoment({ pregnancyWeek, pregnancyDay, category, date: dateId }, userApiKey);
+  // 6. Fetch recent moments to avoid repetition
+  const recentMomentsList = await getRecentDailyMoments(userId, profileId, 7);
+  const recentMoments = recentMomentsList.map(m => `[${m.category}] ${m.card.title}: ${m.card.content}`);
 
-  // 7. Save to Firestore and return
+  // 7. Generate moment using the AI Service
+  const aiResponse = await generateDailyMoment({ pregnancyWeek, pregnancyDay, category, date: dateId, recentMoments }, userApiKey);
+
+  // 8. Save to Firestore and return
   const dailyMoment: DailyMoment = {
     ...aiResponse,
     id: dateId,
