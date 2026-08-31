@@ -154,26 +154,30 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
     },
   ];
 
-  // if (historicalReports.length > 0) {
-  //   const historyText = JSON.stringify(
-  //     historicalReports.map((r) => ({
-  //       reportType: r.reportType,
-  //       reportDate: r.reportDate,
-  //       metadata: r.metadata,
-  //       measurements: r.measurements,
-  //       diagnoses: r.diagnoses,
-  //       medicines: r.medicines,
-  //     }))
-  //   );
-  //   systemInstructions.replace('{historical_reports}', historyText);
-  // }
+  let systemInstruction = SUMMARIZE_REPORT_PROMPT.trim();
+
+  if (historicalReports.length > 0) {
+    const historyText = JSON.stringify(
+      historicalReports.map((r: any) => ({
+        reportType: r.reportType,
+        reportDate: r.reportDate || r.metadata?.reportDate,
+        metadata: r.metadata,
+        measurements: r.measurements,
+        diagnoses: r.diagnoses,
+        medicines: r.medicines,
+      }))
+    );
+    systemInstruction = systemInstruction.replace('{{HISTORICAL_REPORTS}}', historyText);
+  } else {
+    systemInstruction = systemInstruction.replace('{{HISTORICAL_REPORTS}}', 'None provided.');
+  }
 
   try {
     const response = await ai.models.generateContent({
       model: model,
       contents,
       config: {
-        systemInstruction: SUMMARIZE_REPORT_PROMPT.trim(),
+        systemInstruction: systemInstruction,
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'OBJECT',
@@ -201,6 +205,7 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
                 reportDate: { type: 'STRING' },
                 pregnancyWeek: { type: 'STRING' },
               },
+              required: ['title', 'hospital', 'doctor', 'reportDate', 'pregnancyWeek'],
             },
             summary: {
               type: 'OBJECT',
@@ -219,6 +224,12 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
                   items: { type: 'STRING' },
                 },
               },
+              required: [
+                'plainEnglish',
+                'importantFindings',
+                'followUpActions',
+                'questionsForDoctor',
+              ],
             },
             measurements: {
               type: 'ARRAY',
@@ -244,6 +255,7 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
                   duration: { type: 'STRING' },
                   instructions: { type: 'STRING' },
                 },
+                required: ['name'],
               },
             },
             diagnoses: {
