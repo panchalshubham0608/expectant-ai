@@ -1,23 +1,12 @@
 import { SUMMARIZE_REPORT_PROMPT } from "../../prompts/summarize_report";
 import { getGeminiClient, DEFAULT_GEMINI_MODEL } from './geminiCore';
 
-import type { Report, ReportType } from '../../models/report';
+import type { Report, ReportSummary, ReportMetadata, ReportHistoricalComparison, ReportType } from '../../models/report';
 
 export interface GeminiPregnancyReportResponse {
   reportType: ReportType;
-  metadata: {
-    title: string | null;
-    hospital: string | null;
-    doctor: string | null;
-    reportDate: string | null;
-    pregnancyWeek: string | null;
-  };
-  summary: {
-    plainEnglish: string;
-    importantFindings: string[];
-    followUpActions: string[];
-    questionsForDoctor: string[];
-  };
+  metadata: ReportMetadata;
+  summary: ReportSummary;
   measurements: Array<{
     name: string;
     value: string;
@@ -34,22 +23,7 @@ export interface GeminiPregnancyReportResponse {
   diagnoses: string[];
   recommendations: string[];
   nextVisit: string | null;
-  historicalComparison?: {
-    measurement: string;
-    current: {
-      value: string;
-      unit?: string | null;
-      reportDate?: string | null;
-      pregnancyWeek?: number | null;
-    };
-    previous: {
-      value: string;
-      unit?: string | null;
-      reportDate?: string | null;
-      pregnancyWeek?: number | null;
-    }[];
-    observation: string;
-  }[];
+  historicalComparison?: ReportHistoricalComparison[];
   confidence: number;
 }
 
@@ -79,6 +53,7 @@ const readArray = (value: unknown) => (Array.isArray(value) ? value.filter((item
 const getStructuredSummary = (text: string): GeminiPregnancyReportResponse => {
   try {
     const parsed = JSON.parse(text) as Partial<GeminiPregnancyReportResponse>;
+    console.log(parsed);
 
     return {
       reportType: parsed.reportType ?? 'other',
@@ -142,23 +117,23 @@ const getStructuredSummary = (text: string): GeminiPregnancyReportResponse => {
   }
 };
 
-export const formatPregnancySummary = (summary: GeminiPregnancyReportResponse) => {
-  const sections = [summary.summary.plainEnglish];
+// export const formatPregnancySummary = (summary: GeminiPregnancyReportResponse) => {
+//   const sections = [summary.summary.plainEnglish];
 
-  if (summary.summary.importantFindings.length > 0) {
-    sections.push(`Important findings:\n${summary.summary.importantFindings.map((item) => `• ${item}`).join('\n')}`);
-  }
+//   if (summary.summary.importantFindings.length > 0) {
+//     sections.push(`Important findings:\n${summary.summary.importantFindings.map((item) => `• ${item}`).join('\n')}`);
+//   }
 
-  if (summary.summary.followUpActions.length > 0) {
-    sections.push(`Follow-up actions:\n${summary.summary.followUpActions.map((item) => `• ${item}`).join('\n')}`);
-  }
+//   if (summary.summary.followUpActions.length > 0) {
+//     sections.push(`Follow-up actions:\n${summary.summary.followUpActions.map((item) => `• ${item}`).join('\n')}`);
+//   }
 
-  if (summary.summary.questionsForDoctor.length > 0) {
-    sections.push(`Questions for doctor:\n${summary.summary.questionsForDoctor.map((item) => `• ${item}`).join('\n')}`);
-  }
+//   if (summary.summary.questionsForDoctor.length > 0) {
+//     sections.push(`Questions for doctor:\n${summary.summary.questionsForDoctor.map((item) => `• ${item}`).join('\n')}`);
+//   }
 
-  return sections.filter(Boolean).join('\n\n');
-};
+//   return sections.filter(Boolean).join('\n\n');
+// };
 
 export const summarizePdfReport = async (file: File, historicalReports: Report[] = [], userApiKey?: string): Promise<GeminiPregnancyReportResponse> => {
   if (file.type !== 'application/pdf') {
@@ -168,7 +143,6 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
   const ai = getGeminiClient(userApiKey);
   const model = import.meta.env.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const pdfData = await encodePdfToBase64(file);
-  const systemInstructions = SUMMARIZE_REPORT_PROMPT.trim();
 
   const contents: any[] = [
     { text: 'Please summarize this medical report.' },
@@ -180,19 +154,19 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
     },
   ];
 
-  if (historicalReports.length > 0) {
-    const historyText = JSON.stringify(
-      historicalReports.map((r) => ({
-        reportType: r.reportType,
-        reportDate: r.reportDate,
-        metadata: r.metadata,
-        measurements: r.measurements,
-        diagnoses: r.diagnoses,
-        medicines: r.medicines,
-      }))
-    );
-    systemInstructions.replace('{historical_reports}', historyText);
-  }
+  // if (historicalReports.length > 0) {
+  //   const historyText = JSON.stringify(
+  //     historicalReports.map((r) => ({
+  //       reportType: r.reportType,
+  //       reportDate: r.reportDate,
+  //       metadata: r.metadata,
+  //       measurements: r.measurements,
+  //       diagnoses: r.diagnoses,
+  //       medicines: r.medicines,
+  //     }))
+  //   );
+  //   systemInstructions.replace('{historical_reports}', historyText);
+  // }
 
   try {
     const response = await ai.models.generateContent({
