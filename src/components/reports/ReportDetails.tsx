@@ -22,6 +22,10 @@ interface ReportDetailsProps {
 }
 
 function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
+    const importantFindings = report.summary.importantFindings || [];
+    const historicalComparisonObservations = report.historicalComparison?.map(item => item.observation) || [];
+    const findings = importantFindings.concat(historicalComparisonObservations);
+
     return (
         <div className="medical-records-card__modal">
             <div className="medical-records-card__modal-card">
@@ -94,8 +98,8 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                             <p className="medical-records-card__detail-label !mt-0">Important findings</p>
                         </div>
                         <ul className="space-y-3">
-                            {report.summary.importantFindings.length > 0 ? (
-                                report.summary.importantFindings.map((item) => (
+                            {findings.length > 0 ? (
+                                findings.map((item) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
                                         <span>{item}</span>
@@ -173,7 +177,7 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                         </div>
                         <ul className="space-y-3">
                             {report.diagnoses.length > 0 ? (
-                                report.diagnoses.map((item : string) => (
+                                report.diagnoses.map((item: string) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
                                         <span>{item}</span>
@@ -192,7 +196,7 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                         </div>
                         <ul className="space-y-3">
                             {report.recommendations.length > 0 ? (
-                                report.recommendations.map((item : string) => (
+                                report.recommendations.map((item: string) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-400" />
                                         <span>{item}</span>
