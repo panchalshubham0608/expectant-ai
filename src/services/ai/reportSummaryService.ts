@@ -53,7 +53,6 @@ const readArray = (value: unknown) => (Array.isArray(value) ? value.filter((item
 const getStructuredSummary = (text: string): GeminiPregnancyReportResponse => {
   try {
     const parsed = JSON.parse(text) as Partial<GeminiPregnancyReportResponse>;
-    console.log(parsed);
 
     return {
       reportType: parsed.reportType ?? 'other',
@@ -116,24 +115,6 @@ const getStructuredSummary = (text: string): GeminiPregnancyReportResponse => {
     throw new Error('Gemini did not return valid response for the PDF summary.');
   }
 };
-
-// export const formatPregnancySummary = (summary: GeminiPregnancyReportResponse) => {
-//   const sections = [summary.summary.plainEnglish];
-
-//   if (summary.summary.importantFindings.length > 0) {
-//     sections.push(`Important findings:\n${summary.summary.importantFindings.map((item) => `• ${item}`).join('\n')}`);
-//   }
-
-//   if (summary.summary.followUpActions.length > 0) {
-//     sections.push(`Follow-up actions:\n${summary.summary.followUpActions.map((item) => `• ${item}`).join('\n')}`);
-//   }
-
-//   if (summary.summary.questionsForDoctor.length > 0) {
-//     sections.push(`Questions for doctor:\n${summary.summary.questionsForDoctor.map((item) => `• ${item}`).join('\n')}`);
-//   }
-
-//   return sections.filter(Boolean).join('\n\n');
-// };
 
 export const summarizePdfReport = async (file: File, historicalReports: Report[] = [], userApiKey?: string): Promise<GeminiPregnancyReportResponse> => {
   if (file.type !== 'application/pdf') {
