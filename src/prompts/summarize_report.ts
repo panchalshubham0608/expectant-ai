@@ -120,4 +120,7 @@ Historical reports should be treated as supporting context, not as a replacement
   ],
   "confidence": 0
 }
+
+Here's the list of historical reports for your reference:
+{historical_reports}
 `;

@@ -168,6 +168,7 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
   const ai = getGeminiClient(userApiKey);
   const model = import.meta.env.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const pdfData = await encodePdfToBase64(file);
+  const systemInstructions = SUMMARIZE_REPORT_PROMPT.trim();
 
   const contents: any[] = [
     { text: 'Please summarize this medical report.' },
@@ -190,7 +191,7 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
         medicines: r.medicines,
       }))
     );
-    contents.push({ text: `\n\nHere are the historical reports for comparison:\n${historyText}` });
+    systemInstructions.replace('{historical_reports}', historyText);
   }
 
   try {

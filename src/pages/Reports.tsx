@@ -238,7 +238,7 @@ function Reports() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Delete Report?</h2>
             <p className="text-sm text-gray-500 mb-8">
-              Are you sure you want to delete "{reportToDelete.title}"? This action cannot be undone.
+              Are you sure you want to delete "{reportToDelete.title.substring(0, 1000)}"? This action cannot be undone.
             </p>
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button 
