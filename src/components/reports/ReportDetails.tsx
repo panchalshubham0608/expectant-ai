@@ -4,12 +4,14 @@ import {
     AlertCircle,
     Calendar,
     CheckCircle2,
+    ChevronDown,
     ClipboardList,
     HelpCircle,
     Hospital,
     Info,
     ListChecks,
     Pill,
+    Ruler,
     Stethoscope,
     Trash2,
     X,
@@ -22,6 +24,10 @@ interface ReportDetailsProps {
 }
 
 function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
+    const importantFindings = report.summary.importantFindings || [];
+    const historicalComparisonObservations = report.historicalComparison?.map(item => item.observation) || [];
+    const findings = importantFindings.concat(historicalComparisonObservations);
+
     return (
         <div className="medical-records-card__modal">
             <div className="medical-records-card__modal-card">
@@ -94,8 +100,8 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                             <p className="medical-records-card__detail-label !mt-0">Important findings</p>
                         </div>
                         <ul className="space-y-3">
-                            {report.summary.importantFindings.length > 0 ? (
-                                report.summary.importantFindings.map((item) => (
+                            {findings.length > 0 ? (
+                                findings.map((item) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
                                         <span>{item}</span>
@@ -173,7 +179,7 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                         </div>
                         <ul className="space-y-3">
                             {report.diagnoses.length > 0 ? (
-                                report.diagnoses.map((item : string) => (
+                                report.diagnoses.map((item: string) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
                                         <span>{item}</span>
@@ -192,7 +198,7 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                         </div>
                         <ul className="space-y-3">
                             {report.recommendations.length > 0 ? (
-                                report.recommendations.map((item : string) => (
+                                report.recommendations.map((item: string) => (
                                     <li key={item} className="flex items-start gap-2.5 text-sm text-slate-700">
                                         <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-400" />
                                         <span>{item}</span>
@@ -217,6 +223,34 @@ function ReportDetails({ report, onClose, onDeleteClick }: ReportDetailsProps) {
                         ) : (
                             <p className="text-sm italic text-slate-400">No next visit scheduled.</p>
                         )}
+                    </section>
+                </div>
+
+                <div className="mt-4 pb-24 md:pb-4">
+                    <section className="medical-records-card__detail-panel">
+                        <details className="group">
+                            <summary className="flex cursor-pointer items-center justify-between list-none [&::-webkit-details-marker]:hidden">
+                                <div className="flex items-center gap-2">
+                                    <Ruler size={16} className="text-cyan-600" />
+                                    <p className="medical-records-card__detail-label !m-0">Measurements</p>
+                                </div>
+                                <ChevronDown size={16} className="text-slate-400 transition-transform group-open:rotate-180" />
+                            </summary>
+                            <div className="mt-4">
+                                <ul className="space-y-3">
+                                    {report.measurements?.length > 0 ? (
+                                        report.measurements.map((m, index) => (
+                                            <li key={index} className="flex items-center justify-between rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+                                                <span className="text-sm font-medium text-slate-700">{m.label}</span>
+                                                <span className="text-sm font-semibold text-slate-900">{m.value} {m.unit || ''}</span>
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="text-sm italic text-slate-400">No measurements listed.</li>
+                                    )}
+                                </ul>
+                            </div>
+                        </details>
                     </section>
                 </div>
             </div>

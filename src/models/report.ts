@@ -14,19 +14,37 @@ export type ReportType =
   | 'other';
 
 export interface ReportMetadata {
-    title: string | null;
-    hospital: string | null;
-    doctor: string | null;
-    reportDate: string | null;
-    pregnancyWeek: string | null;
+  title: string | null;
+  hospital: string | null;
+  doctor: string | null;
+  reportDate: string | null;
+  pregnancyWeek: string | null;
 };
 
 export interface ReportSummary {
-    plainEnglish: string;
-    importantFindings: string[];
-    followUpActions: string[];
-    questionsForDoctor: string[];
+  plainEnglish: string;
+  importantFindings: string[];
+  followUpActions: string[];
+  questionsForDoctor: string[];
 };
+
+export interface ReportHistoricalComparison {
+  measurement: string;
+  current: {
+    value: string;
+    unit?: string | null;
+    reportDate?: string | null;
+    pregnancyWeek?: number | null;
+  };
+  previous: {
+    value: string;
+    unit?: string | null;
+    reportDate?: string | null;
+    pregnancyWeek?: number | null;
+  }[];
+  observation: string;
+};
+
 
 export interface Report {
   id: string;
@@ -44,6 +62,7 @@ export interface Report {
   recommendations: string[];
   nextVisit?: string;
   confidence: number;
+  historicalComparison?: ReportHistoricalComparison[];
   reportUrl: string;
   createdAt: string;
   updatedAt: string;

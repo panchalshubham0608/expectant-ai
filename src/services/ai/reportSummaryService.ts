@@ -1,23 +1,12 @@
 import { SUMMARIZE_REPORT_PROMPT } from "../../prompts/summarize_report";
 import { getGeminiClient, DEFAULT_GEMINI_MODEL } from './geminiCore';
 
-import type { ReportType } from '../../models/report';
+import type { Report, ReportSummary, ReportMetadata, ReportHistoricalComparison, ReportType } from '../../models/report';
 
 export interface GeminiPregnancyReportResponse {
   reportType: ReportType;
-  metadata: {
-    title: string | null;
-    hospital: string | null;
-    doctor: string | null;
-    reportDate: string | null;
-    pregnancyWeek: string | null;
-  };
-  summary: {
-    plainEnglish: string;
-    importantFindings: string[];
-    followUpActions: string[];
-    questionsForDoctor: string[];
-  };
+  metadata: ReportMetadata;
+  summary: ReportSummary;
   measurements: Array<{
     name: string;
     value: string;
@@ -34,6 +23,7 @@ export interface GeminiPregnancyReportResponse {
   diagnoses: string[];
   recommendations: string[];
   nextVisit: string | null;
+  historicalComparison?: ReportHistoricalComparison[];
   confidence: number;
 }
 
@@ -81,24 +71,44 @@ const getStructuredSummary = (text: string): GeminiPregnancyReportResponse => {
       },
       measurements: Array.isArray(parsed.measurements)
         ? parsed.measurements.map((m) => ({
-            name: readString(m.name) ?? '',
-            value: readString(m.value) ?? '',
-            unit: readString(m.unit) || undefined,
-            measuredAt: readString(m.measuredAt) || undefined,
-          }))
+          name: readString(m.name) ?? '',
+          value: readString(m.value) ?? '',
+          unit: readString(m.unit) || undefined,
+          measuredAt: readString(m.measuredAt) || undefined,
+        }))
         : [],
       medicines: Array.isArray(parsed.medicines)
         ? parsed.medicines.map((m) => ({
-            name: readString(m.name) ?? '',
-            dose: readString(m.dose) || undefined,
-            frequency: readString(m.frequency) || undefined,
-            duration: readString(m.duration) || undefined,
-            instructions: readString(m.instructions) || undefined,
-          }))
+          name: readString(m.name) ?? '',
+          dose: readString(m.dose) || undefined,
+          frequency: readString(m.frequency) || undefined,
+          duration: readString(m.duration) || undefined,
+          instructions: readString(m.instructions) || undefined,
+        }))
         : [],
       diagnoses: readArray(parsed.diagnoses),
       recommendations: readArray(parsed.recommendations),
       nextVisit: readString(parsed.nextVisit),
+      historicalComparison: Array.isArray(parsed.historicalComparison)
+        ? parsed.historicalComparison.map((hc: any) => ({
+          measurement: readString(hc?.measurement) ?? '',
+          current: {
+            value: readString(hc?.current?.value) ?? '',
+            unit: readString(hc?.current?.unit),
+            reportDate: readString(hc?.current?.reportDate),
+            pregnancyWeek: typeof hc?.current?.pregnancyWeek === 'number' ? hc.current.pregnancyWeek : null,
+          },
+          previous: Array.isArray(hc?.previous)
+            ? hc.previous.map((p: any) => ({
+              value: readString(p?.value) ?? '',
+              unit: readString(p?.unit),
+              reportDate: readString(p?.reportDate),
+              pregnancyWeek: typeof p?.pregnancyWeek === 'number' ? p.pregnancyWeek : null,
+            }))
+            : [],
+          observation: readString(hc?.observation) ?? '',
+        }))
+        : undefined,
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
     };
   } catch {
@@ -106,25 +116,7 @@ const getStructuredSummary = (text: string): GeminiPregnancyReportResponse => {
   }
 };
 
-export const formatPregnancySummary = (summary: GeminiPregnancyReportResponse) => {
-  const sections = [summary.summary.plainEnglish];
-
-  if (summary.summary.importantFindings.length > 0) {
-    sections.push(`Important findings:\n${summary.summary.importantFindings.map((item) => `• ${item}`).join('\n')}`);
-  }
-
-  if (summary.summary.followUpActions.length > 0) {
-    sections.push(`Follow-up actions:\n${summary.summary.followUpActions.map((item) => `• ${item}`).join('\n')}`);
-  }
-
-  if (summary.summary.questionsForDoctor.length > 0) {
-    sections.push(`Questions for doctor:\n${summary.summary.questionsForDoctor.map((item) => `• ${item}`).join('\n')}`);
-  }
-
-  return sections.filter(Boolean).join('\n\n');
-};
-
-export const summarizePdfReport = async (file: File, userApiKey?: string): Promise<GeminiPregnancyReportResponse> => {
+export const summarizePdfReport = async (file: File, historicalReports: Report[] = [], userApiKey?: string): Promise<GeminiPregnancyReportResponse> => {
   if (file.type !== 'application/pdf') {
     throw new Error('Please upload a PDF file.');
   }
@@ -133,20 +125,40 @@ export const summarizePdfReport = async (file: File, userApiKey?: string): Promi
   const model = import.meta.env.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const pdfData = await encodePdfToBase64(file);
 
+  const contents: any[] = [
+    { text: 'Please summarize this medical report.' },
+    {
+      inlineData: {
+        mimeType: 'application/pdf',
+        data: pdfData,
+      },
+    },
+  ];
+
+  let systemInstruction = SUMMARIZE_REPORT_PROMPT.trim();
+
+  if (historicalReports.length > 0) {
+    const historyText = JSON.stringify(
+      historicalReports.map((r: any) => ({
+        reportType: r.reportType,
+        reportDate: r.reportDate || r.metadata?.reportDate,
+        metadata: r.metadata,
+        measurements: r.measurements,
+        diagnoses: r.diagnoses,
+        medicines: r.medicines,
+      }))
+    );
+    systemInstruction = systemInstruction.replace('{{HISTORICAL_REPORTS}}', historyText);
+  } else {
+    systemInstruction = systemInstruction.replace('{{HISTORICAL_REPORTS}}', 'None provided.');
+  }
+
   try {
     const response = await ai.models.generateContent({
       model: model,
-      contents: [
-        { text: 'Please summarize this medical report.' },
-        {
-          inlineData: {
-            mimeType: 'application/pdf',
-            data: pdfData,
-          },
-        },
-      ],
+      contents,
       config: {
-        systemInstruction: SUMMARIZE_REPORT_PROMPT.trim(),
+        systemInstruction: systemInstruction,
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'OBJECT',
@@ -174,6 +186,7 @@ export const summarizePdfReport = async (file: File, userApiKey?: string): Promi
                 reportDate: { type: 'STRING' },
                 pregnancyWeek: { type: 'STRING' },
               },
+              required: ['title', 'hospital', 'doctor', 'reportDate', 'pregnancyWeek'],
             },
             summary: {
               type: 'OBJECT',
@@ -192,6 +205,12 @@ export const summarizePdfReport = async (file: File, userApiKey?: string): Promi
                   items: { type: 'STRING' },
                 },
               },
+              required: [
+                'plainEnglish',
+                'importantFindings',
+                'followUpActions',
+                'questionsForDoctor',
+              ],
             },
             measurements: {
               type: 'ARRAY',
@@ -217,6 +236,7 @@ export const summarizePdfReport = async (file: File, userApiKey?: string): Promi
                   duration: { type: 'STRING' },
                   instructions: { type: 'STRING' },
                 },
+                required: ['name'],
               },
             },
             diagnoses: {
@@ -228,6 +248,40 @@ export const summarizePdfReport = async (file: File, userApiKey?: string): Promi
               items: { type: 'STRING' },
             },
             nextVisit: { type: 'STRING' },
+            historicalComparison: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  measurement: { type: 'STRING' },
+                  current: {
+                    type: 'OBJECT',
+                    properties: {
+                      value: { type: 'STRING' },
+                      unit: { type: 'STRING' },
+                      reportDate: { type: 'STRING' },
+                      pregnancyWeek: { type: 'NUMBER' },
+                    },
+                    required: ['value'],
+                  },
+                  previous: {
+                    type: 'ARRAY',
+                    items: {
+                      type: 'OBJECT',
+                      properties: {
+                        value: { type: 'STRING' },
+                        unit: { type: 'STRING' },
+                        reportDate: { type: 'STRING' },
+                        pregnancyWeek: { type: 'NUMBER' },
+                      },
+                      required: ['value'],
+                    },
+                  },
+                  observation: { type: 'STRING' },
+                },
+                required: ['measurement', 'current', 'previous', 'observation'],
+              },
+            },
             confidence: { type: 'NUMBER' },
           },
           required: [

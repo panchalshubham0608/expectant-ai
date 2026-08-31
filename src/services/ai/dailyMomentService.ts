@@ -14,6 +14,7 @@ export interface DailyMomentRequest {
   pregnancyDay: number;
   category: DailyMomentCategory;
   date: string;
+  recentMoments?: string[];
 }
 
 export interface DailyMomentResponse {
@@ -41,6 +42,7 @@ export const generateDailyMoment = async (
 - Pregnancy Day: ${request.pregnancyDay}
 - Category: ${request.category}
 - Date: ${request.date}
+${request.recentMoments && request.recentMoments.length > 0 ? `\nDo not repeat topics or facts from the following recent moments:\n${request.recentMoments.map((m, i) => `${i + 1}. ${m}`).join('\n')}` : ''}
 `;
 
   try {
