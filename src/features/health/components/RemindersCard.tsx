@@ -7,6 +7,7 @@ import { saveReminder, deleteReminder } from '../../../services/reminders/remind
 import { toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
 import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
 import ConfirmDialog from './ConfirmDialog';
+import FullScreenProgressLoader from '../../../components/common/FullScreenProgressLoader';
 import { syncReminderToCalendar, getCalendarAccessToken, resyncReminderToCalendar, deleteAllCalendarEventsForReminder } from '../../../services/calendar/calendarService';
 import { useReminders } from '../../../hooks/useReminders';
 import { useProfile } from '../../../hooks/useProfile';
@@ -21,6 +22,7 @@ export default function RemindersCard() {
   const [reminderToDelete, setReminderToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [savingReminderId, setSavingReminderId] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<number | null>(null);
 
   const { reminders, isLoading } = useReminders(user?.uid, profileId);
   const { profile } = useProfile(user?.uid, profileId);
@@ -102,6 +104,8 @@ export default function RemindersCard() {
         (r) => r.frequency === 'daily' && r.isActive !== false && (!r.googleCalendarEventIds || r.googleCalendarEventIds.length === 0)
       );
 
+      setSyncProgress(0);
+      let processed = 0;
       for (const reminder of pendingReminders) {
         try {
           const updatedReminder = await syncReminderToCalendar(reminder, accessToken);
@@ -111,6 +115,8 @@ export default function RemindersCard() {
         } catch (error) {
           console.error('Failed to sync reminder to calendar:', error);
         }
+        processed++;
+        setSyncProgress(pendingReminders.length > 0 ? Math.round((processed / pendingReminders.length) * 100) : 100);
       }
 
       await toggleSyncRemindersToCalendar(profile.id, true);
@@ -118,20 +124,25 @@ export default function RemindersCard() {
       console.error('Failed to toggle calendar sync:', error);
     } finally {
       setIsSyncingCalendar(false);
+      setSyncProgress(null);
     }
   };
 
   const confirmDisconnect = async () => {
     if (!user?.uid || !profileId || !profile) return;
+    setShowDisconnectConfirm(false);
     setIsSyncingCalendar(true);
+    setSyncProgress(0);
     try {
       try {
         const accessToken = await getCalendarAccessToken();
-        for (const reminder of reminders) {
-          if (reminder.googleCalendarEventIds && reminder.googleCalendarEventIds.length > 0) {
-            const updatedReminder = await deleteAllCalendarEventsForReminder(reminder, accessToken);
-            await saveReminder(user.uid, profileId, updatedReminder);
-          }
+        const remindersToDisconnect = reminders.filter(r => r.googleCalendarEventIds && r.googleCalendarEventIds.length > 0);
+        let processed = 0;
+        for (const reminder of remindersToDisconnect) {
+          const updatedReminder = await deleteAllCalendarEventsForReminder(reminder, accessToken);
+          await saveReminder(user.uid, profileId, updatedReminder);
+          processed++;
+          setSyncProgress(remindersToDisconnect.length > 0 ? Math.round((processed / remindersToDisconnect.length) * 100) : 100);
         }
       } catch (error) {
         console.error('Failed to clear calendar events during disconnect:', error);
@@ -141,6 +152,7 @@ export default function RemindersCard() {
       console.error('Failed to disconnect calendar sync:', error);
     } finally {
       setIsSyncingCalendar(false);
+      setSyncProgress(null);
       setShowDisconnectConfirm(false);
     }
   };
@@ -199,14 +211,12 @@ export default function RemindersCard() {
           onClick={handleCalendarToggle}
           disabled={isSyncingCalendar}
           className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold shadow-sm ring-1 transition-colors ${profile?.syncRemindersToCalendar
-              ? 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'
-              : 'bg-white text-blue-600 ring-blue-200 hover:bg-blue-50'
+            ? 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'
+            : 'bg-white text-blue-600 ring-blue-200 hover:bg-blue-50'
             } ${isSyncingCalendar ? 'opacity-75 cursor-not-allowed' : ''}`}
         >
           {isSyncingCalendar && <Loader2 size={14} className="animate-spin" />}
-          {profile?.syncRemindersToCalendar
-            ? (isSyncingCalendar ? 'Disconnecting...' : 'Disconnect')
-            : (isSyncingCalendar ? 'Connecting...' : 'Connect')}
+          {profile?.syncRemindersToCalendar ? 'Disconnect' : 'Connect'}
         </button>
       </div>
 
@@ -242,39 +252,39 @@ export default function RemindersCard() {
                   <div className="flex items-center gap-1 mr-2">
                     <button
                       onClick={() => { setEditingReminder(reminder); setIsFormOpen(true); }}
-                  disabled={savingReminderId === reminder.id}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={savingReminderId === reminder.id}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Edit2 size={16} />
                     </button>
                     <button
                       onClick={() => setReminderToDelete(reminder.id!)}
-                  disabled={savingReminderId === reminder.id}
-                  className="p-1.5 text-gray-400 hover:text-rose-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={savingReminderId === reminder.id}
+                      className="p-1.5 text-gray-400 hover:text-rose-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 size={16} />
                     </button>
                   </div>
-              {savingReminderId === reminder.id ? (
-                <div className="flex h-6 w-11 items-center justify-center">
-                  <Loader2 size={18} className="animate-spin text-blue-600" />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${reminder.isActive ? 'bg-blue-600' : 'bg-slate-200'
-                    }`}
-                  role="switch"
-                  aria-checked={reminder.isActive}
-                  onClick={() => toggleStatus(reminder)}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${reminder.isActive ? 'translate-x-5' : 'translate-x-0.5'
-                      }`}
-                  />
-                </button>
-              )}
+                  {savingReminderId === reminder.id ? (
+                    <div className="flex h-6 w-11 items-center justify-center">
+                      <Loader2 size={18} className="animate-spin text-blue-600" />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${reminder.isActive ? 'bg-blue-600' : 'bg-slate-200'
+                        }`}
+                      role="switch"
+                      aria-checked={reminder.isActive}
+                      onClick={() => toggleStatus(reminder)}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${reminder.isActive ? 'translate-x-5' : 'translate-x-0.5'
+                          }`}
+                      />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -300,6 +310,13 @@ export default function RemindersCard() {
         isConfirming={isDeleting}
         onConfirm={confirmDelete}
         onCancel={() => setReminderToDelete(null)}
+      />
+
+      <FullScreenProgressLoader
+        isOpen={isSyncingCalendar && syncProgress !== null}
+        progress={syncProgress || 0}
+        title='Syncing your Calendar'
+        subtitle='Updating your reminders in Google Calendar. Please do not close the app'
       />
 
       {isFormOpen && (

@@ -10,6 +10,7 @@ import {
   Loader2
 } from "lucide-react";
 import type { Appointment } from "../models/appointment";
+import FullScreenProgressLoader from "../components/common/FullScreenProgressLoader";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
 import CompleteAppointmentFormDialog from "../components/appointments/CompleteAppointmentFormDialog";
 import AppointmentFormDialog from "../components/appointments/AppointmentFormDialog";
@@ -55,10 +56,15 @@ export default function AppointmentsPage() {
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<number | null>(null);
 
   const { profile } = useProfile(user?.uid, profileId);
   const upcomingAppointments = appointments.filter(a => a.status === 'scheduled' && new Date(a.scheduledAt).getTime() >= Date.now());
-  const pastAppointments = appointments.filter(a => new Date(a.scheduledAt).getTime() < Date.now());
+  const pastAppointments = appointments
+    .filter(a => new Date(a.scheduledAt).getTime() < Date.now())
+    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+
+  const overdueAppointments = pastAppointments.filter(a => a.status === 'scheduled');
 
   const displayAppointments = activeTab === "upcoming" ? upcomingAppointments : pastAppointments;
 
@@ -85,6 +91,8 @@ export default function AppointmentsPage() {
         (a) => a.status !== 'cancelled' && !a.googleCalendarEventId
       );
 
+      setSyncProgress(0);
+      let processed = 0;
       for (const appt of pendingAppointments) {
         try {
           const updatedAppt = await syncAppointmentToCalendar(appt, accessToken);
@@ -94,6 +102,8 @@ export default function AppointmentsPage() {
         } catch (error) {
           console.error('Failed to sync appointment to calendar:', error);
         }
+        processed++;
+        setSyncProgress(pendingAppointments.length > 0 ? Math.round((processed / pendingAppointments.length) * 100) : 100);
       }
 
       await toggleSyncAppointmentsToCalendar(profile.id, true);
@@ -101,20 +111,25 @@ export default function AppointmentsPage() {
       console.error('Failed to toggle calendar sync:', error);
     } finally {
       setIsSyncingCalendar(false);
+      setSyncProgress(null);
     }
   };
 
   const confirmDisconnect = async () => {
     if (!profile || !user?.uid || !profileId) return;
+    setShowDisconnectConfirm(false);
     setIsSyncingCalendar(true);
+    setSyncProgress(0);
     try {
       try {
         const accessToken = await getCalendarAccessToken();
-        for (const appt of appointments) {
-          if (appt.googleCalendarEventId) {
-            const updatedAppt = await deleteCalendarEventForAppointment(appt, accessToken);
-            await updateAppointment(user.uid, profileId, appt.id, updatedAppt);
-          }
+        const apptsToDisconnect = appointments.filter(a => a.googleCalendarEventId);
+        let processed = 0;
+        for (const appt of apptsToDisconnect) {
+          const updatedAppt = await deleteCalendarEventForAppointment(appt, accessToken);
+          await updateAppointment(user.uid, profileId, appt.id, updatedAppt);
+          processed++;
+          setSyncProgress(apptsToDisconnect.length > 0 ? Math.round((processed / apptsToDisconnect.length) * 100) : 100);
         }
       } catch (error) {
         console.error('Failed to clear calendar events during disconnect:', error);
@@ -124,7 +139,7 @@ export default function AppointmentsPage() {
       console.error('Failed to disconnect calendar sync:', error);
     } finally {
       setIsSyncingCalendar(false);
-      setShowDisconnectConfirm(false);
+      setSyncProgress(null);
     }
   };
 
@@ -297,6 +312,21 @@ export default function AppointmentsPage() {
             </button>
           </div>
         )}
+
+      {/* Overdue Appointments Banner */}
+      {overdueAppointments.length > 0 && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200/50">
+          <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-semibold text-amber-900">
+              {overdueAppointments.length} Overdue Appointment{overdueAppointments.length > 1 ? 's' : ''}
+            </h4>
+            <p className="text-sm text-amber-700 mt-0.5">
+              You have appointments in the past that are still marked as scheduled. Please update their status.
+            </p>
+          </div>
+        </div>
+      )}
 
         {/* Tab Navigation */}
         <div className="flex w-full rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-gray-100 mb-6">
@@ -496,6 +526,13 @@ export default function AppointmentsPage() {
         isConfirming={isSyncingCalendar}
         onConfirm={confirmDisconnect}
         onCancel={() => setShowDisconnectConfirm(false)}
+      />
+
+      <FullScreenProgressLoader
+        isOpen={isSyncingCalendar && syncProgress !== null}
+        progress={syncProgress || 0}
+        title='Syncing your Calendar'
+        subtitle='Updating your appointments in Google Calendar. Please do not close the app'
       />
     </div>
   );

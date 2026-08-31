@@ -113,6 +113,12 @@ export async function syncReminderToCalendar(reminder: Reminder, accessToken: st
       start: { dateTime: timestamp.toISOString(), timeZone },
       end: { dateTime: endDate.toISOString(), timeZone },
       recurrence: ['RRULE:FREQ=DAILY'],
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'popup', minutes: 5 },
+        ],
+      },
     };
 
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
@@ -224,6 +230,15 @@ export async function syncAppointmentToCalendar(appointment: Appointment, access
     ].filter(Boolean).join('\n'),
     start: { dateTime: startTime.toISOString(), timeZone },
     end: { dateTime: endTime.toISOString(), timeZone },
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: 'popup', minutes: 4320 }, // 3 days before
+        { method: 'popup', minutes: 1440 }, // 24 hours before
+        { method: 'popup', minutes: 120 },  // 2 hours before
+        { method: 'popup', minutes: 30 },   // 30 minutes before
+      ],
+    },
   };
 
   const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
