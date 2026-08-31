@@ -64,6 +64,8 @@ export default function AppointmentsPage() {
     .filter(a => new Date(a.scheduledAt).getTime() < Date.now())
     .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
 
+  const overdueAppointments = pastAppointments.filter(a => a.status === 'scheduled');
+
   const displayAppointments = activeTab === "upcoming" ? upcomingAppointments : pastAppointments;
 
   const handleCalendarToggle = async () => {
@@ -310,6 +312,21 @@ export default function AppointmentsPage() {
             </button>
           </div>
         )}
+
+      {/* Overdue Appointments Banner */}
+      {overdueAppointments.length > 0 && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200/50">
+          <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-semibold text-amber-900">
+              {overdueAppointments.length} Overdue Appointment{overdueAppointments.length > 1 ? 's' : ''}
+            </h4>
+            <p className="text-sm text-amber-700 mt-0.5">
+              You have appointments in the past that are still marked as scheduled. Please update their status.
+            </p>
+          </div>
+        </div>
+      )}
 
         {/* Tab Navigation */}
         <div className="flex w-full rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-gray-100 mb-6">
