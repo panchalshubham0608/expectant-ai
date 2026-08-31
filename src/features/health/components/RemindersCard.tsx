@@ -315,8 +315,8 @@ export default function RemindersCard() {
       <FullScreenProgressLoader
         isOpen={isSyncingCalendar && syncProgress !== null}
         progress={syncProgress || 0}
-        title={'Syncing your Calendar...'}
-        subtitle={'Updating your reminders in Google Calendar. Please do not close the app.'}
+        title='Syncing your Calendar'
+        subtitle='Updating your reminders in Google Calendar. Please do not close the app'
       />
 
       {isFormOpen && (

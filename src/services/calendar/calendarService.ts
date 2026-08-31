@@ -233,7 +233,10 @@ export async function syncAppointmentToCalendar(appointment: Appointment, access
     reminders: {
       useDefault: false,
       overrides: [
-        { method: 'popup', minutes: 5 },
+        { method: 'popup', minutes: 4320 }, // 3 days before
+        { method: 'popup', minutes: 1440 }, // 24 hours before
+        { method: 'popup', minutes: 120 },  // 2 hours before
+        { method: 'popup', minutes: 30 },   // 30 minutes before
       ],
     },
   };
