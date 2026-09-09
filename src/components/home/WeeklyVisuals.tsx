@@ -10,7 +10,7 @@ export default function WeeklyVisuals({ week }: WeeklyVisualsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Check if provided week supports visuals
-  if (week < 12 || week > 13) {
+  if (week < 12 || week > 16) {
     return <></>;
   }
 
