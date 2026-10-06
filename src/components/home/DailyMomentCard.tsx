@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { generateAndSaveDailyMomentForToday } from '../../services/dailyMoments/dailyMomentsGeneratorService';
 import type { DailyMoment } from '../../models/dailyMoment';
 import { getGeminiApiKey } from '../../services/profiles/profileService';
@@ -21,7 +21,7 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
       try {
         // Check if the user has provided their own API key in their profile
         const apiKey = await getGeminiApiKey(userId, profileId).catch(() => undefined);
-        
+
         const fetchedMoment = await generateAndSaveDailyMomentForToday(userId, profileId, apiKey || undefined);
         if (mounted) {
           setMoment(fetchedMoment);
@@ -44,6 +44,21 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
     };
   }, [userId, profileId]);
 
+
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const apiKey = await getGeminiApiKey(userId, profileId).catch(() => undefined);
+      const refreshedMoment = await generateAndSaveDailyMomentForToday(userId, profileId, apiKey || undefined, false);
+      setMoment(refreshedMoment);
+    } catch (err: any) {
+      setError(err.message || 'Failed to refresh daily moment');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-3 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
@@ -60,9 +75,19 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
 
   return (
     <div className="rounded-3xl bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] p-5 shadow-sm ring-1 ring-green-100/50">
-      <div className="mb-4 flex items-center gap-2">
-        <Sparkles className="text-green-600" size={18} />
-        <h3 className="text-xs font-bold uppercase tracking-wider text-green-800">{moment.header}</h3>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="mb-4 flex items-center gap-2">
+          <Sparkles className="text-green-600" size={18} />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-green-800">{moment.header}</h3>
+        </div>
+        <div>
+          <button
+            className="text-sm font-medium text-green-600 hover:text-green-700"
+            onClick={handleRefresh}
+          >
+            <RefreshCw size={18} />
+          </button>
+        </div>
       </div>
       <div className="flex items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm ring-1 ring-gray-100">

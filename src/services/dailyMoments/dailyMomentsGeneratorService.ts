@@ -17,7 +17,8 @@ const CATEGORIES: DailyMomentCategory[] = [
 export const generateAndSaveDailyMomentForToday = async (
   userId: string,
   profileId: string,
-  userApiKey?: string
+  userApiKey?: string,
+  useCache: boolean = true
 ): Promise<DailyMoment> => {
   // 1. Determine today's date in local time string YYYY-MM-DD
   const today = new Date();
@@ -27,9 +28,11 @@ export const generateAndSaveDailyMomentForToday = async (
   const dateId = `${year}-${month}-${day}`;
 
   // 2. Check if a moment already exists for today to prevent duplicates
-  const existingMoment = await getDailyMoment(userId, profileId, dateId);
-  if (existingMoment) {
-    return existingMoment;
+  if (useCache) {
+    const existingMoment = await getDailyMoment(userId, profileId, dateId);
+    if (existingMoment) {
+      return existingMoment;
+    }
   }
 
   // 3. Fetch the user's profile to calculate pregnancy progress
@@ -54,7 +57,7 @@ export const generateAndSaveDailyMomentForToday = async (
   const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
 
   // 6. Fetch recent moments to avoid repetition
-  const recentMomentsList = await getRecentDailyMoments(userId, profileId, 7);
+  const recentMomentsList = await getRecentDailyMoments(userId, profileId, 30);
   const recentMoments = recentMomentsList.map(m => `[${m.category}] ${m.card.title}: ${m.card.content}`);
 
   // 7. Generate moment using the AI Service
