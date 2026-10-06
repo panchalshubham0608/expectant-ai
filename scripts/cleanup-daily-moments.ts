@@ -33,12 +33,12 @@ async function cleanupDailyMoments() {
     console.log("⚠️ DRY RUN MODE ENABLED. No data will actually be deleted.");
   }
 
-  // Calculate the cutoff date (7 days ago) in YYYY-MM-DD format
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const year = sevenDaysAgo.getFullYear();
-  const month = String(sevenDaysAgo.getMonth() + 1).padStart(2, '0');
-  const day = String(sevenDaysAgo.getDate()).padStart(2, '0');
+  // Calculate the cutoff date (30 days ago) in YYYY-MM-DD format
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const year = thirtyDaysAgo.getFullYear();
+  const month = String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0');
+  const day = String(thirtyDaysAgo.getDate()).padStart(2, '0');
   const cutoffDate = `${year}-${month}-${day}`;
 
   console.log(`Deleting all daily moments older than: ${cutoffDate}`);
