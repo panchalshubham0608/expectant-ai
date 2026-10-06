@@ -17,7 +17,8 @@ const CATEGORIES: DailyMomentCategory[] = [
 export const generateAndSaveDailyMomentForToday = async (
   userId: string,
   profileId: string,
-  userApiKey?: string
+  userApiKey?: string,
+  useCache: boolean = true
 ): Promise<DailyMoment> => {
   // 1. Determine today's date in local time string YYYY-MM-DD
   const today = new Date();
@@ -27,9 +28,11 @@ export const generateAndSaveDailyMomentForToday = async (
   const dateId = `${year}-${month}-${day}`;
 
   // 2. Check if a moment already exists for today to prevent duplicates
-  const existingMoment = await getDailyMoment(userId, profileId, dateId);
-  if (existingMoment) {
-    return existingMoment;
+  if (useCache) {
+    const existingMoment = await getDailyMoment(userId, profileId, dateId);
+    if (existingMoment) {
+      return existingMoment;
+    }
   }
 
   // 3. Fetch the user's profile to calculate pregnancy progress
