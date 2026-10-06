@@ -57,7 +57,7 @@ export const generateAndSaveDailyMomentForToday = async (
   const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
 
   // 6. Fetch recent moments to avoid repetition
-  const recentMomentsList = await getRecentDailyMoments(userId, profileId, 7);
+  const recentMomentsList = await getRecentDailyMoments(userId, profileId, 30);
   const recentMoments = recentMomentsList.map(m => `[${m.category}] ${m.card.title}: ${m.card.content}`);
 
   // 7. Generate moment using the AI Service
