@@ -10,6 +10,7 @@ interface ChatBubbleProps {
   timestamp?: string;
   isError?: boolean;
   onRetry?: () => void;
+  userInitial?: string;
   suggestedAppointment?: ChatSuggestedAppointment;
   onSaveAppointment?: (draft: ChatSuggestedAppointment) => Promise<string | void>;
   onDismissAppointment?: (draft: ChatSuggestedAppointment) => Promise<void> | void;
@@ -89,6 +90,7 @@ function ChatBubble({
   timestamp,
   isError = false,
   onRetry,
+  userInitial,
   suggestedAppointment,
   onSaveAppointment,
   onDismissAppointment,
@@ -179,8 +181,11 @@ function ChatBubble({
       </div>
 
       {isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700">
-          <User size={17} />
+        <div
+          className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80"
+          aria-label="Expectant profile"
+        >
+          {userInitial ? userInitial : <User size={16} />}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowDown, Bot } from 'lucide-react';
+import { ArrowDown, Bot, Sparkles } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -104,7 +104,8 @@ function ChatWindow() {
   );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const firstName = profile?.fullName?.split(' ')[0];
+  const firstName = profile?.fullName?.trim().split(/\s+/)[0];
+  const userInitial = firstName ? firstName.charAt(0).toUpperCase() : undefined;
 
   const welcomeMessage: Message = {
     id: 'welcome-1',
@@ -411,12 +412,49 @@ function ChatWindow() {
 
   return (
     <div className="space-y-4 pb-28">
-      {/* Balanced Header Card */}
-      <div className="rounded-3xl bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] px-5 py-4 shadow-xs ring-1 ring-emerald-100/70">
-        <h1 className="text-xl font-bold text-gray-900">Daily Journal 🌱</h1>
-        <p className="mt-0.5 text-xs text-gray-600">
-          Tell me about your day or ask anything on your mind.
-        </p>
+      {/* Sticky Chat App Top Bar */}
+      <div className="sticky top-0 z-20 -mx-4 -mt-6 border-b border-emerald-100/80 bg-white/95 px-4 py-3 shadow-2xs backdrop-blur-md">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative shrink-0">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-xs ring-2 ring-emerald-100">
+                <Bot size={20} />
+              </div>
+              <span
+                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
+                aria-hidden="true"
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <h1 className="truncate text-sm font-bold tracking-wide text-gray-900">
+                  MIRA
+                </h1>
+                <Sparkles
+                  size={13}
+                  className="shrink-0 text-emerald-600"
+                  aria-hidden="true"
+                />
+              </div>
+
+              <p className="truncate text-[11px] font-medium text-gray-600">
+                <span className="font-semibold text-emerald-700">M</span>aternal{' '}
+                <span className="font-semibold text-emerald-700">I</span>ntelligence &{' '}
+                <span className="font-semibold text-emerald-700">R</span>ecord{' '}
+                <span className="font-semibold text-emerald-700">A</span>ssistant
+              </p>
+
+              <p className="mt-0.5 truncate text-[11px] text-gray-400">
+                Online • Share your day or ask anything
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0 rounded-full bg-gradient-to-r from-[#f2fbf5] to-[#e4f7eb] px-2.5 py-1 text-[11px] font-semibold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80">
+            🌱 Daily Journal
+          </div>
+        </div>
       </div>
 
       {/* Chat Messages */}
@@ -427,6 +465,7 @@ function ChatWindow() {
             role={message.role}
             message={message.message}
             followUpQuestion={message.followUpQuestion}
+            userInitial={userInitial}
             suggestedAppointment={message.suggestedAppointment}
             onSaveAppointment={(draft) =>
               handleSaveSuggestedAppointment(message.id, draft)

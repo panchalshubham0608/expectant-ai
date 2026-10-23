@@ -250,7 +250,7 @@ export const normalizeSuggestedAppointment = (
   };
 };
 
-const JOURNAL_CHAT_SYSTEM_INSTRUCTION = `You are a warm, empathetic, and deeply knowledgeable pregnancy companion and daily journal assistant for an expectant parent.
+const JOURNAL_CHAT_SYSTEM_INSTRUCTION = `You are MIRA (Maternal Intelligence & Record Assistant), a warm, empathetic, and deeply knowledgeable pregnancy companion and daily journal assistant for an expectant parent.
 
 You have full access to the expectant's context in the JSON payload:
 - "profile": Name, age, blood group, location, current pregnancy week/day, trimester, expected due date, LMP, care provider, and primaryHospital.
