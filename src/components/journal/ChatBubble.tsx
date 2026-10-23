@@ -1,7 +1,11 @@
 import { AlertCircle, Bot, RotateCcw, Sparkles, User } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { ChatSuggestedAppointment } from '../../services/ai/journalChatService';
+import type {
+  ChatSuggestedAppointment,
+  ChatSuggestedReminder,
+} from '../../services/ai/journalChatService';
 import ChatAppointmentFormCard from './ChatAppointmentFormCard';
+import ChatReminderFormCard from './ChatReminderFormCard';
 
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
@@ -14,6 +18,9 @@ interface ChatBubbleProps {
   suggestedAppointment?: ChatSuggestedAppointment;
   onSaveAppointment?: (draft: ChatSuggestedAppointment) => Promise<string | void>;
   onDismissAppointment?: (draft: ChatSuggestedAppointment) => Promise<void> | void;
+  suggestedReminder?: ChatSuggestedReminder;
+  onSaveReminder?: (draft: ChatSuggestedReminder) => Promise<string | void>;
+  onDismissReminder?: (draft: ChatSuggestedReminder) => Promise<void> | void;
 }
 
 const renderInlineBold = (text: string): ReactNode[] => {
@@ -94,9 +101,13 @@ function ChatBubble({
   suggestedAppointment,
   onSaveAppointment,
   onDismissAppointment,
+  suggestedReminder,
+  onSaveReminder,
+  onDismissReminder,
 }: ChatBubbleProps) {
   const isUser = role === 'user';
   const timeLabel = formatTime(timestamp);
+  const hasInteractiveCard = Boolean(suggestedAppointment || suggestedReminder);
   const showFollowUp =
     !isUser &&
     !isError &&
@@ -120,7 +131,7 @@ function ChatBubble({
 
       <div
         className={`${
-          !isUser && suggestedAppointment
+          !isUser && hasInteractiveCard
             ? 'w-full max-w-[90%] sm:max-w-xl'
             : 'max-w-[80%]'
         } rounded-2xl px-4 py-3 text-sm ${
@@ -142,6 +153,14 @@ function ChatBubble({
             initialDraft={suggestedAppointment}
             onSave={onSaveAppointment}
             onDismiss={onDismissAppointment}
+          />
+        )}
+
+        {!isUser && !isError && suggestedReminder && onSaveReminder && (
+          <ChatReminderFormCard
+            initialDraft={suggestedReminder}
+            onSave={onSaveReminder}
+            onDismiss={onDismissReminder}
           />
         )}
 

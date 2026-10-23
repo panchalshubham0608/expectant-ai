@@ -9,19 +9,23 @@ import { useMeasurements } from '../../hooks/useMeasurements';
 import { useReminders } from '../../hooks/useReminders';
 import { getGeminiApiKey } from '../../services/profiles/profileService';
 import { saveAppointment } from '../../services/appointments/appointmentService';
+import { saveReminder } from '../../services/reminders/reminderService';
 import { subscribeToMedicalReports } from '../../services/reports/medicalReportService';
 import { subscribeToMedications } from '../../services/medication/medicationService';
 import {
   type ChatSuggestedAppointment,
+  type ChatSuggestedReminder,
   EMPTY_JOURNAL_EXTRACTION,
   generateJournalChatReply,
   type JournalChatRecord,
   type JournalMessageExtraction,
   normalizeSuggestedAppointment,
+  normalizeSuggestedReminder,
   saveJournalChatTurn,
   subscribeToJournalChats,
   subscribeToRecentDailyLogs,
   updateJournalChatSuggestedAppointment,
+  updateJournalChatSuggestedReminder,
   upsertDailyLogFromExtraction,
 } from '../../services/ai/journalChatService';
 import type { ConversationMessage } from '../../models/chat';
@@ -37,6 +41,7 @@ interface Message {
   message: string;
   followUpQuestion?: string;
   suggestedAppointment?: ChatSuggestedAppointment;
+  suggestedReminder?: ChatSuggestedReminder;
   timestamp?: string;
   isError?: boolean;
   retryPrompt?: string;
@@ -195,6 +200,18 @@ function ChatWindow() {
                 record.content
               )
             : undefined,
+        suggestedReminder:
+          record.role === 'assistant'
+            ? normalizeSuggestedReminder(
+                record.reply?.suggestedReminder,
+                {
+                  medications,
+                  reports,
+                  reminders: reminders ?? [],
+                },
+                record.content
+              )
+            : undefined,
         timestamp: record.timestamp,
       }));
 
@@ -203,7 +220,15 @@ function ChatWindow() {
       const pending = prev.filter((m) => !historyIds.has(m.id));
       return [...history, ...pending];
     });
-  }, [hasLoadedChats, chatRecords, profile, appointments, reports]);
+  }, [
+    hasLoadedChats,
+    chatRecords,
+    profile,
+    appointments,
+    reports,
+    medications,
+    reminders,
+  ]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -284,6 +309,66 @@ function ChatWindow() {
     }
   };
 
+  const handleSaveSuggestedReminder = async (
+    messageId: string,
+    draft: ChatSuggestedReminder
+  ): Promise<string | void> => {
+    if (!userId || !id) {
+      throw new Error('User or profile not available');
+    }
+
+    const isIntervalMode =
+      typeof draft.interval === 'number' && draft.interval > 0;
+
+    const createdId = await saveReminder(userId, id, {
+      title: draft.title,
+      ...(draft.description ? { description: draft.description } : {}),
+      frequency: 'daily',
+      isActive: true,
+      ...(isIntervalMode
+        ? {
+            interval: draft.interval,
+            intervalUnit: draft.intervalUnit ?? 'hours',
+            startTime: draft.startTime ?? '09:00',
+            endTime: draft.endTime ?? '21:00',
+          }
+        : {
+            times:
+              draft.times && draft.times.length > 0 ? draft.times : ['09:00'],
+          }),
+    });
+
+    const savedDraft: ChatSuggestedReminder = {
+      ...draft,
+      savedReminderId: createdId,
+      dismissed: false,
+    };
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedReminder: savedDraft } : m
+      )
+    );
+
+    await updateJournalChatSuggestedReminder(userId, id, messageId, savedDraft);
+    return createdId;
+  };
+
+  const handleDismissSuggestedReminder = async (
+    messageId: string,
+    draft: ChatSuggestedReminder
+  ): Promise<void> => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedReminder: draft } : m
+      )
+    );
+
+    if (userId && id) {
+      await updateJournalChatSuggestedReminder(userId, id, messageId, draft);
+    }
+  };
+
   async function sendPrompt(rawContent: string, isRetry = false) {
     const content = rawContent.trim();
     if (!content || isSending) return;
@@ -347,6 +432,7 @@ function ChatWindow() {
         message: result.reply.answer,
         followUpQuestion: result.reply.followUpQuestion,
         suggestedAppointment: result.reply.suggestedAppointment,
+        suggestedReminder: result.reply.suggestedReminder,
         timestamp: assistantTimestamp,
       };
 
@@ -472,6 +558,13 @@ function ChatWindow() {
             }
             onDismissAppointment={(draft) =>
               handleDismissSuggestedAppointment(message.id, draft)
+            }
+            suggestedReminder={message.suggestedReminder}
+            onSaveReminder={(draft) =>
+              handleSaveSuggestedReminder(message.id, draft)
+            }
+            onDismissReminder={(draft) =>
+              handleDismissSuggestedReminder(message.id, draft)
             }
             timestamp={message.timestamp}
             isError={message.isError}

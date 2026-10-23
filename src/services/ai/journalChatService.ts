@@ -5,12 +5,14 @@ import type { Activity } from '../../models/activity';
 import type { HydrationLog } from '../../models/hydration';
 import type { Meal } from '../../models/meal';
 import type { MedicationLog } from '../../models/medication';
+import type { ReminderFrequency } from '../../models/reminder';
 import type { Symptom } from '../../models/symptom';
 
 export {
   generateJournalChatReply,
   mergeJournalExtraction,
   normalizeSuggestedAppointment,
+  normalizeSuggestedReminder,
 } from './journalChatAI';
 export {
   buildJournalChatContext,
@@ -20,6 +22,7 @@ export {
 export {
   saveJournalChatTurn,
   updateJournalChatSuggestedAppointment,
+  updateJournalChatSuggestedReminder,
   clearJournalChats,
   upsertDailyLogFromExtraction,
   subscribeToJournalChats,
@@ -49,11 +52,25 @@ export interface ChatSuggestedAppointment {
   dismissed?: boolean;
 }
 
+export interface ChatSuggestedReminder {
+  title: string;
+  description?: string;
+  frequency?: ReminderFrequency;
+  times?: string[];
+  interval?: number;
+  intervalUnit?: 'hours' | 'minutes';
+  startTime?: string;
+  endTime?: string;
+  savedReminderId?: string;
+  dismissed?: boolean;
+}
+
 export interface JournalChatReply {
   answer: string;
   followUpQuestion?: string;
   summary?: string;
   suggestedAppointment?: ChatSuggestedAppointment;
+  suggestedReminder?: ChatSuggestedReminder;
 }
 
 export interface JournalChatTurnResult {
