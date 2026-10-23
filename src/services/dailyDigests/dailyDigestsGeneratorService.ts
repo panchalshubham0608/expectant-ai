@@ -2,6 +2,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { getProfilesCollection } from '../../lib/collections';
 import { generateDailyDigest, type DailyDigestCategory } from '../ai/dailyDigestService';
 import { getDailyDigest, saveDailyDigest, getRecentDailyDigests, getTodayDateId } from './dailyDigestsService';
+import { getGeneratedBabyNames, saveGeneratedBabyNames } from './generatedBabyNamesService';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
 import type { DailyDigest } from '../../models/dailyDigest';
 
@@ -65,17 +66,22 @@ export const generateAndSaveDailyDigestForToday = async (
     // 4. Select a random category
     const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
 
-    // 5. Fetch recent digests to avoid repetition of both moments and baby names
-    const recentDigestsList = await getRecentDailyDigests(userId, profileId, 30);
+    // 5. Fetch recent digests and persisted generated names to avoid repetition
+    const [recentDigestsList, persistedGeneratedNames] = await Promise.all([
+      getRecentDailyDigests(userId, profileId, 30),
+      wantsBabyNames ? getGeneratedBabyNames(userId, profileId) : Promise.resolve([]),
+    ]);
+
     const recentMoments = recentDigestsList
       .filter(d => d.id !== dateId)
       .map(d => `[${d.category}] ${d.card.title}: ${d.card.content}`);
+
     const recentBabyNames = Array.from(
       new Set(
-        recentDigestsList
-          .filter(d => d.id !== dateId)
-          .flatMap(d => d.babyNames?.map(b => b.name) ?? [])
-          .filter(Boolean)
+        [
+          ...persistedGeneratedNames,
+          ...recentDigestsList.flatMap(d => d.babyNames?.map(b => b.name) ?? []),
+        ].filter(Boolean)
       )
     );
 
@@ -98,7 +104,7 @@ export const generateAndSaveDailyDigestForToday = async (
       userApiKey
     );
 
-    // 7. Save to Firestore and return
+    // 7. Save to Firestore and persist generated baby names to history collection
     const dailyDigest: DailyDigest = {
       category: aiResponse.category,
       header: aiResponse.header,
@@ -114,6 +120,10 @@ export const generateAndSaveDailyDigestForToday = async (
     };
 
     await saveDailyDigest(userId, profileId, dailyDigest);
+
+    if (dailyDigest.babyNames && dailyDigest.babyNames.length > 0) {
+      await saveGeneratedBabyNames(userId, profileId, dailyDigest.babyNames, dateId);
+    }
 
     return dailyDigest;
   };
