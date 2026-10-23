@@ -24,6 +24,8 @@ export const getAppointmentsCollection = (userId: string, profileId: string) => 
 export const getReportsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'reports');
 export const getUploadedFilesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'uploaded_files');
 export const getRemindersCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'reminders');
-export const getDailyMomentsCollectionRef = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'dailyMoments');
+export const getDailyDigestsCollectionRef = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'dailyDigests');
+export const getFavoriteBabyNamesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'favoriteBabyNames');
+export const getGeneratedBabyNamesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'generatedBabyNames');
 export const getWeeklyUpdatesCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'weeklyUpdates');
 export const getNotificationsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'notifications');

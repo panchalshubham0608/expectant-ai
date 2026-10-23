@@ -26,6 +26,10 @@ export interface ExpectantProfile {
   syncRemindersToCalendar?: boolean;
   syncAppointmentsToCalendar?: boolean;
 
+  // Baby Name Generation
+  babyNameContext?: string;
+  babyNameCount?: number;
+
   // Status
   status: "active" | "completed" | "archived";
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Loader2, RefreshCw, Sparkles } from 'lucide-react';
-import { generateAndSaveDailyMomentForToday } from '../../services/dailyMoments/dailyMomentsGeneratorService';
-import type { DailyMoment } from '../../models/dailyMoment';
+import { generateAndSaveDailyDigestForToday } from '../../services/dailyDigests/dailyDigestsGeneratorService';
+import { getTodayDateId, subscribeToDailyDigest } from '../../services/dailyDigests/dailyDigestsService';
+import type { DailyDigest } from '../../models/dailyDigest';
 import { getGeminiApiKey } from '../../services/profiles/profileService';
 
 interface DailyMomentCardProps {
@@ -10,9 +11,19 @@ interface DailyMomentCardProps {
 }
 
 export default function DailyMomentCard({ userId, profileId }: DailyMomentCardProps) {
-  const [moment, setMoment] = useState<DailyMoment | null>(null);
+  const [moment, setMoment] = useState<DailyDigest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const dateId = getTodayDateId();
+    const unsubscribe = subscribeToDailyDigest(userId, profileId, dateId, (nextDigest) => {
+      if (nextDigest) {
+        setMoment(nextDigest);
+      }
+    });
+    return () => unsubscribe();
+  }, [userId, profileId]);
 
   useEffect(() => {
     let mounted = true;
@@ -22,7 +33,7 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
         // Check if the user has provided their own API key in their profile
         const apiKey = await getGeminiApiKey(userId, profileId).catch(() => undefined);
 
-        const fetchedMoment = await generateAndSaveDailyMomentForToday(userId, profileId, apiKey || undefined);
+        const fetchedMoment = await generateAndSaveDailyDigestForToday(userId, profileId, apiKey || undefined);
         if (mounted) {
           setMoment(fetchedMoment);
         }
@@ -50,7 +61,7 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
     setError(null);
     try {
       const apiKey = await getGeminiApiKey(userId, profileId).catch(() => undefined);
-      const refreshedMoment = await generateAndSaveDailyMomentForToday(userId, profileId, apiKey || undefined, false);
+      const refreshedMoment = await generateAndSaveDailyDigestForToday(userId, profileId, apiKey || undefined, false);
       setMoment(refreshedMoment);
     } catch (err: any) {
       setError(err.message || 'Failed to refresh daily moment');

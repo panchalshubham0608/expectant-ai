@@ -159,7 +159,25 @@ function ProfileDetail() {
                 <p className="text-sm font-medium text-purple-100/90">See what's happening, what's changing, and what's coming next.</p>
               </div>
             </div>
-            <div className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition-colors group-hover:bg-white group-hover:text-purple-700">
+            <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition-colors group-hover:bg-white group-hover:text-purple-700">
+              <ChevronRight size={20} />
+            </div>
+          </Link>
+
+          <Link
+            to={`/profile/${id}/baby-names`}
+            className="group relative flex items-center justify-between overflow-hidden rounded-[2rem] bg-gradient-to-br from-teal-600 to-emerald-700 p-6 shadow-sm transition-all hover:shadow-md"
+          >
+            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white opacity-10 blur-2xl transition-transform duration-500 group-hover:scale-125"></div>
+            <div className="relative z-10 flex items-center gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">Daily baby name ideas ✨</h3>
+                <p className="text-sm font-medium text-teal-50/90">
+                  Explore personalized names and meanings curated for your little one.
+                </p>
+              </div>
+            </div>
+            <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition-colors group-hover:bg-white group-hover:text-teal-700">
               <ChevronRight size={20} />
             </div>
           </Link>

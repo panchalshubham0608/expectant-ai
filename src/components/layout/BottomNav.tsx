@@ -15,17 +15,20 @@ import {
   FileText,
   BellRing,
   Sparkles,
+  Baby,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
 import ShareProfileDialog from '../profile/ShareProfileDialog';
 import ApiKeyDialog from '../profile/ApiKeyDialog';
+import BabyNameSettingsDialog from '../profile/BabyNameSettingsDialog';
 
 function BottomNav() {
   const { id } = useParams();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
+  const [isBabyNamesDialogOpen, setIsBabyNamesDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { profile } = useProfile(user?.uid, id);
@@ -120,6 +123,17 @@ function BottomNav() {
                   type="button"
                   onClick={() => {
                     setIsMenuOpen(false);
+                    setIsBabyNamesDialogOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  <Baby size={17} />
+                  Baby names
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
                     setIsShareDialogOpen(true);
                   }}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
@@ -176,6 +190,16 @@ function BottomNav() {
           onClose={() => setIsApiKeyDialogOpen(false)}
           userId={user.uid}
           profileId={id}
+        />
+      )}
+      {user && id && (
+        <BabyNameSettingsDialog
+          isOpen={isBabyNamesDialogOpen}
+          onClose={() => setIsBabyNamesDialogOpen(false)}
+          userId={user.uid}
+          profileId={id}
+          initialContext={profile?.babyNameContext}
+          initialCount={profile?.babyNameCount}
         />
       )}
     </nav>

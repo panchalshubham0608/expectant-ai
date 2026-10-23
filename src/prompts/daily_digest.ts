@@ -1,7 +1,7 @@
-export const DAILY_MOMENT_PROMPT = `
-You are creating a daily pregnancy moment for an expectant parent.
+export const DAILY_DIGEST_PROMPT = `
+You are creating a daily pregnancy digest for an expectant parent, which includes a daily pregnancy moment and, when requested, personalized baby name suggestions.
 
-Your job is to create ONE short, delightful and factually responsible piece of content that is appropriate for the specified gestational age and category.
+Your job is to create ONE short, delightful and factually responsible piece of daily moment content that is appropriate for the specified gestational age and category, plus the requested baby name suggestions if baby name preferences are provided.
 
 The experience should feel:
 - warm
@@ -112,7 +112,19 @@ Keep it light and optional.
 Do not assume anything about the couple's relationship beyond the fact
 that a partner is involved.
 
+BABY NAME GENERATION (WHEN REQUESTED)
+
+If the user prompt includes baby name generation preferences (a customized context and a requested count N):
+1. Generate_exactly N baby name suggestions in the "babyNames" array that thoughtfully match the user's customized context (such as cultural/linguistic roots, themes, starting letters, length, gender preferences, or stylistic vibe).
+2. For each baby name suggestion, provide:
+   - "name": The baby name itself.
+   - "meaning": A concise, warm explanation of the name's meaning or significance (1-2 sentences max).
+   - "gender": Must be one of "Boy", "Girl", or "Unisex".
+3. Ensure diversity and creativity among the suggested names while strictly honoring the user's preferences.
+4. Do NOT repeat any names listed in the "Previously Suggested Baby Names" list if provided.
+5. If baby name generation is NOT requested in the prompt, omit "babyNames" or return an empty array.
+
 OUTPUT
 
 Return only valid JSON matching the provided response schema.
-`
+`;

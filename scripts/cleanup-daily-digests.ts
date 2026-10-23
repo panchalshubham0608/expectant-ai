@@ -26,8 +26,8 @@ const db = getFirestore(app);
 
 const isDryRun = process.argv.includes("--dry-run");
 
-async function cleanupDailyMoments() {
-  console.log("Starting daily moments cleanup...");
+async function cleanupDailyDigests() {
+  console.log("Starting daily digests cleanup...");
 
   if (isDryRun) {
     console.log("⚠️ DRY RUN MODE ENABLED. No data will actually be deleted.");
@@ -41,7 +41,7 @@ async function cleanupDailyMoments() {
   const day = String(thirtyDaysAgo.getDate()).padStart(2, '0');
   const cutoffDate = `${year}-${month}-${day}`;
 
-  console.log(`Deleting all daily moments older than: ${cutoffDate}`);
+  console.log(`Deleting all daily digests older than: ${cutoffDate}`);
 
   const usersSnapshot = await db.collection("users").get();
   console.log(`${usersSnapshot.docs.length} users found.`);
@@ -55,37 +55,37 @@ async function cleanupDailyMoments() {
       .get();
 
     for (const profileDoc of profilesSnapshot.docs) {
-      const momentsRef = db
+      const digestsRef = db
         .collection("users")
         .doc(userDoc.id)
         .collection("profiles")
         .doc(profileDoc.id)
-        .collection("dailyMoments");
+        .collection("dailyDigests");
 
-      // Query for moments where the date string is older than the cutoff
-      const oldMomentsSnapshot = await momentsRef.where("date", "<", cutoffDate).get();
+      // Query for digests where the date string is older than the cutoff
+      const oldDigestsSnapshot = await digestsRef.where("date", "<", cutoffDate).get();
 
-      if (!oldMomentsSnapshot.empty) {
+      if (!oldDigestsSnapshot.empty) {
         if (!isDryRun) {
           const batch = db.batch();
-          oldMomentsSnapshot.docs.forEach((doc) => {
+          oldDigestsSnapshot.docs.forEach((doc) => {
             batch.delete(doc.ref);
           });
-          
+
           await batch.commit();
-          console.log(`Deleted ${oldMomentsSnapshot.size} old moments for user ${userDoc.id}, profile ${profileDoc.id}`);
+          console.log(`Deleted ${oldDigestsSnapshot.size} old digests for user ${userDoc.id}, profile ${profileDoc.id}`);
         } else {
-          console.log(`[DRY RUN] Would delete ${oldMomentsSnapshot.size} old moments for user ${userDoc.id}, profile ${profileDoc.id}`);
+          console.log(`[DRY RUN] Would delete ${oldDigestsSnapshot.size} old digests for user ${userDoc.id}, profile ${profileDoc.id}`);
         }
-        totalDeleted += oldMomentsSnapshot.size;
+        totalDeleted += oldDigestsSnapshot.size;
       }
     }
   }
 
-  console.log(`Cleanup complete. Total moments ${isDryRun ? "that would be " : ""}deleted: ${totalDeleted}`);
+  console.log(`Cleanup complete. Total digests ${isDryRun ? "that would be " : ""}deleted: ${totalDeleted}`);
 }
 
-cleanupDailyMoments().catch((error) => {
+cleanupDailyDigests().catch((error) => {
   console.error("Error during cleanup:", error);
   process.exit(1);
 });
