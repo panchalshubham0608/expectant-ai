@@ -1,5 +1,11 @@
 import { AlertCircle, Bot, RotateCcw, Sparkles, User } from 'lucide-react';
 import type { ReactNode } from 'react';
+import type {
+  ChatSuggestedAppointment,
+  ChatSuggestedReminder,
+} from '../../services/ai/journalChatService';
+import ChatAppointmentFormCard from './ChatAppointmentFormCard';
+import ChatReminderFormCard from './ChatReminderFormCard';
 
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
@@ -8,6 +14,13 @@ interface ChatBubbleProps {
   timestamp?: string;
   isError?: boolean;
   onRetry?: () => void;
+  userInitial?: string;
+  suggestedAppointment?: ChatSuggestedAppointment;
+  onSaveAppointment?: (draft: ChatSuggestedAppointment) => Promise<string | void>;
+  onDismissAppointment?: (draft: ChatSuggestedAppointment) => Promise<void> | void;
+  suggestedReminder?: ChatSuggestedReminder;
+  onSaveReminder?: (draft: ChatSuggestedReminder) => Promise<string | void>;
+  onDismissReminder?: (draft: ChatSuggestedReminder) => Promise<void> | void;
 }
 
 const renderInlineBold = (text: string): ReactNode[] => {
@@ -84,9 +97,17 @@ function ChatBubble({
   timestamp,
   isError = false,
   onRetry,
+  userInitial,
+  suggestedAppointment,
+  onSaveAppointment,
+  onDismissAppointment,
+  suggestedReminder,
+  onSaveReminder,
+  onDismissReminder,
 }: ChatBubbleProps) {
   const isUser = role === 'user';
   const timeLabel = formatTime(timestamp);
+  const hasInteractiveCard = Boolean(suggestedAppointment || suggestedReminder);
   const showFollowUp =
     !isUser &&
     !isError &&
@@ -109,7 +130,11 @@ function ChatBubble({
       )}
 
       <div
-        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+        className={`${
+          !isUser && hasInteractiveCard
+            ? 'w-full max-w-[90%] sm:max-w-xl'
+            : 'max-w-[80%]'
+        } rounded-2xl px-4 py-3 text-sm ${
           isUser
             ? 'rounded-br-sm bg-emerald-700 text-white shadow-xs'
             : isError
@@ -121,6 +146,22 @@ function ChatBubble({
           <p className="whitespace-pre-wrap leading-relaxed">{message}</p>
         ) : (
           renderFormattedMessage(message)
+        )}
+
+        {!isUser && !isError && suggestedAppointment && onSaveAppointment && (
+          <ChatAppointmentFormCard
+            initialDraft={suggestedAppointment}
+            onSave={onSaveAppointment}
+            onDismiss={onDismissAppointment}
+          />
+        )}
+
+        {!isUser && !isError && suggestedReminder && onSaveReminder && (
+          <ChatReminderFormCard
+            initialDraft={suggestedReminder}
+            onSave={onSaveReminder}
+            onDismiss={onDismissReminder}
+          />
         )}
 
         {showFollowUp && (
@@ -159,8 +200,11 @@ function ChatBubble({
       </div>
 
       {isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700">
-          <User size={17} />
+        <div
+          className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80"
+          aria-label="Expectant profile"
+        >
+          {userInitial ? userInitial : <User size={16} />}
         </div>
       )}
     </div>

@@ -23,7 +23,7 @@ export const subscribeToReminders = (
   );
 };
 
-export const saveReminder = async (userId: string, profileId: string, reminder: Partial<Reminder>): Promise<void> => {
+export const saveReminder = async (userId: string, profileId: string, reminder: Partial<Reminder>): Promise<string> => {
   const colRef = getRemindersCollection(userId, profileId);
   const docRef = reminder.id ? doc(colRef, reminder.id) : doc(colRef);
 
@@ -34,6 +34,7 @@ export const saveReminder = async (userId: string, profileId: string, reminder: 
   };
 
   await setDoc(docRef, finalReminder, { merge: true });
+  return docRef.id;
 };
 
 export const deleteReminder = async (userId: string, profileId: string, reminderId: string): Promise<void> => {

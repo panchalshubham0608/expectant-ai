@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowDown, Bot } from 'lucide-react';
+import { ArrowDown, Bot, Sparkles } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -8,15 +8,24 @@ import { useAppointments } from '../../hooks/useAppointments';
 import { useMeasurements } from '../../hooks/useMeasurements';
 import { useReminders } from '../../hooks/useReminders';
 import { getGeminiApiKey } from '../../services/profiles/profileService';
+import { saveAppointment } from '../../services/appointments/appointmentService';
+import { saveReminder } from '../../services/reminders/reminderService';
 import { subscribeToMedicalReports } from '../../services/reports/medicalReportService';
 import { subscribeToMedications } from '../../services/medication/medicationService';
 import {
+  type ChatSuggestedAppointment,
+  type ChatSuggestedReminder,
   EMPTY_JOURNAL_EXTRACTION,
   generateJournalChatReply,
+  type JournalChatRecord,
+  type JournalMessageExtraction,
+  normalizeSuggestedAppointment,
+  normalizeSuggestedReminder,
   saveJournalChatTurn,
   subscribeToJournalChats,
   subscribeToRecentDailyLogs,
-  type JournalMessageExtraction,
+  updateJournalChatSuggestedAppointment,
+  updateJournalChatSuggestedReminder,
   upsertDailyLogFromExtraction,
 } from '../../services/ai/journalChatService';
 import type { ConversationMessage } from '../../models/chat';
@@ -31,6 +40,8 @@ interface Message {
   role: 'user' | 'assistant';
   message: string;
   followUpQuestion?: string;
+  suggestedAppointment?: ChatSuggestedAppointment;
+  suggestedReminder?: ChatSuggestedReminder;
   timestamp?: string;
   isError?: boolean;
   retryPrompt?: string;
@@ -87,6 +98,8 @@ function ChatWindow() {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [recentDailyLogs, setRecentDailyLogs] = useState<DailyLog[]>([]);
 
+  const [chatRecords, setChatRecords] = useState<JournalChatRecord[]>([]);
+  const [hasLoadedChats, setHasLoadedChats] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -96,7 +109,8 @@ function ChatWindow() {
   );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const firstName = profile?.fullName?.split(' ')[0];
+  const firstName = profile?.fullName?.trim().split(/\s+/)[0];
+  const userInitial = firstName ? firstName.charAt(0).toUpperCase() : undefined;
 
   const welcomeMessage: Message = {
     id: 'welcome-1',
@@ -151,22 +165,70 @@ function ChatWindow() {
     if (!userId || !id) return;
 
     const unsubscribe = subscribeToJournalChats(userId, id, (records) => {
-      const history: Message[] = records
-        .filter((record) => record.role === 'user' || record.role === 'assistant')
-        .map((record) => ({
-          id: String(record.id),
-          role: record.role as 'user' | 'assistant',
-          message: record.content,
-          followUpQuestion:
-            record.role === 'assistant' ? record.reply?.followUpQuestion : undefined,
-          timestamp: record.timestamp,
-        }));
-
-      setMessages(history);
+      setChatRecords(records);
+      setHasLoadedChats(true);
     });
 
     return unsubscribe;
   }, [userId, id]);
+
+  useEffect(() => {
+    if (!hasLoadedChats) return;
+
+    if (chatRecords.length === 0) {
+      setMessages((prev) => prev.filter((m) => m.isError));
+      return;
+    }
+
+    const history: Message[] = chatRecords
+      .filter((record) => record.role === 'user' || record.role === 'assistant')
+      .map((record) => ({
+        id: String(record.id),
+        role: record.role as 'user' | 'assistant',
+        message: record.content,
+        followUpQuestion:
+          record.role === 'assistant' ? record.reply?.followUpQuestion : undefined,
+        suggestedAppointment:
+          record.role === 'assistant'
+            ? normalizeSuggestedAppointment(
+                record.reply?.suggestedAppointment,
+                {
+                  profile: profile ?? null,
+                  appointments: appointments ?? [],
+                  reports,
+                },
+                record.content
+              )
+            : undefined,
+        suggestedReminder:
+          record.role === 'assistant'
+            ? normalizeSuggestedReminder(
+                record.reply?.suggestedReminder,
+                {
+                  medications,
+                  reports,
+                  reminders: reminders ?? [],
+                },
+                record.content
+              )
+            : undefined,
+        timestamp: record.timestamp,
+      }));
+
+    setMessages((prev) => {
+      const historyIds = new Set(history.map((m) => m.id));
+      const pending = prev.filter((m) => !historyIds.has(m.id));
+      return [...history, ...pending];
+    });
+  }, [
+    hasLoadedChats,
+    chatRecords,
+    profile,
+    appointments,
+    reports,
+    medications,
+    reminders,
+  ]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -192,6 +254,120 @@ function ChatWindow() {
       window.removeEventListener('scroll', handleScroll);
     };
   }, [messages.length]);
+
+  const handleSaveSuggestedAppointment = async (
+    messageId: string,
+    draft: ChatSuggestedAppointment
+  ): Promise<string | void> => {
+    if (!userId || !id) {
+      throw new Error('User or profile not available');
+    }
+
+    const createdId = await saveAppointment(userId, id, {
+      scheduledAt: draft.scheduledAt ?? new Date().toISOString(),
+      doctorName: draft.doctorName ?? '',
+      ...(draft.specialty ? { specialty: draft.specialty } : {}),
+      ...(draft.hospital ? { hospital: draft.hospital } : {}),
+      reason: draft.reason,
+      questions: draft.questions ?? [],
+      observations: [],
+      diagnoses: [],
+      recommendations: [],
+      prescribedMedications: [],
+      medicalRecordIds: [],
+      status: 'scheduled',
+    });
+
+    const savedDraft: ChatSuggestedAppointment = {
+      ...draft,
+      savedAppointmentId: createdId,
+      dismissed: false,
+    };
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedAppointment: savedDraft } : m
+      )
+    );
+
+    await updateJournalChatSuggestedAppointment(userId, id, messageId, savedDraft);
+    return createdId;
+  };
+
+  const handleDismissSuggestedAppointment = async (
+    messageId: string,
+    draft: ChatSuggestedAppointment
+  ): Promise<void> => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedAppointment: draft } : m
+      )
+    );
+
+    if (userId && id) {
+      await updateJournalChatSuggestedAppointment(userId, id, messageId, draft);
+    }
+  };
+
+  const handleSaveSuggestedReminder = async (
+    messageId: string,
+    draft: ChatSuggestedReminder
+  ): Promise<string | void> => {
+    if (!userId || !id) {
+      throw new Error('User or profile not available');
+    }
+
+    const isIntervalMode =
+      typeof draft.interval === 'number' && draft.interval > 0;
+
+    const createdId = await saveReminder(userId, id, {
+      title: draft.title,
+      ...(draft.description ? { description: draft.description } : {}),
+      frequency: 'daily',
+      isActive: true,
+      ...(isIntervalMode
+        ? {
+            interval: draft.interval,
+            intervalUnit: draft.intervalUnit ?? 'hours',
+            startTime: draft.startTime ?? '09:00',
+            endTime: draft.endTime ?? '21:00',
+          }
+        : {
+            times:
+              draft.times && draft.times.length > 0 ? draft.times : ['09:00'],
+          }),
+    });
+
+    const savedDraft: ChatSuggestedReminder = {
+      ...draft,
+      savedReminderId: createdId,
+      dismissed: false,
+    };
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedReminder: savedDraft } : m
+      )
+    );
+
+    await updateJournalChatSuggestedReminder(userId, id, messageId, savedDraft);
+    return createdId;
+  };
+
+  const handleDismissSuggestedReminder = async (
+    messageId: string,
+    draft: ChatSuggestedReminder
+  ): Promise<void> => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedReminder: draft } : m
+      )
+    );
+
+    if (userId && id) {
+      await updateJournalChatSuggestedReminder(userId, id, messageId, draft);
+    }
+  };
 
   async function sendPrompt(rawContent: string, isRetry = false) {
     const content = rawContent.trim();
@@ -255,6 +431,8 @@ function ChatWindow() {
         role: 'assistant',
         message: result.reply.answer,
         followUpQuestion: result.reply.followUpQuestion,
+        suggestedAppointment: result.reply.suggestedAppointment,
+        suggestedReminder: result.reply.suggestedReminder,
         timestamp: assistantTimestamp,
       };
 
@@ -320,12 +498,49 @@ function ChatWindow() {
 
   return (
     <div className="space-y-4 pb-28">
-      {/* Balanced Header Card */}
-      <div className="rounded-3xl bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] px-5 py-4 shadow-xs ring-1 ring-emerald-100/70">
-        <h1 className="text-xl font-bold text-gray-900">Daily Journal 🌱</h1>
-        <p className="mt-0.5 text-xs text-gray-600">
-          Tell me about your day or ask anything on your mind.
-        </p>
+      {/* Sticky Chat App Top Bar */}
+      <div className="sticky top-0 z-20 -mx-4 -mt-6 border-b border-emerald-100/80 bg-white/95 px-4 py-3 shadow-2xs backdrop-blur-md">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative shrink-0">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-xs ring-2 ring-emerald-100">
+                <Bot size={20} />
+              </div>
+              <span
+                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
+                aria-hidden="true"
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <h1 className="truncate text-sm font-bold tracking-wide text-gray-900">
+                  MIRA
+                </h1>
+                <Sparkles
+                  size={13}
+                  className="shrink-0 text-emerald-600"
+                  aria-hidden="true"
+                />
+              </div>
+
+              <p className="truncate text-[11px] font-medium text-gray-600">
+                <span className="font-semibold text-emerald-700">M</span>aternal{' '}
+                <span className="font-semibold text-emerald-700">I</span>ntelligence &{' '}
+                <span className="font-semibold text-emerald-700">R</span>ecord{' '}
+                <span className="font-semibold text-emerald-700">A</span>ssistant
+              </p>
+
+              <p className="mt-0.5 truncate text-[11px] text-gray-400">
+                Online • Share your day or ask anything
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0 rounded-full bg-gradient-to-r from-[#f2fbf5] to-[#e4f7eb] px-2.5 py-1 text-[11px] font-semibold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80">
+            🌱 Daily Journal
+          </div>
+        </div>
       </div>
 
       {/* Chat Messages */}
@@ -336,6 +551,21 @@ function ChatWindow() {
             role={message.role}
             message={message.message}
             followUpQuestion={message.followUpQuestion}
+            userInitial={userInitial}
+            suggestedAppointment={message.suggestedAppointment}
+            onSaveAppointment={(draft) =>
+              handleSaveSuggestedAppointment(message.id, draft)
+            }
+            onDismissAppointment={(draft) =>
+              handleDismissSuggestedAppointment(message.id, draft)
+            }
+            suggestedReminder={message.suggestedReminder}
+            onSaveReminder={(draft) =>
+              handleSaveSuggestedReminder(message.id, draft)
+            }
+            onDismissReminder={(draft) =>
+              handleDismissSuggestedReminder(message.id, draft)
+            }
             timestamp={message.timestamp}
             isError={message.isError}
             onRetry={
