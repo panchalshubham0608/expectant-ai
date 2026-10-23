@@ -112,11 +112,18 @@ export interface JournalChatContext {
   };
   healthMeasurements: Array<{
     label: string;
+    category?: string;
     value: string;
     unit?: string;
     previousValue?: string;
     normalRange?: string;
     measuredAt: string;
+    notes?: string;
+    history?: Array<{
+      value: string;
+      measuredAt: string;
+      notes?: string;
+    }>;
   }>;
   medications: {
     active: Array<{
@@ -334,11 +341,18 @@ export const buildJournalChatContext = ({
     },
     healthMeasurements: (measurements ?? []).map((m) => ({
       label: m.label,
+      category: m.category,
       value: m.value,
       unit: m.unit,
       previousValue: m.previousValue,
       normalRange: m.normalRange,
       measuredAt: m.measuredAt,
+      notes: m.notes,
+      history: (m.history ?? []).slice(-10).map((h) => ({
+        value: h.value,
+        measuredAt: h.measuredAt,
+        notes: h.notes,
+      })),
     })),
     medications: {
       active: activeMedications,

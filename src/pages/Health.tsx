@@ -1,10 +1,16 @@
 import { useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import type { Measurement } from '../models/measurement';
+import {
+  mergeMeasurementsWithDefaults,
+  type Measurement,
+} from '../models/measurement';
 import { useProfile } from '../hooks/useProfile';
 import { useMeasurements } from '../hooks/useMeasurements';
-import { updateMeasurements } from '../services/measurements/measurementsService';
+import {
+  deleteMeasurement,
+  updateMeasurements,
+} from '../services/measurements/measurementsService';
 import MeasurementsCard from '../components/health/measurements/MeasurementsCard';
 import ActiveMedicationsCard from '../components/health/medication/ActiveMedicationsCard';
 
@@ -20,13 +26,7 @@ function Health() {
       return;
     }
 
-    // const unsubscribeVisits = subscribeToDoctorVisits(user.uid, id, (nextVisits) => {
-    //   setDoctorVisits(nextVisits);
-    // }, () => undefined);
-
-    return () => {
-      // unsubscribeVisits();
-    };
+    return () => {};
   }, [id, user?.uid]);
 
   const saveMeasurements = async (newMeasurements: Measurement[]) => {
@@ -34,12 +34,12 @@ function Health() {
     await updateMeasurements(user.uid, id, newMeasurements);
   };
 
-  const defaultMeasurements: Measurement[] = [];
+  const removeMeasurement = async (measurementId: string) => {
+    if (!user || !id) throw new Error('You must be signed in to update this profile.');
+    await deleteMeasurement(user.uid, id, measurementId);
+  };
 
-  const mergedMeasurements = defaultMeasurements.map(
-    (defaultMeasurement) =>
-      measurements?.find((m) => m.id === defaultMeasurement.id) || defaultMeasurement,
-  );
+  const mergedMeasurements = mergeMeasurementsWithDefaults(measurements);
 
   const week = profile
     ? Math.max(
@@ -89,12 +89,11 @@ function Health() {
           </div>
         ) : (
           <div className="flex flex-col gap-5">
-            {/* <AIInsightsCard insights={aiInsightsData} /> */}
-            {/* <HealthScoreCard data={healthScoreData} /> */}
             <ActiveMedicationsCard />
             <MeasurementsCard
               measurements={mergedMeasurements}
               onSave={saveMeasurements}
+              onDelete={removeMeasurement}
             />
           </div>
         )}
