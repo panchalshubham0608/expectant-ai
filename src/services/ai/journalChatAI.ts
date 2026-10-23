@@ -585,19 +585,15 @@ const normalizeDateYMD = (value?: string, fallbackDate?: string): string => {
 
 const formatGestationalAgeValueAndUnit = (
   rawValue: string,
-  rawUnit?: string
+  _rawUnit?: string
 ): { value: string; unit: string } => {
-  const trimmed = rawValue.trim();
+  const trimmed = String(rawValue ?? '').trim();
   if (!trimmed) return { value: '', unit: 'weeks' };
-  // If value already includes week/day units like "24 weeks 3 days" or "24w 3d", don't duplicate "weeks"
-  if (/\b(\d+\s*w(?:eeks?|ks?)?|\d+\s*d(?:ays?)?)\b/i.test(trimmed)) {
-    const withoutTrailingWeeks = trimmed.replace(/\s+weeks?$/i, '');
-    if (/^\d+(?:\.\d+)?$/.test(withoutTrailingWeeks)) {
-      return { value: withoutTrailingWeeks, unit: 'weeks' };
-    }
-    return { value: trimmed, unit: '' };
+  const weekMatch = trimmed.match(/(\d{1,2})/);
+  if (weekMatch) {
+    return { value: weekMatch[1], unit: 'weeks' };
   }
-  return { value: trimmed, unit: rawUnit?.trim() || 'weeks' };
+  return { value: trimmed, unit: 'weeks' };
 };
 
 const extractVitalsFromUserMessage = (
@@ -883,7 +879,7 @@ export const normalizeSuggestedVitals = (
             unit: formatted.unit,
             category: meta.category,
             normalRange: m.normalRange?.trim() || meta.normalRange,
-            measuredAt: normalizeDateYMD(m.measuredAt, reportDate),
+            measuredAt: reportDate,
             sourceReportTitle: report.title,
             notes: m.notes?.trim() || `From ${report.title}`,
             selected: true,
@@ -905,7 +901,7 @@ export const normalizeSuggestedVitals = (
           unit: m.unit?.trim() || meta.unit,
           category: meta.category,
           normalRange: m.normalRange?.trim() || meta.normalRange,
-          measuredAt: normalizeDateYMD(m.measuredAt, reportDate),
+          measuredAt: reportDate,
           sourceReportTitle: report.title,
           notes: m.notes?.trim() || `From ${report.title}`,
           selected: true,
@@ -966,21 +962,18 @@ export const normalizeSuggestedVitals = (
   // Also check if user directly provided vital updates in their message
   const userMessageItems = extractVitalsFromUserMessage(userMessage, todayStr);
 
-  // Merge items by canonical id, prioritizing AI items + newest readings
+  // Merge items by canonical id:
+  // When scanning reports, prioritize deterministic reportItems (which carry the exact report.reportDate)
+  // so that AI fallback dates (todayStr) never override the real report date.
+  const orderedCandidates = isReportScanIntent
+    ? [...reportItems, ...normalizedAiItems, ...userMessageItems]
+    : [...userMessageItems, ...normalizedAiItems, ...reportItems];
+
   const byId = new Map<string, ChatSuggestedVitalItem>();
-  for (const candidate of [
-    ...normalizedAiItems,
-    ...userMessageItems,
-    ...reportItems,
-  ]) {
+  for (const candidate of orderedCandidates) {
     if (!candidate.value) continue;
     const existing = byId.get(candidate.id);
     if (!existing) {
-      byId.set(candidate.id, candidate);
-    } else if (
-      candidate.measuredAt > existing.measuredAt &&
-      !normalizedAiItems.some((aiItem) => aiItem.id === existing.id)
-    ) {
       byId.set(candidate.id, candidate);
     } else if (!existing.sourceReportTitle && candidate.sourceReportTitle) {
       byId.set(candidate.id, {
@@ -1067,18 +1060,18 @@ YOUR RESPONSIBILITIES:
      a) REPORT SCANNING FOR VITALS: When the expectant asks to scan, check, find, extract, or update their vital measurements from their uploaded medical reports (or asks what the latest vitals in their reports are). Scan across "medicalReports" (selecting the latest reading by "reportDate" for each tracked vital) and populate "suggestedVitals.items" ONLY for vitals tracked in "healthMeasurements":
         - Maternal Weight ("maternal-weight"): unify any "Weight" or "Maternal Weight" reading into "maternal-weight".
         - Baby Weight ("baby-weight"): unify any "Estimated Fetal Weight", "EFW", "Fetal Weight", or "Baby Weight" reading into "baby-weight".
-        - Gestational Age ("gestational-age"): infer from the latest ultrasound report (from "measurements", "metadata.pregnancyWeek", or "summary.importantFindings").
+        - Gestational Age ("gestational-age"): infer from the latest ultrasound report (from "measurements", "metadata.pregnancyWeek", or "summary.importantFindings") and keep the value in weeks only (e.g., "21" with unit "weeks" instead of "21 weeks 3 days").
         - Fetal Heart Rate ("fetal-heart-rate"): unify any "Fetal Heart Rate", "Baby Heart Rate", or "FHR" reading into "fetal-heart-rate". Do NOT include the expectant's own maternal heart rate / pulse.
         - Blood Pressure ("blood-pressure")
         - Blood Sugar ("blood-sugar")
         - Hemoglobin ("hemoglobin")
         Do NOT include unrelated routine lab rows (such as WBC, RBC, Neutrophils, Urine pH, BPD, FL, or maternal heart rate). Set "measuredAt" to the report's "reportDate" ("YYYY-MM-DD") and "sourceReportTitle" to the report's title.
-     b) USER-PROVIDED VITAL UPDATES IN CHAT: When the expectant shares, logs, or mentions new readings for any of their tracked Health vitals directly in "currentMessage" (e.g., "My weight today is 64.5 kg", "BP was 118/76 and baby heart rate 148 bpm", "Baby weight is 1250g", "Gestational age is 24w 3d", "My fasting blood sugar is 90", "Hemoglobin came back at 11.8"). Extract every mentioned tracked vital reading into "suggestedVitals.items" with "measuredAt" set to "currentDate" (or the specific date mentioned in "YYYY-MM-DD" format) and "sourceReportTitle" set to "Shared in Chat".
+     b) USER-PROVIDED VITAL UPDATES IN CHAT: When the expectant shares, logs, or mentions new readings for any of their tracked Health vitals directly in "currentMessage" (e.g., "My weight today is 64.5 kg", "BP was 118/76 and baby heart rate 148 bpm", "Baby weight is 1250g", "Gestational age is 21 weeks", "My fasting blood sugar is 90", "Hemoglobin came back at 11.8"). Extract every mentioned tracked vital reading into "suggestedVitals.items" with "measuredAt" set to "currentDate" (or the specific date mentioned in "YYYY-MM-DD" format) and "sourceReportTitle" set to "Shared in Chat".
    - Leave "suggestedVitals" omitted/null for general conversation where the expectant neither shares new vital readings nor asks to scan/extract vitals from reports.
    - Use ONLY the canonical IDs and labels from the Health section:
      - "maternal-weight": label "Maternal Weight", category "maternal", unit "kg", normalRange "Steady trimester gain"
      - "baby-weight": label "Baby Weight", category "baby", unit "g", normalRange "Varies by week"
-     - "gestational-age": label "Gestational Age", category "baby", unit "weeks", normalRange "1 – 40 weeks"
+     - "gestational-age": label "Gestational Age", category "baby", unit "weeks", normalRange "1 – 40" (value as integer weeks, e.g., "21")
      - "fetal-heart-rate": label "Fetal Heart Rate", category "baby", unit "bpm", normalRange "110 – 160"
      - "blood-pressure": label "Blood Pressure", category "maternal", unit "mmHg", normalRange "90/60 – 120/80"
      - "blood-sugar": label "Blood Sugar", category "maternal", unit "mg/dL", normalRange "70 – 95 (fasting)"

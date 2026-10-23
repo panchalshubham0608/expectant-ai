@@ -219,7 +219,7 @@ export const buildJournalChatContext = ({
         label: m.label,
         value: m.value,
         unit: m.unit,
-        measuredAt: m.measuredAt,
+        measuredAt: report.reportDate || m.measuredAt,
       })),
       medicines: (report.medicines ?? []).map((med) => ({
         name: med.name,

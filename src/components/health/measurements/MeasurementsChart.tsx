@@ -35,6 +35,11 @@ const SERIES_COLORS: Record<string, { stroke: string; fill: string; badge: strin
     fill: 'rgba(219, 39, 119, 0.12)',
     badge: 'bg-pink-50 text-pink-700 ring-pink-200',
   },
+  'gestational-age': {
+    stroke: '#4f46e5',
+    fill: 'rgba(79, 70, 229, 0.12)',
+    badge: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+  },
   'blood-pressure': {
     stroke: '#e11d48',
     fill: 'rgba(225, 29, 72, 0.12)',

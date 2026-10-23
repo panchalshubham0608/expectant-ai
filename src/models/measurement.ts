@@ -53,7 +53,7 @@ export const DEFAULT_VITAL_MEASUREMENTS: Measurement[] = [
     category: 'baby',
     value: '',
     unit: 'weeks',
-    normalRange: '1 – 40 weeks',
+    normalRange: '1 – 40',
     measuredAt: '',
     history: [],
   },
@@ -99,25 +99,36 @@ export const DEFAULT_VITAL_MEASUREMENTS: Measurement[] = [
   },
 ];
 
+const isPlaceholderOrInvalidEntry = (value?: string): boolean => {
+  const trimmedVal = String(value ?? '').trim();
+  return !trimmedVal || /^0+(\.0+)?(\/0+)?$/.test(trimmedVal);
+};
+
 export const normalizeMeasurementHistory = (
   measurement: Measurement,
 ): MeasurementHistoryEntry[] => {
   if (Array.isArray(measurement.history) && measurement.history.length > 0) {
     return [...measurement.history]
-      .filter((entry) => entry && String(entry.value ?? '').trim() !== '')
+      .filter((entry) => entry && !isPlaceholderOrInvalidEntry(entry.value))
       .sort((a, b) => (a.measuredAt || '').localeCompare(b.measuredAt || ''));
   }
 
   const trimmedValue = String(measurement.value ?? '').trim();
-  if (!trimmedValue) {
+  const measuredDate = String(measurement.measuredAt ?? '').trim();
+  if (
+    !trimmedValue ||
+    !measuredDate ||
+    isPlaceholderOrInvalidEntry(trimmedValue)
+  ) {
     return [];
   }
 
-  const measuredDate =
-    measurement.measuredAt || new Date().toISOString().split('T')[0];
   const entries: MeasurementHistoryEntry[] = [];
 
-  if (measurement.previousValue && String(measurement.previousValue).trim() !== '') {
+  if (
+    measurement.previousValue &&
+    !isPlaceholderOrInvalidEntry(measurement.previousValue)
+  ) {
     const baseDate = new Date(measuredDate);
     if (!Number.isNaN(baseDate.getTime())) {
       baseDate.setDate(baseDate.getDate() - 7);
@@ -207,7 +218,8 @@ const matchSavedItemToDefaultId = (
       combined,
     ) ||
     cleanId === 'ga' ||
-    cleanLabel === 'ga'
+    cleanLabel === 'ga' ||
+    cleanId === 'gest-age'
   ) {
     return 'gestational-age';
   }
@@ -265,6 +277,13 @@ const matchSavedItemToDefaultId = (
   return null;
 };
 
+const normalizeGestationalAgeValue = (raw: string): string => {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return '';
+  const match = trimmed.match(/(\d{1,2})/);
+  return match ? match[1] : trimmed;
+};
+
 export const mergeMeasurementsWithDefaults = (
   saved: Measurement[] | null | undefined,
 ): Measurement[] => {
@@ -282,13 +301,20 @@ export const mergeMeasurementsWithDefaults = (
 
     matchingItems.forEach((m) => consumedSavedIds.add(m.id));
 
-    // Combine and deduplicate history entries across all matching saved records (e.g. "Weight" + "Maternal Weight")
     const historyByDateAndVal = new Map<string, MeasurementHistoryEntry>();
     for (const matchItem of matchingItems) {
       for (const entry of normalizeMeasurementHistory(matchItem)) {
-        const key = `${entry.measuredAt}::${entry.value.trim()}`;
+        const normalizedVal =
+          defaultVital.id === 'gestational-age'
+            ? normalizeGestationalAgeValue(entry.value)
+            : entry.value.trim();
+        if (!normalizedVal) continue;
+        const key = `${entry.measuredAt}::${normalizedVal}`;
         if (!historyByDateAndVal.has(key)) {
-          historyByDateAndVal.set(key, entry);
+          historyByDateAndVal.set(key, {
+            ...entry,
+            value: normalizedVal,
+          });
         }
       }
     }
@@ -312,7 +338,6 @@ export const mergeMeasurementsWithDefaults = (
     );
   });
 
-  // Mark ignored legacy items (like expectant's Heart Rate) as consumed so they don't appear
   for (const item of savedList) {
     if (matchSavedItemToDefaultId(item) === 'IGNORE') {
       consumedSavedIds.add(item.id);
@@ -335,4 +360,3 @@ export const mergeMeasurementsWithDefaults = (
 
   return [...mergedDefaults, ...additionalVitals];
 };
-

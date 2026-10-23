@@ -122,8 +122,11 @@ const getVitalIcon = (measurement: Measurement) => {
   const id = measurement.id.toLowerCase();
   const label = measurement.label.toLowerCase();
 
-  if (id === 'baby-weight' || label.includes('baby') || label.includes('fetal weight')) {
+  if (id === 'baby-weight' || label.includes('baby weight') || label.includes('fetal weight')) {
     return <Baby size={18} className="text-pink-600" />;
+  }
+  if (id === 'gestational-age' || label.includes('gestational age') || label.includes('pregnancy week')) {
+    return <Calendar size={18} className="text-indigo-600" />;
   }
   if (id === 'maternal-weight' || label.includes('weight')) {
     return <Scale size={18} className="text-purple-600" />;
@@ -166,6 +169,8 @@ const getPlaceholderForVital = (measurement: Measurement): string => {
       return 'e.g., 64.5';
     case 'baby-weight':
       return 'e.g., 1250';
+    case 'gestational-age':
+      return 'e.g., 21';
     case 'blood-pressure':
       return 'e.g., 118/76';
     case 'fetal-heart-rate':
@@ -589,7 +594,6 @@ export default function MeasurementsCard({
                         {vital.normalRange && (
                           <p className="mt-0.5 text-xs text-slate-500">
                             Ref: {vital.normalRange}
-                            {vital.unit ? ` ${vital.unit}` : ''}
                           </p>
                         )}
                       </div>

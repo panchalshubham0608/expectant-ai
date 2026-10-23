@@ -3,6 +3,17 @@ import { db } from '../../lib/firebase';
 import type { Measurement } from '../../models/measurement';
 import { getMeasurementsCollection } from '../../lib/collections';
 
+const LEGACY_OBSOLETE_DOC_IDS = [
+  'weight',
+  'Weight',
+  'heart-rate',
+  'Heart Rate',
+  'gest-age',
+  'Gestational Age',
+  'baby-heart-rate',
+  'Baby Heart Rate',
+];
+
 const stripUndefined = <T>(value: T): T => {
   if (Array.isArray(value)) {
     return value.map((item) => stripUndefined(item)) as unknown as T;
@@ -10,7 +21,7 @@ const stripUndefined = <T>(value: T): T => {
   if (value !== null && typeof value === 'object') {
     const cleaned: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (v !== undefined) {
+      if (v !== undefined && k !== 'serverUpdatedAt') {
         cleaned[k] = stripUndefined(v);
       }
     }
@@ -29,6 +40,7 @@ export const updateMeasurements = async (
   }
   const batch = writeBatch(db);
   const collectionRef = getMeasurementsCollection(userId, profileId);
+  const savedIds = new Set(measurements.map((m) => m.id));
 
   measurements.forEach((measurement) => {
     const docRef = doc(collectionRef, measurement.id);
@@ -41,6 +53,12 @@ export const updateMeasurements = async (
       serverUpdatedAt: serverTimestamp(),
     });
   });
+
+  for (const legacyId of LEGACY_OBSOLETE_DOC_IDS) {
+    if (!savedIds.has(legacyId)) {
+      batch.delete(doc(collectionRef, legacyId));
+    }
+  }
 
   await batch.commit();
 };

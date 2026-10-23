@@ -55,10 +55,17 @@ const getVitalIcon = (id: string, label: string, size = 16) => {
 
   if (
     cleanId === 'baby-weight' ||
-    cleanLabel.includes('baby') ||
+    cleanLabel.includes('baby weight') ||
     cleanLabel.includes('fetal weight')
   ) {
     return <Baby size={size} className="text-pink-600" />;
+  }
+  if (
+    cleanId === 'gestational-age' ||
+    cleanLabel.includes('gestational age') ||
+    cleanLabel.includes('pregnancy week')
+  ) {
+    return <Calendar size={size} className="text-indigo-600" />;
   }
   if (cleanId === 'maternal-weight' || cleanLabel.includes('weight')) {
     return <Scale size={size} className="text-purple-600" />;
