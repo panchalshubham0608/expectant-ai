@@ -9,11 +9,12 @@ export type DailyDigestCategory =
   | 'milestone'
   | 'couple';
 
+export type BabyNameGender = 'Boy' | 'Girl' | 'Unisex';
+
 export interface BabyNameSuggestion {
   name: string;
   meaning: string;
-  origin: string;
-  gender: string;
+  gender: BabyNameGender;
 }
 
 export interface DailyDigestRequest {
@@ -98,10 +99,12 @@ ${request.recentBabyNames && request.recentBabyNames.length > 0 ? `- Previously 
                 properties: {
                   name: { type: 'STRING' },
                   meaning: { type: 'STRING' },
-                  origin: { type: 'STRING' },
-                  gender: { type: 'STRING' },
+                  gender: {
+                    type: 'STRING',
+                    enum: ['Boy', 'Girl', 'Unisex'],
+                  },
                 },
-                required: ['name', 'meaning', 'origin', 'gender'],
+                required: ['name', 'meaning', 'gender'],
               },
             },
           },

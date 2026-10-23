@@ -115,12 +115,11 @@ that a partner is involved.
 BABY NAME GENERATION (WHEN REQUESTED)
 
 If the user prompt includes baby name generation preferences (a customized context and a requested count N):
-1. Generate exactly N baby name suggestions in the "babyNames" array that thoughtfully match the user's customized context (such as cultural/linguistic roots, themes, starting letters, length, gender preferences, or stylistic vibe).
+1. Generate_exactly N baby name suggestions in the "babyNames" array that thoughtfully match the user's customized context (such as cultural/linguistic roots, themes, starting letters, length, gender preferences, or stylistic vibe).
 2. For each baby name suggestion, provide:
    - "name": The baby name itself.
    - "meaning": A concise, warm explanation of the name's meaning or significance (1-2 sentences max).
-   - "origin": A short tag for the cultural, linguistic, or thematic origin (e.g., "Sanskrit", "Greek", "Nature", "Hebrew", "Modern").
-   - "gender": A short gender tag (e.g., "Girl", "Boy", "Unisex").
+   - "gender": Must be one of "Boy", "Girl", or "Unisex".
 3. Ensure diversity and creativity among the suggested names while strictly honoring the user's preferences.
 4. Do NOT repeat any names listed in the "Previously Suggested Baby Names" list if provided.
 5. If baby name generation is NOT requested in the prompt, omit "babyNames" or return an empty array.

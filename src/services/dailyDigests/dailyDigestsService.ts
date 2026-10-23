@@ -73,3 +73,25 @@ export const getRecentDailyDigests = async (
 
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyDigest));
 };
+
+export const subscribeToRecentDailyDigests = (
+  userId: string,
+  profileId: string,
+  days: number = 30,
+  onChange: (digests: DailyDigest[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe => {
+  const collectionRef = getDailyDigestsCollectionRef(userId, profileId);
+  const q = query(collectionRef, orderBy('date', 'desc'), limit(days));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const digests = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as DailyDigest));
+      onChange(digests);
+    },
+    (error) => {
+      onError?.(error);
+    }
+  );
+};

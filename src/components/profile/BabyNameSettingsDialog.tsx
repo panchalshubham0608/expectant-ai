@@ -113,7 +113,7 @@ export default function BabyNameSettingsDialog({
       <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
               <Baby size={20} />
             </div>
             <div>
@@ -151,12 +151,12 @@ export default function BabyNameSettingsDialog({
               maxLength={MAX_CONTEXT_LENGTH}
               value={context}
               onChange={(e) => setContext(e.target.value)}
-              className="mt-1.5 block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
-              placeholder="E.g., Modern Indian Sanskrit names inspired by nature or light, short and easy to pronounce globally, both boy and girl names..."
+              className="mt-1.5 block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              placeholder="E.g., Modern North Indian Sanskrit names inspired by the Bhagavad Gita or deities, short and easy to pronounce, both boy and girl names..."
               required
             />
             <p className="mt-1.5 text-xs text-gray-500">
-              Share origins, themes, starting letters, gender preference, or sibling names.
+              Share themes, starting letters, gender preference, or spiritual inspirations.
             </p>
           </div>
 
@@ -172,7 +172,7 @@ export default function BabyNameSettingsDialog({
                   onClick={() => setCount(preset)}
                   className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition ${
                     count === preset
-                      ? 'bg-rose-600 text-white shadow-sm'
+                      ? 'bg-teal-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -191,7 +191,7 @@ export default function BabyNameSettingsDialog({
                     setCount(Math.min(MAX_COUNT, Math.max(MIN_COUNT, val)));
                   }
                 }}
-                className="w-20 rounded-xl border border-gray-200 px-3 py-1.5 text-center text-sm font-medium text-gray-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
+                className="w-20 rounded-xl border border-gray-200 px-3 py-1.5 text-center text-sm font-medium text-gray-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 aria-label="Custom number of names per day"
               />
             </div>
@@ -224,7 +224,7 @@ export default function BabyNameSettingsDialog({
               <button
                 type="submit"
                 disabled={isSaving}
-                className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-full bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-50"
               >
                 <Sparkles size={15} />
                 {isSaving ? 'Saving...' : 'Save'}

@@ -15,6 +15,7 @@ import AppointmentsPage from './pages/AppointmentsPage';
 import Reports from './pages/Reports';
 import Reminders from './pages/Reminders';
 import WeeklyUpdates from './pages/WeeklyUpdates';
+import BabyNames from './pages/BabyNames';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
@@ -41,6 +42,7 @@ function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="reminders" element={<Reminders />} />
             <Route path="weekly-updates" element={<WeeklyUpdates />} />
+            <Route path="baby-names" element={<BabyNames />} />
           </Route>
         </Route>
       </Routes>
