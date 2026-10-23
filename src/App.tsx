@@ -1,6 +1,7 @@
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import AppLayout from './components/layout/AppLayout';
+import ScrollToTop from './components/common/ScrollToTop';
 
 import AppHome from './pages/AppHome';
 import Dashboard from './pages/Dashboard';
@@ -27,6 +28,7 @@ function App() {
 
   return (
     <Router basename={isAndroid ? "" : "/expectant-ai/"}>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={user ? <Navigate to={lastProfileId ? `/profile/${lastProfileId}` : "/dashboard"} replace /> : <AppHome />} />
         <Route element={<RequireAuth />}>
