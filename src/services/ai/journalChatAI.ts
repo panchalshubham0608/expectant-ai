@@ -1,5 +1,293 @@
 import { DEFAULT_GEMINI_MODEL, getGeminiClient } from './geminiCore';
-import { buildJournalChatContext, type JournalChatContextInput } from './journalChatContextBuilder';
-import type { JournalMessageExtraction, JournalChatReply, JournalChatTurnResult, EMPTY_JOURNAL_EXTRACTION } from './journalChatService';
+import {
+  buildJournalChatContext,
+  type JournalChatContextInput,
+} from './journalChatContextBuilder';
+import type {
+  JournalMessageExtraction,
+  JournalChatTurnResult,
+} from './journalChatService';
 
-const normalizeExtraction = (value?: Partial<JournalMessageExtraction>): JournalMessageExtraction => ({\n  meals: value?.meals ?? [],\n  hydration: value?.hydration ?? [],\n  symptoms: value?.symptoms ?? [],\n  mood: value?.mood,\n  sleep: value?.sleep,\n  activities: value?.activities ?? [],\n  medications: value?.medications ?? [],\n  notes: value?.notes ?? [],\n  other: value?.other ?? [],\n});\n\nexport const mergeJournalExtraction = (\n  current: JournalMessageExtraction,\n  next: JournalMessageExtraction,\n): JournalMessageExtraction => ({\n  meals: [...(current.meals ?? []), ...(next.meals ?? [])],\n  hydration: [...(current.hydration ?? []), ...(next.hydration ?? [])],\n  symptoms: [...(current.symptoms ?? []), ...(next.symptoms ?? [])],\n  activities: [...(current.activities ?? []), ...(next.activities ?? [])],\n  medications: [...(current.medications ?? []), ...(next.medications ?? [])],\n  mood: next.mood ?? current.mood,\n  sleep: next.sleep ?? current.sleep,\n  notes: [...(current.notes ?? []), ...(next.notes ?? [])],\n  other: [...(current.other ?? []), ...(next.other ?? [])],\n});\n\nconst EMPTY_EXTRACTION: JournalMessageExtraction = {\n  meals: [],\n  hydration: [],\n  symptoms: [],\n  activities: [],\n  medications: [],\n  notes: [],\n  other: [],\n};\n\nexport const generateJournalChatReply = async (\n  contextInput: JournalChatContextInput,\n  userApiKey?: string,\n): Promise<JournalChatTurnResult> => {\n  const ai = getGeminiClient(userApiKey);\n  const env = typeof process !== 'undefined' && process.env ? process.env : (import.meta as any).env;\n  const model = env?.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;\n\n  const context = buildJournalChatContext(contextInput);\n\n  const response = await ai.models.generateContent({\n    model,\n    contents: JSON.stringify(context, null, 2),\n    config: {\n      systemInstruction: `You are a warm pregnancy support coach. Extract the latest journal update into structured pregnancy data and also generate the next reply. Do not diagnose or prescribe treatment. Return valid JSON matching the schema exactly.\n\nThe JSON should contain:\n- extracted: object with arrays/fields for meals, hydration, symptoms, mood, sleep, activities, medications, notes, other\n- answer: short friendly response to the user\n- followUpQuestion: one optional question to continue the conversation\n- summary: short clinical-style summary of the extracted facts\n\nUse the knownState as the prior memory and merge only new facts from the current message. The 'other' field is for any information that doesn't fit the structured categories.`,\n      responseMimeType: 'application/json',\n      responseSchema: {\n        type: 'OBJECT',\n        properties: {\n          extracted: {\n            type: 'OBJECT',\n            properties: {\n              meals: {\n                type: 'ARRAY',\n                items: {\n                  type: 'OBJECT',\n                  properties: {\n                    id: { type: 'STRING' },\n                    mealType: { type: 'STRING', enum: ['breakfast', 'lunch', 'dinner', 'snack'] },\n                    consumedAt: { type: 'STRING' },\n                    foods: {\n                      type: 'ARRAY',\n                      items: {\n                        type: 'OBJECT',\n                        properties: {\n                          name: { type: 'STRING' },\n                          quantity: { type: 'STRING' },\n                          confidence: { type: 'NUMBER' },\n                        },\n                        required: ['name', 'confidence'],\n                      },\n                    },\n                    notes: { type: 'STRING' },\n                  },\n                  required: ['mealType', 'foods'],\n                },\n              },\n              hydration: {\n                type: 'ARRAY',\n                items: {\n                  type: 'OBJECT',\n                  properties: {\n                    id: { type: 'STRING' },\n                    amountMl: { type: 'NUMBER' },\n                    type: { type: 'STRING', enum: ['water', 'milk', 'juice', 'coconut-water', 'other'] },\n                    timestamp: { type: 'STRING' },\n                  },\n                  required: ['amountMl', 'type'],\n                },\n              },\n              symptoms: {\n                type: 'ARRAY',\n                items: {\n                  type: 'OBJECT',\n                  properties: {\n                    id: { type: 'STRING' },\n                    type: { type: 'STRING' },\n                    severity: { type: 'STRING', enum: ['mild', 'moderate', 'severe'] },\n                    startedAt: { type: 'STRING' },\n                    notes: { type: 'STRING' },\n                  },\n                  required: ['type', 'severity'],\n                },\n              },\n              mood: {\n                type: 'OBJECT',\n                properties: {\n                  mood: { type: 'STRING', enum: ['happy', 'calm', 'tired', 'anxious', 'stressed', 'sad', 'other'] },\n                  notes: { type: 'STRING' },\n                  time: { type: 'STRING' },\n                },\n              },\n              sleep: {\n                type: 'OBJECT',\n                properties: {\n                  bedtime: { type: 'STRING' },\n                  wakeTime: { type: 'STRING' },\n                  quality: { type: 'NUMBER' },\n                  naps: {\n                    type: 'ARRAY',\n                    items: {\n                      type: 'OBJECT',\n                      properties: {\n                        start: { type: 'STRING' },\n                        end: { type: 'STRING' },\n                      },\n                    },\n                  },\n                },\n              },\n              activities: {\n                type: 'ARRAY',\n                items: {\n                  type: 'OBJECT',\n                  properties: {\n                    id: { type: 'STRING' },\n                    type: { type: 'STRING' },\n                    durationMinutes: { type: 'NUMBER' },\n                    intensity: { type: 'STRING', enum: ['low', 'moderate', 'high'] },\n                    timestamp: { type: 'STRING' },\n                    notes: { type: 'STRING' },\n                  },\n                },\n              },\n              medications: {\n                type: 'ARRAY',\n                items: {\n                  type: 'OBJECT',\n                  properties: {\n                    medicineName: { type: 'STRING' },\n                    scheduledTime: { type: 'STRING' },\n                    takenTime: { type: 'STRING' },\n                    dose: { type: 'STRING' },\n                    taken: { type: 'BOOLEAN' },\n                  },\n                  required: ['medicineName', 'taken'],\n                },\n              },\n              notes: {\n                type: 'ARRAY',\n                items: { type: 'STRING' },\n              },\n              other: {\n                type: 'ARRAY',\n                items: { type: 'STRING' },\n              },\n            },\n            required: ['meals', 'hydration', 'symptoms', 'activities', 'medications', 'notes', 'other'],\n          },\n          answer: { type: 'STRING' },\n          followUpQuestion: { type: 'STRING' },\n          summary: { type: 'STRING' },\n        },\n        required: ['extracted', 'answer'],\n      },\n    },\n  });\n\n  if (!response.text) {\n    throw new Error('Gemini returned an empty response for the journal chat.');\n  }\n\n  const parsed = JSON.parse(response.text) as Partial<{\n    extracted?: Partial<JournalMessageExtraction>;\n    answer?: string;\n    followUpQuestion?: string;\n    summary?: string;\n  }>;\n\n  const extracted = normalizeExtraction(parsed.extracted ?? EMPTY_EXTRACTION);\n  const merged = contextInput.knownState ? mergeJournalExtraction(contextInput.knownState, extracted) : extracted;\n\n  return {\n    extracted: merged,\n    reply: {\n      answer: parsed.answer || 'I have noted that. Tell me a little more about how you are feeling today.',\n      followUpQuestion: parsed.followUpQuestion,\n      summary: parsed.summary,\n    },\n  };\n};\n
+const normalizeExtraction = (
+  value?: Partial<JournalMessageExtraction>
+): JournalMessageExtraction => ({
+  meals: value?.meals ?? [],
+  hydration: value?.hydration ?? [],
+  symptoms: value?.symptoms ?? [],
+  mood: value?.mood,
+  sleep: value?.sleep,
+  activities: value?.activities ?? [],
+  medications: value?.medications ?? [],
+  notes: value?.notes ?? [],
+  other: value?.other ?? [],
+});
+
+export const mergeJournalExtraction = (
+  current: JournalMessageExtraction,
+  next: JournalMessageExtraction
+): JournalMessageExtraction => ({
+  meals: [...(current.meals ?? []), ...(next.meals ?? [])],
+  hydration: [...(current.hydration ?? []), ...(next.hydration ?? [])],
+  symptoms: [...(current.symptoms ?? []), ...(next.symptoms ?? [])],
+  activities: [...(current.activities ?? []), ...(next.activities ?? [])],
+  medications: [...(current.medications ?? []), ...(next.medications ?? [])],
+  mood: next.mood ?? current.mood,
+  sleep: next.sleep ?? current.sleep,
+  notes: [...(current.notes ?? []), ...(next.notes ?? [])],
+  other: [...(current.other ?? []), ...(next.other ?? [])],
+});
+
+const EMPTY_EXTRACTION: JournalMessageExtraction = {
+  meals: [],
+  hydration: [],
+  symptoms: [],
+  activities: [],
+  medications: [],
+  notes: [],
+  other: [],
+};
+
+const JOURNAL_CHAT_SYSTEM_INSTRUCTION = `You are a warm, empathetic, and deeply knowledgeable pregnancy companion and daily journal assistant for an expectant parent.
+
+You have full access to the expectant's context in the JSON payload:
+- "profile": Name, age, blood group, location, current pregnancy week/day, trimester, expected due date, LMP, care provider, and hospital.
+- "medicalReports": Uploaded ultrasound, blood test, urine test, prescription, and consultation reports (including plain-English summaries, important findings, diagnoses, measurements, prescribed medicines, historical comparisons, and questions for the doctor).
+- "appointments": Upcoming scheduled visits and past completed visits (doctor name, specialty, hospital, reason, observations, diagnoses, recommendations, prescribed medications, and follow-up dates).
+- "healthMeasurements": Tracked vitals and measurements (weight, blood pressure, hemoglobin, glucose, fetal heart rate, etc.) with previous values and normal ranges.
+- "medications": Currently active medications (with dose, frequency, duration, instructions) and discontinued medications.
+- "activeReminders": Daily/weekly reminders configured by the expectant.
+- "recentDailyLogs" & "knownState": Recent daily journal logs (meals, hydration, symptoms, mood, sleep, activities, medications taken, notes).
+- "recentConversation": The ongoing chat history.
+- "currentMessage": The expectant's latest message or question.
+
+YOUR RESPONSIBILITIES:
+1. Personalized, Context-Aware Answers ("answer"):
+   - Answer any question the expectant asks using their specific profile, reports, appointments, measurements, medications, and recent logs.
+   - When asked about reports, measurements, medications, or appointments, cite the relevant dates, values, doctor names, and findings clearly and accurately in plain, reassuring language.
+   - Use clean formatting in "answer": short paragraphs, bullet points ("- ") for lists, and **bold** for key terms, dates, or values when helpful.
+   - Keep your tone warm, supportive, and conversational.
+   - Maintain continuity with "recentConversation".
+
+2. Medical Safety & Boundaries:
+   - Never diagnose medical conditions or prescribe/alter medications.
+   - When discussing lab values, symptoms, or medications, provide educational context and encourage discussing specifics with their care provider (use their doctor's name from "profile.careProvider" or recent appointments when available).
+   - If the expectant describes urgent red-flag symptoms (e.g., severe abdominal pain, heavy vaginal bleeding, severe headache with vision changes, high fever, or noticeably reduced fetal movement), gently advise contacting their care provider or hospital right away.
+
+3. Structured Daily Journal Extraction ("extracted"):
+   - Extract ONLY newly mentioned journal facts from "currentMessage" (do NOT repeat items already present in "knownState" or "recentConversation").
+   - If "currentMessage" is purely a question (e.g., asking about a report or appointment) and does not log any new meals, hydration, symptoms, mood, sleep, activities, or medications taken, return empty arrays in "extracted".
+
+4. Optional Follow-Up ("followUpQuestion"):
+   - Optionally include a single, natural, caring follow-up question in "followUpQuestion" if it helps continue the conversation or check in on them.
+
+Return valid JSON matching the schema exactly.`;
+
+export const generateJournalChatReply = async (
+  contextInput: JournalChatContextInput,
+  userApiKey?: string
+): Promise<JournalChatTurnResult> => {
+  const ai = getGeminiClient(userApiKey);
+  const env =
+    typeof process !== 'undefined' && process.env
+      ? process.env
+      : (import.meta as any).env;
+  const model = env?.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+
+  const context = buildJournalChatContext(contextInput);
+
+  const response = await ai.models.generateContent({
+    model,
+    contents: JSON.stringify(context, null, 2),
+    config: {
+      systemInstruction: JOURNAL_CHAT_SYSTEM_INSTRUCTION,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          extracted: {
+            type: 'OBJECT',
+            properties: {
+              meals: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    id: { type: 'STRING' },
+                    mealType: {
+                      type: 'STRING',
+                      enum: ['breakfast', 'lunch', 'dinner', 'snack'],
+                    },
+                    consumedAt: { type: 'STRING' },
+                    foods: {
+                      type: 'ARRAY',
+                      items: {
+                        type: 'OBJECT',
+                        properties: {
+                          name: { type: 'STRING' },
+                          quantity: { type: 'STRING' },
+                          confidence: { type: 'NUMBER' },
+                        },
+                        required: ['name', 'confidence'],
+                      },
+                    },
+                    notes: { type: 'STRING' },
+                  },
+                  required: ['mealType', 'foods'],
+                },
+              },
+              hydration: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    id: { type: 'STRING' },
+                    amountMl: { type: 'NUMBER' },
+                    type: {
+                      type: 'STRING',
+                      enum: ['water', 'milk', 'juice', 'coconut-water', 'other'],
+                    },
+                    timestamp: { type: 'STRING' },
+                  },
+                  required: ['amountMl', 'type'],
+                },
+              },
+              symptoms: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    id: { type: 'STRING' },
+                    type: { type: 'STRING' },
+                    severity: {
+                      type: 'STRING',
+                      enum: ['mild', 'moderate', 'severe'],
+                    },
+                    startedAt: { type: 'STRING' },
+                    notes: { type: 'STRING' },
+                  },
+                  required: ['type', 'severity'],
+                },
+              },
+              mood: {
+                type: 'OBJECT',
+                properties: {
+                  mood: {
+                    type: 'STRING',
+                    enum: [
+                      'happy',
+                      'calm',
+                      'tired',
+                      'anxious',
+                      'stressed',
+                      'sad',
+                      'other',
+                    ],
+                  },
+                  notes: { type: 'STRING' },
+                  time: { type: 'STRING' },
+                },
+              },
+              sleep: {
+                type: 'OBJECT',
+                properties: {
+                  bedtime: { type: 'STRING' },
+                  wakeTime: { type: 'STRING' },
+                  quality: { type: 'NUMBER' },
+                  naps: {
+                    type: 'ARRAY',
+                    items: {
+                      type: 'OBJECT',
+                      properties: {
+                        start: { type: 'STRING' },
+                        end: { type: 'STRING' },
+                      },
+                    },
+                  },
+                },
+              },
+              activities: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    id: { type: 'STRING' },
+                    type: { type: 'STRING' },
+                    durationMinutes: { type: 'NUMBER' },
+                    intensity: {
+                      type: 'STRING',
+                      enum: ['low', 'moderate', 'high'],
+                    },
+                    timestamp: { type: 'STRING' },
+                    notes: { type: 'STRING' },
+                  },
+                },
+              },
+              medications: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    medicineName: { type: 'STRING' },
+                    scheduledTime: { type: 'STRING' },
+                    takenTime: { type: 'STRING' },
+                    dose: { type: 'STRING' },
+                    taken: { type: 'BOOLEAN' },
+                  },
+                  required: ['medicineName', 'taken'],
+                },
+              },
+              notes: {
+                type: 'ARRAY',
+                items: { type: 'STRING' },
+              },
+              other: {
+                type: 'ARRAY',
+                items: { type: 'STRING' },
+              },
+            },
+            required: [
+              'meals',
+              'hydration',
+              'symptoms',
+              'activities',
+              'medications',
+              'notes',
+              'other',
+            ],
+          },
+          answer: { type: 'STRING' },
+          followUpQuestion: { type: 'STRING' },
+          summary: { type: 'STRING' },
+        },
+        required: ['extracted', 'answer'],
+      },
+    },
+  });
+
+  if (!response.text) {
+    throw new Error('Gemini returned an empty response for the journal chat.');
+  }
+
+  const parsed = JSON.parse(response.text) as Partial<{
+    extracted?: Partial<JournalMessageExtraction>;
+    answer?: string;
+    followUpQuestion?: string;
+    summary?: string;
+  }>;
+
+  const extracted = normalizeExtraction(parsed.extracted ?? EMPTY_EXTRACTION);
+  const merged = contextInput.knownState
+    ? mergeJournalExtraction(contextInput.knownState, extracted)
+    : extracted;
+
+  return {
+    extracted: merged,
+    reply: {
+      answer:
+        parsed.answer ||
+        'I have noted that. Tell me a little more about how you are feeling today.',
+      followUpQuestion: parsed.followUpQuestion,
+      summary: parsed.summary,
+    },
+  };
+};

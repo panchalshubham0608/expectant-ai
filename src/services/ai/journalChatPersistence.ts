@@ -1,4 +1,15 @@
-import { doc, getDoc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import type { Activity } from '../../models/activity';
 import type { HydrationLog } from '../../models/hydration';
 import type { Meal } from '../../models/meal';
@@ -7,4 +18,221 @@ import type { ConversationMessage } from '../../models/chat';
 import type { DailyLog } from '../../models/dailylLog';
 import type { Note } from '../../models/note';
 import type { ExpectantProfile } from '../../models/profile';
-import { getDailyLogsCollection, getJournalChatsCollection } from '../../lib/collections';\nimport type { JournalMessageExtraction, JournalChatReply, JournalChatRecord } from './journalChatService';\n\nconst getDateKey = (value?: string) => {\n  const date = value ? new Date(value) : new Date();\n  if (Number.isNaN(date.getTime())) {\n    return new Date().toISOString().slice(0, 10);\n  }\n  return date.toISOString().slice(0, 10);\n};\n\nconst asNonEmptyArray = <T>(items?: T[]) => items ?? [];\n\nconst calculatePregnancyWeek = (lastMenstrualPeriod?: string, expectedDueDate?: string) => {\n  const referenceDate = lastMenstrualPeriod ? new Date(lastMenstrualPeriod) : expectedDueDate ? new Date(expectedDueDate) : null;\n  if (!referenceDate || Number.isNaN(referenceDate.getTime())) {\n    return undefined;\n  }\n\n  const today = new Date();\n  const diffDays = Math.max(0, Math.floor((today.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)));\n  return Math.floor(diffDays / 7) + 1;\n};\n\nexport const saveJournalChatTurn = async (\n  userId: string,\n  profileId: string,\n  message: ConversationMessage,\n  extracted?: JournalMessageExtraction,\n  reply?: JournalChatReply,\n): Promise<void> => {\n  const chatsRef = getJournalChatsCollection(userId, profileId);\n  const chatDocRef = doc(chatsRef, message.id);\n\n  const emptyExtraction: JournalMessageExtraction = {\n    meals: [],\n    hydration: [],\n    symptoms: [],\n    activities: [],\n    medications: [],\n    notes: [],\n    other: [],\n  };\n\n  await setDoc(\n    chatDocRef,\n    {\n      ...message,\n      extracted: extracted ?? emptyExtraction,\n      reply: reply ?? null,\n      profileId,\n      createdAt: serverTimestamp(),\n      updatedAt: serverTimestamp(),\n    },\n    { merge: true }\n  );\n};\n\nexport const upsertDailyLogFromExtraction = async (\n  userId: string,\n  profileId: string,\n  extraction: JournalMessageExtraction,\n  options?: {\n    date?: string;\n    profile?: Partial<ExpectantProfile> | null;\n  },\n): Promise<DailyLog> => {\n  const dateKey = getDateKey(options?.date);\n  const dailyLogRef = doc(getDailyLogsCollection(userId, profileId), dateKey);\n  const snapshot = await getDoc(dailyLogRef);\n  const previous = snapshot.exists() ? (snapshot.data() as Partial<DailyLog>) : {};\n\n  const merged: DailyLog = {\n    id: dateKey,\n    profileId,\n    date: dateKey,\n    pregnancyWeek:\n      calculatePregnancyWeek(options?.profile?.lastMenstrualPeriod, options?.profile?.expectedDueDate) ??\n      previous.pregnancyWeek ??\n      1,\n    status: 'ongoing',\n    meals: [...asNonEmptyArray((previous.meals as Meal[]) ?? []), ...asNonEmptyArray((extraction.meals as Meal[]) ?? [])],\n    hydration: [...asNonEmptyArray((previous.hydration as HydrationLog[]) ?? []), ...asNonEmptyArray((extraction.hydration as HydrationLog[]) ?? [])],\n    activities: [...asNonEmptyArray((previous.activities as Activity[]) ?? []), ...asNonEmptyArray((extraction.activities as Activity[]) ?? [])],\n    symptoms: [\n      ...asNonEmptyArray((previous.symptoms as any[]) ?? []),\n      ...asNonEmptyArray((extraction.symptoms as any[]) ?? []),\n    ],\n    medications: [\n      ...asNonEmptyArray((previous.medications as MedicationLog[]) ?? []),\n      ...asNonEmptyArray((extraction.medications as MedicationLog[]) ?? []),\n    ],\n    sleep: (extraction.sleep ?? previous.sleep) as DailyLog['sleep'],\n    vitals: [...asNonEmptyArray((previous.vitals ?? []) as any[])],\n    mood: (extraction.mood ?? previous.mood) as DailyLog['mood'],\n    notes: [\n      ...asNonEmptyArray((previous.notes as Note[]) ?? []),\n      ...((extraction.notes ?? []).map((entry) => ({ text: entry, time: new Date().toISOString() } as Note))),\n      ...((extraction.other ?? []).map((entry) => ({ text: `[Other] ${entry}`, time: new Date().toISOString() } as Note))),\n    ],\n    createdAt: previous.createdAt ?? new Date().toISOString(),\n    updatedAt: new Date().toISOString(),\n  };\n\n  await setDoc(dailyLogRef, merged, { merge: true });\n  return merged;\n};\n\nexport const subscribeToJournalChats = (\n  userId: string,\n  profileId: string,\n  onUpdate: (messages: JournalChatRecord[]) => void,\n  onError?: (error: Error) => void,\n): ReturnType<typeof onSnapshot> => {\n  const q = query(getJournalChatsCollection(userId, profileId), orderBy('timestamp', 'asc'), limit(10));\n  return onSnapshot(\n    q,\n    (snapshot) => {\n      const messages = snapshot.docs.map((docSnapshot) => ({\n        id: docSnapshot.id,\n        ...docSnapshot.data(),\n      })) as JournalChatRecord[];\n      onUpdate(messages);\n    },\n    (error) => {\n      if (onError) onError(error);\n      else console.error('Failed to subscribe to journal chats:', error);\n    },\n  );\n};\n
+import {
+  getDailyLogsCollection,
+  getJournalChatsCollection,
+  requireDb,
+} from '../../lib/collections';
+import { getPregnancyAge } from '../../utils/pregnancyUtils';
+import type {
+  JournalMessageExtraction,
+  JournalChatReply,
+  JournalChatRecord,
+} from './journalChatService';
+
+const getDateKey = (value?: string) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const asNonEmptyArray = <T>(items?: T[]) => items ?? [];
+
+const stripUndefinedDeep = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => item !== undefined)
+      .map((item) => stripUndefinedDeep(item)) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object' && value.constructor === Object) {
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      if (val !== undefined) {
+        cleaned[key] = stripUndefinedDeep(val);
+      }
+    }
+    return cleaned as T;
+  }
+  return value;
+};
+
+export const saveJournalChatTurn = async (
+  userId: string,
+  profileId: string,
+  message: ConversationMessage,
+  extracted?: JournalMessageExtraction,
+  reply?: JournalChatReply
+): Promise<void> => {
+  const chatsRef = getJournalChatsCollection(userId, profileId);
+  const chatDocRef = doc(chatsRef, message.id);
+
+  const emptyExtraction: JournalMessageExtraction = {
+    meals: [],
+    hydration: [],
+    symptoms: [],
+    activities: [],
+    medications: [],
+    notes: [],
+    other: [],
+  };
+
+  const payload = stripUndefinedDeep({
+    ...message,
+    extracted: extracted ?? emptyExtraction,
+    reply: reply ?? null,
+    profileId,
+  });
+
+  await setDoc(
+    chatDocRef,
+    {
+      ...payload,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+export const clearJournalChats = async (
+  userId: string,
+  profileId: string
+): Promise<void> => {
+  const chatsRef = getJournalChatsCollection(userId, profileId);
+  const snapshot = await getDocs(chatsRef);
+  if (snapshot.empty) return;
+
+  const db = requireDb();
+  const batch = writeBatch(db);
+  snapshot.docs.forEach((docSnap) => {
+    batch.delete(docSnap.ref);
+  });
+  await batch.commit();
+};
+
+export const upsertDailyLogFromExtraction = async (
+  userId: string,
+  profileId: string,
+  extraction: JournalMessageExtraction,
+  options?: {
+    date?: string;
+    profile?: Partial<ExpectantProfile> | null;
+  }
+): Promise<DailyLog> => {
+  const dateKey = getDateKey(options?.date);
+  const dailyLogRef = doc(getDailyLogsCollection(userId, profileId), dateKey);
+  const snapshot = await getDoc(dailyLogRef);
+  const previous = snapshot.exists() ? (snapshot.data() as Partial<DailyLog>) : {};
+
+  const age = getPregnancyAge(
+    options?.profile?.lastMenstrualPeriod,
+    options?.profile?.ultrasoundLastMenstrualPeriod
+  );
+  const calculatedWeek = age && !age.isFuture ? age.currentWeek : undefined;
+
+  const merged: DailyLog = {
+    id: dateKey,
+    profileId,
+    date: dateKey,
+    pregnancyWeek: calculatedWeek ?? previous.pregnancyWeek ?? 1,
+    status: 'ongoing',
+    meals: [
+      ...asNonEmptyArray((previous.meals as Meal[]) ?? []),
+      ...asNonEmptyArray((extraction.meals as Meal[]) ?? []),
+    ],
+    hydration: [
+      ...asNonEmptyArray((previous.hydration as HydrationLog[]) ?? []),
+      ...asNonEmptyArray((extraction.hydration as HydrationLog[]) ?? []),
+    ],
+    activities: [
+      ...asNonEmptyArray((previous.activities as Activity[]) ?? []),
+      ...asNonEmptyArray((extraction.activities as Activity[]) ?? []),
+    ],
+    symptoms: [
+      ...asNonEmptyArray((previous.symptoms as any[]) ?? []),
+      ...asNonEmptyArray((extraction.symptoms as any[]) ?? []),
+    ],
+    medications: [
+      ...asNonEmptyArray((previous.medications as MedicationLog[]) ?? []),
+      ...asNonEmptyArray((extraction.medications as MedicationLog[]) ?? []),
+    ],
+    ...(extraction.sleep || previous.sleep
+      ? { sleep: (extraction.sleep ?? previous.sleep) as DailyLog['sleep'] }
+      : {}),
+    vitals: [...asNonEmptyArray((previous.vitals ?? []) as any[])],
+    ...(extraction.mood || previous.mood
+      ? { mood: (extraction.mood ?? previous.mood) as DailyLog['mood'] }
+      : {}),
+    notes: [
+      ...asNonEmptyArray((previous.notes as Note[]) ?? []),
+      ...(extraction.notes ?? []).map(
+        (entry) => ({ text: entry, time: new Date().toISOString() }) as Note
+      ),
+      ...(extraction.other ?? []).map(
+        (entry) => ({ text: `[Other] ${entry}`, time: new Date().toISOString() }) as Note
+      ),
+    ],
+    createdAt: previous.createdAt ?? new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await setDoc(dailyLogRef, stripUndefinedDeep(merged), { merge: true });
+  return merged;
+};
+
+export const subscribeToJournalChats = (
+  userId: string,
+  profileId: string,
+  onUpdate: (messages: JournalChatRecord[]) => void,
+  onError?: (error: Error) => void
+): ReturnType<typeof onSnapshot> => {
+  const q = query(
+    getJournalChatsCollection(userId, profileId),
+    orderBy('timestamp', 'desc'),
+    limit(60)
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const messages = snapshot.docs
+        .map((docSnapshot) => ({
+          id: docSnapshot.id,
+          ...docSnapshot.data(),
+        }))
+        .reverse() as JournalChatRecord[];
+      onUpdate(messages);
+    },
+    (error) => {
+      if (onError) onError(error);
+    }
+  );
+};
+
+export const subscribeToRecentDailyLogs = (
+  userId: string,
+  profileId: string,
+  onUpdate: (logs: DailyLog[]) => void,
+  maxDays = 7
+): ReturnType<typeof onSnapshot> => {
+  const q = query(
+    getDailyLogsCollection(userId, profileId),
+    orderBy('date', 'desc'),
+    limit(maxDays)
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const logs = snapshot.docs.map((docSnapshot) => ({
+        id: docSnapshot.id,
+        ...docSnapshot.data(),
+      })) as DailyLog[];
+      onUpdate(logs);
+    },
+    () => undefined
+  );
+};

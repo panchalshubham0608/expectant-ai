@@ -8,7 +8,19 @@ import type { MedicationLog } from '../../models/medication';
 import type { Symptom } from '../../models/symptom';
 
 // Re-export public API from sub-services
-export { generateJournalChatReply, mergeJournalExtraction } from './journalChatAI';\nexport { buildJournalChatContext, type JournalChatContextInput, type JournalChatContext } from './journalChatContextBuilder';\nexport { saveJournalChatTurn, upsertDailyLogFromExtraction, subscribeToJournalChats } from './journalChatPersistence';
+export { generateJournalChatReply, mergeJournalExtraction } from './journalChatAI';
+export {
+  buildJournalChatContext,
+  type JournalChatContextInput,
+  type JournalChatContext,
+} from './journalChatContextBuilder';
+export {
+  saveJournalChatTurn,
+  clearJournalChats,
+  upsertDailyLogFromExtraction,
+  subscribeToJournalChats,
+  subscribeToRecentDailyLogs,
+} from './journalChatPersistence';
 
 export interface JournalMessageExtraction {
   meals: Partial<Meal>[];
