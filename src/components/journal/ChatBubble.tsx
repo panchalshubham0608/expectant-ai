@@ -1,5 +1,7 @@
 import { AlertCircle, Bot, RotateCcw, Sparkles, User } from 'lucide-react';
 import type { ReactNode } from 'react';
+import type { ChatSuggestedAppointment } from '../../services/ai/journalChatService';
+import ChatAppointmentFormCard from './ChatAppointmentFormCard';
 
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
@@ -8,6 +10,9 @@ interface ChatBubbleProps {
   timestamp?: string;
   isError?: boolean;
   onRetry?: () => void;
+  suggestedAppointment?: ChatSuggestedAppointment;
+  onSaveAppointment?: (draft: ChatSuggestedAppointment) => Promise<string | void>;
+  onDismissAppointment?: (draft: ChatSuggestedAppointment) => Promise<void> | void;
 }
 
 const renderInlineBold = (text: string): ReactNode[] => {
@@ -84,6 +89,9 @@ function ChatBubble({
   timestamp,
   isError = false,
   onRetry,
+  suggestedAppointment,
+  onSaveAppointment,
+  onDismissAppointment,
 }: ChatBubbleProps) {
   const isUser = role === 'user';
   const timeLabel = formatTime(timestamp);
@@ -109,7 +117,11 @@ function ChatBubble({
       )}
 
       <div
-        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+        className={`${
+          !isUser && suggestedAppointment
+            ? 'w-full max-w-[90%] sm:max-w-xl'
+            : 'max-w-[80%]'
+        } rounded-2xl px-4 py-3 text-sm ${
           isUser
             ? 'rounded-br-sm bg-emerald-700 text-white shadow-xs'
             : isError
@@ -121,6 +133,14 @@ function ChatBubble({
           <p className="whitespace-pre-wrap leading-relaxed">{message}</p>
         ) : (
           renderFormattedMessage(message)
+        )}
+
+        {!isUser && !isError && suggestedAppointment && onSaveAppointment && (
+          <ChatAppointmentFormCard
+            initialDraft={suggestedAppointment}
+            onSave={onSaveAppointment}
+            onDismiss={onDismissAppointment}
+          />
         )}
 
         {showFollowUp && (

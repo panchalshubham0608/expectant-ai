@@ -25,6 +25,7 @@ import {
 } from '../../lib/collections';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
 import type {
+  ChatSuggestedAppointment,
   JournalMessageExtraction,
   JournalChatReply,
   JournalChatRecord,
@@ -95,6 +96,27 @@ export const saveJournalChatTurn = async (
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     },
+    { merge: true }
+  );
+};
+
+export const updateJournalChatSuggestedAppointment = async (
+  userId: string,
+  profileId: string,
+  messageId: string,
+  suggestedAppointment: ChatSuggestedAppointment
+): Promise<void> => {
+  const chatsRef = getJournalChatsCollection(userId, profileId);
+  const chatDocRef = doc(chatsRef, messageId);
+
+  await setDoc(
+    chatDocRef,
+    stripUndefinedDeep({
+      reply: {
+        suggestedAppointment,
+      },
+      updatedAt: serverTimestamp(),
+    }),
     { merge: true }
   );
 };

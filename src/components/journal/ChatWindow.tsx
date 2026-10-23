@@ -8,15 +8,20 @@ import { useAppointments } from '../../hooks/useAppointments';
 import { useMeasurements } from '../../hooks/useMeasurements';
 import { useReminders } from '../../hooks/useReminders';
 import { getGeminiApiKey } from '../../services/profiles/profileService';
+import { saveAppointment } from '../../services/appointments/appointmentService';
 import { subscribeToMedicalReports } from '../../services/reports/medicalReportService';
 import { subscribeToMedications } from '../../services/medication/medicationService';
 import {
+  type ChatSuggestedAppointment,
   EMPTY_JOURNAL_EXTRACTION,
   generateJournalChatReply,
+  type JournalChatRecord,
+  type JournalMessageExtraction,
+  normalizeSuggestedAppointment,
   saveJournalChatTurn,
   subscribeToJournalChats,
   subscribeToRecentDailyLogs,
-  type JournalMessageExtraction,
+  updateJournalChatSuggestedAppointment,
   upsertDailyLogFromExtraction,
 } from '../../services/ai/journalChatService';
 import type { ConversationMessage } from '../../models/chat';
@@ -31,6 +36,7 @@ interface Message {
   role: 'user' | 'assistant';
   message: string;
   followUpQuestion?: string;
+  suggestedAppointment?: ChatSuggestedAppointment;
   timestamp?: string;
   isError?: boolean;
   retryPrompt?: string;
@@ -87,6 +93,8 @@ function ChatWindow() {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [recentDailyLogs, setRecentDailyLogs] = useState<DailyLog[]>([]);
 
+  const [chatRecords, setChatRecords] = useState<JournalChatRecord[]>([]);
+  const [hasLoadedChats, setHasLoadedChats] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -151,22 +159,50 @@ function ChatWindow() {
     if (!userId || !id) return;
 
     const unsubscribe = subscribeToJournalChats(userId, id, (records) => {
-      const history: Message[] = records
-        .filter((record) => record.role === 'user' || record.role === 'assistant')
-        .map((record) => ({
-          id: String(record.id),
-          role: record.role as 'user' | 'assistant',
-          message: record.content,
-          followUpQuestion:
-            record.role === 'assistant' ? record.reply?.followUpQuestion : undefined,
-          timestamp: record.timestamp,
-        }));
-
-      setMessages(history);
+      setChatRecords(records);
+      setHasLoadedChats(true);
     });
 
     return unsubscribe;
   }, [userId, id]);
+
+  useEffect(() => {
+    if (!hasLoadedChats) return;
+
+    if (chatRecords.length === 0) {
+      setMessages((prev) => prev.filter((m) => m.isError));
+      return;
+    }
+
+    const history: Message[] = chatRecords
+      .filter((record) => record.role === 'user' || record.role === 'assistant')
+      .map((record) => ({
+        id: String(record.id),
+        role: record.role as 'user' | 'assistant',
+        message: record.content,
+        followUpQuestion:
+          record.role === 'assistant' ? record.reply?.followUpQuestion : undefined,
+        suggestedAppointment:
+          record.role === 'assistant'
+            ? normalizeSuggestedAppointment(
+                record.reply?.suggestedAppointment,
+                {
+                  profile: profile ?? null,
+                  appointments: appointments ?? [],
+                  reports,
+                },
+                record.content
+              )
+            : undefined,
+        timestamp: record.timestamp,
+      }));
+
+    setMessages((prev) => {
+      const historyIds = new Set(history.map((m) => m.id));
+      const pending = prev.filter((m) => !historyIds.has(m.id));
+      return [...history, ...pending];
+    });
+  }, [hasLoadedChats, chatRecords, profile, appointments, reports]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -192,6 +228,60 @@ function ChatWindow() {
       window.removeEventListener('scroll', handleScroll);
     };
   }, [messages.length]);
+
+  const handleSaveSuggestedAppointment = async (
+    messageId: string,
+    draft: ChatSuggestedAppointment
+  ): Promise<string | void> => {
+    if (!userId || !id) {
+      throw new Error('User or profile not available');
+    }
+
+    const createdId = await saveAppointment(userId, id, {
+      scheduledAt: draft.scheduledAt ?? new Date().toISOString(),
+      doctorName: draft.doctorName ?? '',
+      ...(draft.specialty ? { specialty: draft.specialty } : {}),
+      ...(draft.hospital ? { hospital: draft.hospital } : {}),
+      reason: draft.reason,
+      questions: draft.questions ?? [],
+      observations: [],
+      diagnoses: [],
+      recommendations: [],
+      prescribedMedications: [],
+      medicalRecordIds: [],
+      status: 'scheduled',
+    });
+
+    const savedDraft: ChatSuggestedAppointment = {
+      ...draft,
+      savedAppointmentId: createdId,
+      dismissed: false,
+    };
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedAppointment: savedDraft } : m
+      )
+    );
+
+    await updateJournalChatSuggestedAppointment(userId, id, messageId, savedDraft);
+    return createdId;
+  };
+
+  const handleDismissSuggestedAppointment = async (
+    messageId: string,
+    draft: ChatSuggestedAppointment
+  ): Promise<void> => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedAppointment: draft } : m
+      )
+    );
+
+    if (userId && id) {
+      await updateJournalChatSuggestedAppointment(userId, id, messageId, draft);
+    }
+  };
 
   async function sendPrompt(rawContent: string, isRetry = false) {
     const content = rawContent.trim();
@@ -255,6 +345,7 @@ function ChatWindow() {
         role: 'assistant',
         message: result.reply.answer,
         followUpQuestion: result.reply.followUpQuestion,
+        suggestedAppointment: result.reply.suggestedAppointment,
         timestamp: assistantTimestamp,
       };
 
@@ -336,6 +427,13 @@ function ChatWindow() {
             role={message.role}
             message={message.message}
             followUpQuestion={message.followUpQuestion}
+            suggestedAppointment={message.suggestedAppointment}
+            onSaveAppointment={(draft) =>
+              handleSaveSuggestedAppointment(message.id, draft)
+            }
+            onDismissAppointment={(draft) =>
+              handleDismissSuggestedAppointment(message.id, draft)
+            }
             timestamp={message.timestamp}
             isError={message.isError}
             onRetry={
