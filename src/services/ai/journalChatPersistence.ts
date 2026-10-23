@@ -27,6 +27,7 @@ import { getPregnancyAge } from '../../utils/pregnancyUtils';
 import type {
   ChatSuggestedAppointment,
   ChatSuggestedReminder,
+  ChatSuggestedVitals,
   JournalMessageExtraction,
   JournalChatReply,
   JournalChatRecord,
@@ -136,6 +137,27 @@ export const updateJournalChatSuggestedReminder = async (
     stripUndefinedDeep({
       reply: {
         suggestedReminder,
+      },
+      updatedAt: serverTimestamp(),
+    }),
+    { merge: true }
+  );
+};
+
+export const updateJournalChatSuggestedVitals = async (
+  userId: string,
+  profileId: string,
+  messageId: string,
+  suggestedVitals: ChatSuggestedVitals
+): Promise<void> => {
+  const chatsRef = getJournalChatsCollection(userId, profileId);
+  const chatDocRef = doc(chatsRef, messageId);
+
+  await setDoc(
+    chatDocRef,
+    stripUndefinedDeep({
+      reply: {
+        suggestedVitals,
       },
       updatedAt: serverTimestamp(),
     }),

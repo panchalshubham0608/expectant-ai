@@ -7,12 +7,14 @@ import type { Meal } from '../../models/meal';
 import type { MedicationLog } from '../../models/medication';
 import type { ReminderFrequency } from '../../models/reminder';
 import type { Symptom } from '../../models/symptom';
+import type { VitalCategory } from '../../models/measurement';
 
 export {
   generateJournalChatReply,
   mergeJournalExtraction,
   normalizeSuggestedAppointment,
   normalizeSuggestedReminder,
+  normalizeSuggestedVitals,
 } from './journalChatAI';
 export {
   buildJournalChatContext,
@@ -23,6 +25,7 @@ export {
   saveJournalChatTurn,
   updateJournalChatSuggestedAppointment,
   updateJournalChatSuggestedReminder,
+  updateJournalChatSuggestedVitals,
   clearJournalChats,
   upsertDailyLogFromExtraction,
   subscribeToJournalChats,
@@ -65,12 +68,32 @@ export interface ChatSuggestedReminder {
   dismissed?: boolean;
 }
 
+export interface ChatSuggestedVitalItem {
+  id: string;
+  label: string;
+  value: string;
+  unit?: string;
+  category?: VitalCategory;
+  normalRange?: string;
+  measuredAt: string;
+  sourceReportTitle?: string;
+  notes?: string;
+  selected?: boolean;
+}
+
+export interface ChatSuggestedVitals {
+  items: ChatSuggestedVitalItem[];
+  savedAt?: string;
+  dismissed?: boolean;
+}
+
 export interface JournalChatReply {
   answer: string;
   followUpQuestion?: string;
   summary?: string;
   suggestedAppointment?: ChatSuggestedAppointment;
   suggestedReminder?: ChatSuggestedReminder;
+  suggestedVitals?: ChatSuggestedVitals;
 }
 
 export interface JournalChatTurnResult {

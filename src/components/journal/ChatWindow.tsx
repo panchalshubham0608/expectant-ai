@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ArrowDown, Bot, Sparkles } from 'lucide-react';
 
@@ -9,27 +9,37 @@ import { useMeasurements } from '../../hooks/useMeasurements';
 import { useReminders } from '../../hooks/useReminders';
 import { getGeminiApiKey } from '../../services/profiles/profileService';
 import { saveAppointment } from '../../services/appointments/appointmentService';
+import { updateMeasurements } from '../../services/measurements/measurementsService';
 import { saveReminder } from '../../services/reminders/reminderService';
 import { subscribeToMedicalReports } from '../../services/reports/medicalReportService';
 import { subscribeToMedications } from '../../services/medication/medicationService';
 import {
   type ChatSuggestedAppointment,
   type ChatSuggestedReminder,
+  type ChatSuggestedVitals,
   EMPTY_JOURNAL_EXTRACTION,
   generateJournalChatReply,
   type JournalChatRecord,
   type JournalMessageExtraction,
   normalizeSuggestedAppointment,
   normalizeSuggestedReminder,
+  normalizeSuggestedVitals,
   saveJournalChatTurn,
   subscribeToJournalChats,
   subscribeToRecentDailyLogs,
   updateJournalChatSuggestedAppointment,
   updateJournalChatSuggestedReminder,
+  updateJournalChatSuggestedVitals,
   upsertDailyLogFromExtraction,
 } from '../../services/ai/journalChatService';
 import type { ConversationMessage } from '../../models/chat';
 import type { DailyLog } from '../../models/dailylLog';
+import {
+  mergeMeasurementsWithDefaults,
+  normalizeMeasurementHistory,
+  recomputeMeasurementFromHistory,
+  type Measurement,
+} from '../../models/measurement';
 import type { Medication } from '../../models/medication';
 import type { Report } from '../../models/report';
 import ChatBubble from './ChatBubble';
@@ -42,6 +52,7 @@ interface Message {
   followUpQuestion?: string;
   suggestedAppointment?: ChatSuggestedAppointment;
   suggestedReminder?: ChatSuggestedReminder;
+  suggestedVitals?: ChatSuggestedVitals;
   timestamp?: string;
   isError?: boolean;
   retryPrompt?: string;
@@ -93,6 +104,11 @@ function ChatWindow() {
   const { appointments } = useAppointments(userId, id);
   const { measurements } = useMeasurements(userId, id);
   const { reminders } = useReminders(userId, id);
+
+  const mergedMeasurements = useMemo(
+    () => mergeMeasurementsWithDefaults(measurements),
+    [measurements]
+  );
 
   const [reports, setReports] = useState<Report[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -180,9 +196,19 @@ function ChatWindow() {
       return;
     }
 
-    const history: Message[] = chatRecords
-      .filter((record) => record.role === 'user' || record.role === 'assistant')
-      .map((record) => ({
+    const filteredRecords = chatRecords.filter(
+      (record) => record.role === 'user' || record.role === 'assistant'
+    );
+
+    const history: Message[] = filteredRecords.map((record, index) => {
+      const prevUserMessage =
+        record.role === 'assistant' &&
+        index > 0 &&
+        filteredRecords[index - 1]?.role === 'user'
+          ? filteredRecords[index - 1].content
+          : undefined;
+
+      return {
         id: String(record.id),
         role: record.role as 'user' | 'assistant',
         message: record.content,
@@ -212,8 +238,21 @@ function ChatWindow() {
                 record.content
               )
             : undefined,
+        suggestedVitals:
+          record.role === 'assistant'
+            ? normalizeSuggestedVitals(
+                record.reply?.suggestedVitals,
+                {
+                  message: prevUserMessage,
+                  reports,
+                  measurements: mergedMeasurements,
+                },
+                record.content
+              )
+            : undefined,
         timestamp: record.timestamp,
-      }));
+      };
+    });
 
     setMessages((prev) => {
       const historyIds = new Set(history.map((m) => m.id));
@@ -228,6 +267,7 @@ function ChatWindow() {
     reports,
     medications,
     reminders,
+    mergedMeasurements,
   ]);
 
   const scrollToBottom = () => {
@@ -369,6 +409,138 @@ function ChatWindow() {
     }
   };
 
+  const handleSaveSuggestedVitals = async (
+    messageId: string,
+    draft: ChatSuggestedVitals
+  ): Promise<void> => {
+    if (!userId || !id) {
+      throw new Error('User or profile not available');
+    }
+
+    const confirmedItems = (draft.items ?? []).filter(
+      (item) => item.selected !== false && item.value.trim() !== ''
+    );
+
+    if (confirmedItems.length === 0) return;
+
+    const currentList = [...mergedMeasurements];
+
+    for (const item of confirmedItems) {
+      const cleanVal = item.value.trim();
+      const measuredDate =
+        item.measuredAt || new Date().toISOString().slice(0, 10);
+      const entryNote =
+        item.notes ||
+        (item.sourceReportTitle
+          ? item.sourceReportTitle === 'Shared in Chat'
+            ? 'Logged via MIRA Chat'
+            : `Synced from ${item.sourceReportTitle}`
+          : undefined);
+
+      const matchIdx = currentList.findIndex(
+        (m) =>
+          m.id === item.id ||
+          m.label.trim().toLowerCase() === item.label.trim().toLowerCase()
+      );
+
+      if (matchIdx >= 0) {
+        const target = currentList[matchIdx];
+        const existingHistory = normalizeMeasurementHistory(target);
+        const sameDateIdx = existingHistory.findIndex(
+          (h) => h.measuredAt === measuredDate
+        );
+
+        const nextHistory = [...existingHistory];
+        const newEntry = {
+          id: `${target.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          value: cleanVal,
+          measuredAt: measuredDate,
+          ...(entryNote ? { notes: entryNote } : {}),
+        };
+
+        if (sameDateIdx >= 0) {
+          nextHistory[sameDateIdx] = {
+            ...nextHistory[sameDateIdx],
+            value: cleanVal,
+            ...(entryNote ? { notes: entryNote } : {}),
+          };
+        } else {
+          nextHistory.push(newEntry);
+        }
+
+        currentList[matchIdx] = recomputeMeasurementFromHistory(
+          {
+            ...target,
+            unit: item.unit || target.unit,
+            normalRange: item.normalRange || target.normalRange,
+            category: item.category || target.category,
+          },
+          nextHistory
+        );
+      } else {
+        const newVital: Measurement = recomputeMeasurementFromHistory(
+          {
+            id: item.id,
+            label: item.label,
+            category: item.category ?? 'custom',
+            value: cleanVal,
+            unit: item.unit,
+            normalRange: item.normalRange,
+            measuredAt: measuredDate,
+            isCustom: true,
+          },
+          [
+            {
+              id: `${item.id}-${Date.now()}`,
+              value: cleanVal,
+              measuredAt: measuredDate,
+              ...(entryNote ? { notes: entryNote } : {}),
+            },
+          ]
+        );
+        currentList.push(newVital);
+      }
+    }
+
+    const toPersist = currentList.filter(
+      (m) =>
+        m.value.trim() !== '' ||
+        (m.history && m.history.length > 0) ||
+        m.isCustom
+    );
+
+    await updateMeasurements(userId, id, toPersist);
+
+    const savedDraft: ChatSuggestedVitals = {
+      ...draft,
+      savedAt: draft.savedAt ?? new Date().toISOString(),
+      dismissed: false,
+    };
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedVitals: savedDraft } : m
+      )
+    );
+
+    await updateJournalChatSuggestedVitals(userId, id, messageId, savedDraft);
+  };
+
+  const handleDismissSuggestedVitals = async (
+    messageId: string,
+    draft: ChatSuggestedVitals
+  ): Promise<void> => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, suggestedVitals: draft } : m
+      )
+    );
+
+    if (userId && id) {
+      await updateJournalChatSuggestedVitals(userId, id, messageId, draft);
+    }
+  };
+
   async function sendPrompt(rawContent: string, isRetry = false) {
     const content = rawContent.trim();
     if (!content || isSending) return;
@@ -414,7 +586,7 @@ function ChatWindow() {
           profile: profile ?? null,
           reports,
           appointments: appointments ?? [],
-          measurements: measurements ?? [],
+          measurements: mergedMeasurements,
           medications,
           reminders,
           recentDailyLogs,
@@ -433,6 +605,7 @@ function ChatWindow() {
         followUpQuestion: result.reply.followUpQuestion,
         suggestedAppointment: result.reply.suggestedAppointment,
         suggestedReminder: result.reply.suggestedReminder,
+        suggestedVitals: result.reply.suggestedVitals,
         timestamp: assistantTimestamp,
       };
 
@@ -565,6 +738,14 @@ function ChatWindow() {
             }
             onDismissReminder={(draft) =>
               handleDismissSuggestedReminder(message.id, draft)
+            }
+            suggestedVitals={message.suggestedVitals}
+            currentMeasurements={mergedMeasurements}
+            onSaveVitals={(draft) =>
+              handleSaveSuggestedVitals(message.id, draft)
+            }
+            onDismissVitals={(draft) =>
+              handleDismissSuggestedVitals(message.id, draft)
             }
             timestamp={message.timestamp}
             isError={message.isError}

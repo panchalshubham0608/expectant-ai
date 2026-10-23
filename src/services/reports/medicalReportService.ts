@@ -5,11 +5,14 @@ import type { Measurement } from '../../models/measurement';
 import type { Medication } from '../../models/medication';
 import { getReportsCollection } from '../../lib/collections';
 
-const toMeasurement = (measurement : GeminiPregnancyReportResponse['measurements'][number]) : Measurement => ({
+const toMeasurement = (
+  measurement: GeminiPregnancyReportResponse['measurements'][number],
+  fallbackReportDate: string,
+): Measurement => ({
   id: measurement.name,
   value: measurement.value,
   label: measurement.name,
-  measuredAt: measurement.measuredAt || new Date().toISOString(),
+  measuredAt: measurement.measuredAt || fallbackReportDate,
   ...(measurement.unit !== undefined && { unit: measurement.unit }),
 });
 
@@ -30,6 +33,7 @@ export const saveAnalyzedMedicalReport = async (
 ): Promise<string> => {
   const reportsRef = getReportsCollection(userId, profileId);
   const newReportRef = doc(reportsRef);
+  const resolvedReportDate = summary.metadata?.reportDate || new Date().toISOString();
 
   const report: Omit<Partial<Report>, 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
     id: newReportRef.id,
@@ -37,7 +41,7 @@ export const saveAnalyzedMedicalReport = async (
 
     title: summary.metadata?.title || 'Uploaded Report',
     reportType: (summary.reportType as ReportType) || 'other',
-    reportDate: summary.metadata?.reportDate || new Date().toISOString(),
+    reportDate: resolvedReportDate,
 
     metadata: {
       title: summary.metadata?.title || '',
@@ -47,7 +51,7 @@ export const saveAnalyzedMedicalReport = async (
       pregnancyWeek: summary.metadata?.pregnancyWeek || null,
     },
     summary: summary.summary,
-    measurements: summary.measurements.map(toMeasurement) || [],
+    measurements: summary.measurements.map((m) => toMeasurement(m, resolvedReportDate)) || [],
     medicines: summary.medicines.map(toMedication) || [],
     diagnoses: summary.diagnoses || [],
     recommendations: summary.recommendations || [],
