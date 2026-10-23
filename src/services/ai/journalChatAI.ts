@@ -1,3 +1,8 @@
+import {
+  DEFAULT_VITAL_MEASUREMENTS,
+  type Measurement,
+  type VitalCategory,
+} from '../../models/measurement';
 import { DEFAULT_GEMINI_MODEL, getGeminiClient } from './geminiCore';
 import {
   buildJournalChatContext,
@@ -6,6 +11,8 @@ import {
 import type {
   ChatSuggestedAppointment,
   ChatSuggestedReminder,
+  ChatSuggestedVitalItem,
+  ChatSuggestedVitals,
   JournalMessageExtraction,
   JournalChatTurnResult,
 } from './journalChatService';
@@ -383,13 +390,625 @@ export const normalizeSuggestedReminder = (
   };
 };
 
+interface CanonicalVitalMeta {
+  id: string;
+  label: string;
+  category: VitalCategory;
+  unit: string;
+  normalRange?: string;
+}
+
+const resolveCanonicalVitalMeta = (
+  rawId?: string,
+  rawLabel?: string,
+  rawUnit?: string,
+  rawCategory?: VitalCategory,
+  rawNormalRange?: string,
+  existingHealthMeasurements?: Measurement[]
+): CanonicalVitalMeta | null => {
+  const cleanId = (rawId ?? '').trim().toLowerCase();
+  const cleanLabel = (rawLabel ?? '').trim().toLowerCase();
+  const combined = `${cleanId} ${cleanLabel}`.trim();
+
+  if (!combined) return null;
+
+  const findDefault = (id: string) =>
+    DEFAULT_VITAL_MEASUREMENTS.find((d) => d.id === id)!;
+
+  // Explicitly ignore expectant's / maternal heart rate (only Fetal Heart Rate is tracked)
+  if (
+    cleanId === 'heart-rate' ||
+    cleanId === 'heart rate' ||
+    cleanLabel === 'heart rate' ||
+    /\b(maternal[- ]?heart[- ]?rate|mother'?s?[- ]?heart[- ]?rate|pulse[- ]?rate)\b/i.test(
+      combined
+    )
+  ) {
+    return null;
+  }
+
+  // 1. Baby Weight / Estimated Fetal Weight (EFW)
+  if (
+    /\b(baby[- ]?weight|fetal[- ]?weight|foetal[- ]?weight|estimated[- ]?fetal[- ]?weight|efw)\b/i.test(
+      combined
+    )
+  ) {
+    const def = findDefault('baby-weight');
+    return {
+      id: def.id,
+      label: def.label,
+      category: 'baby',
+      unit: rawUnit?.trim() || def.unit || 'g',
+      normalRange: rawNormalRange?.trim() || def.normalRange,
+    };
+  }
+
+  // 2. Maternal Weight (unifying "Weight" and "Maternal Weight")
+  if (
+    /\b(maternal[- ]?weight|mother'?s?[- ]?weight|mom'?s?[- ]?weight|body[- ]?weight)\b/i.test(
+      combined
+    ) ||
+    cleanId === 'weight' ||
+    cleanLabel === 'weight'
+  ) {
+    const def = findDefault('maternal-weight');
+    return {
+      id: def.id,
+      label: def.label,
+      category: 'maternal',
+      unit: rawUnit?.trim() || def.unit || 'kg',
+      normalRange: rawNormalRange?.trim() || def.normalRange,
+    };
+  }
+
+  // 3. Gestational Age (inferred from ultrasound reports or chat)
+  if (
+    /\b(gestational[- ]?age|pregnancy[- ]?week|ultrasound[- ]?ga|composite[- ]?ga|mean[- ]?ga|fetal[- ]?age|crl[- ]?ga|average[- ]?us[- ]?ga)\b/i.test(
+      combined
+    ) ||
+    cleanId === 'ga' ||
+    cleanLabel === 'ga'
+  ) {
+    const def = findDefault('gestational-age');
+    return {
+      id: def.id,
+      label: def.label,
+      category: 'baby',
+      unit: rawUnit?.trim() || def.unit || 'weeks',
+      normalRange: rawNormalRange?.trim() || def.normalRange,
+    };
+  }
+
+  // 4. Fetal Heart Rate (unifying "Baby Heart Rate", "FHR", and "Fetal Heart Rate")
+  if (
+    /\b(fetal[- ]?heart[- ]?rate|foetal[- ]?heart[- ]?rate|fhr|baby'?s?[- ]?heart[- ]?rate|fetal[- ]?hr|baby[- ]?hr)\b/i.test(
+      combined
+    )
+  ) {
+    const def = findDefault('fetal-heart-rate');
+    return {
+      id: def.id,
+      label: def.label,
+      category: 'baby',
+      unit: rawUnit?.trim() || def.unit || 'bpm',
+      normalRange: rawNormalRange?.trim() || def.normalRange,
+    };
+  }
+
+  // 5. Blood Pressure
+  if (
+    /\b(blood[- ]?pressure|maternal[- ]?bp)\b/i.test(combined) ||
+    cleanId === 'bp' ||
+    cleanLabel === 'bp'
+  ) {
+    const def = findDefault('blood-pressure');
+    return {
+      id: def.id,
+      label: def.label,
+      category: 'maternal',
+      unit: rawUnit?.trim() || def.unit || 'mmHg',
+      normalRange: rawNormalRange?.trim() || def.normalRange,
+    };
+  }
+
+  // 6. Blood Sugar / Glucose (exclude urine sugar/glucose)
+  if (
+    !/\burine\b/i.test(combined) &&
+    /\b(blood[- ]?sugar|blood[- ]?glucose|fasting[- ]?blood[- ]?sugar|random[- ]?blood[- ]?sugar|post[- ]?prandial[- ]?blood[- ]?sugar|fasting[- ]?plasma[- ]?glucose|fbs|rbs|ppbs|ogtt|glucose[- ]?\(?fasting\)?|glucose[- ]?\(?random\)?)\b/i.test(
+      combined
+    )
+  ) {
+    const def = findDefault('blood-sugar');
+    return {
+      id: def.id,
+      label: def.label,
+      category: 'maternal',
+      unit: rawUnit?.trim() || def.unit || 'mg/dL',
+      normalRange: rawNormalRange?.trim() || def.normalRange,
+    };
+  }
+
+  // 7. Hemoglobin (exclude MCH, MCHC, HbA1c, glycosylated/urine)
+  if (
+    !/\b(mch|mchc|corpuscular|a1c|glycosylated|glycated|urine)\b/i.test(combined) &&
+    /\b(ha?emoglobin|hb|hgb)\b/i.test(combined)
+  ) {
+    const def = findDefault('hemoglobin');
+    return {
+      id: def.id,
+      label: def.label,
+      category: 'maternal',
+      unit: rawUnit?.trim() || def.unit || 'g/dL',
+      normalRange: rawNormalRange?.trim() || def.normalRange,
+    };
+  }
+
+  // 8. Also allow any custom vital that the user has explicitly added to their Health section
+  if (Array.isArray(existingHealthMeasurements) && existingHealthMeasurements.length > 0) {
+    const matchedCustom = existingHealthMeasurements.find((m) => {
+      if (!m.isCustom) return false;
+      const mId = m.id?.trim().toLowerCase();
+      const mLabel = m.label?.trim().toLowerCase();
+      return (
+        (cleanId && (mId === cleanId || mLabel === cleanId)) ||
+        (cleanLabel && (mLabel === cleanLabel || mId === cleanLabel))
+      );
+    });
+
+    if (matchedCustom) {
+      return {
+        id: matchedCustom.id,
+        label: matchedCustom.label,
+        category: matchedCustom.category ?? rawCategory ?? 'custom',
+        unit: rawUnit?.trim() || matchedCustom.unit || '',
+        normalRange: rawNormalRange?.trim() || matchedCustom.normalRange,
+      };
+    }
+  }
+
+  return null;
+};
+
+const normalizeDateYMD = (value?: string, fallbackDate?: string): string => {
+  const fallback = fallbackDate || new Date().toISOString().slice(0, 10);
+  if (!value) return fallback;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  return fallback;
+};
+
+const formatGestationalAgeValueAndUnit = (
+  rawValue: string,
+  rawUnit?: string
+): { value: string; unit: string } => {
+  const trimmed = rawValue.trim();
+  if (!trimmed) return { value: '', unit: 'weeks' };
+  // If value already includes week/day units like "24 weeks 3 days" or "24w 3d", don't duplicate "weeks"
+  if (/\b(\d+\s*w(?:eeks?|ks?)?|\d+\s*d(?:ays?)?)\b/i.test(trimmed)) {
+    const withoutTrailingWeeks = trimmed.replace(/\s+weeks?$/i, '');
+    if (/^\d+(?:\.\d+)?$/.test(withoutTrailingWeeks)) {
+      return { value: withoutTrailingWeeks, unit: 'weeks' };
+    }
+    return { value: trimmed, unit: '' };
+  }
+  return { value: trimmed, unit: rawUnit?.trim() || 'weeks' };
+};
+
+const extractVitalsFromUserMessage = (
+  message?: string,
+  todayStr?: string
+): ChatSuggestedVitalItem[] => {
+  if (!message) return [];
+  const trimmed = message.trim();
+  if (!trimmed) return [];
+
+  // Avoid extracting numbers from pure questions that don't state a reading
+  const isPureQuestionWithoutReading =
+    /^(what|how|why|when|can|should|is)\b/i.test(trimmed) &&
+    !/\b(my|is|was|at|measured|logged|recorded|came back|today)\b.*\d/i.test(trimmed);
+  if (isPureQuestionWithoutReading) return [];
+
+  const measuredAt = todayStr || new Date().toISOString().slice(0, 10);
+  const discovered: ChatSuggestedVitalItem[] = [];
+
+  // 1. Blood pressure e.g. "BP is 118/76", "blood pressure 120/80 mmHg"
+  const bpMatch = trimmed.match(
+    /\b(?:blood\s*pressure|bp)\s*(?:is|was|at|of|:|=)?\s*(\d{2,3}\s*\/\s*\d{2,3})(?:\s*mmhg)?\b/i
+  );
+  if (bpMatch) {
+    const meta = resolveCanonicalVitalMeta('blood-pressure', 'Blood Pressure')!;
+    discovered.push({
+      id: meta.id,
+      label: meta.label,
+      value: bpMatch[1].replace(/\s+/g, ''),
+      unit: meta.unit,
+      category: meta.category,
+      normalRange: meta.normalRange,
+      measuredAt,
+      sourceReportTitle: 'Shared in Chat',
+      selected: true,
+    });
+  }
+
+  // 2. Baby weight / EFW e.g. "baby weight is 1250g", "baby's weight 1.4 kg", "EFW 950 g"
+  const babyWeightMatch = trimmed.match(
+    /\b(?:baby(?:'s)?\s*weight|fetal\s*weight|estimated\s*fetal\s*weight|efw)\s*(?:is|was|at|of|:|=)?\s*(\d+(?:\.\d+)?)\s*(g|gm|grams?|kg|kgs?)\b/i
+  );
+  if (babyWeightMatch) {
+    const rawVal = Number(babyWeightMatch[1]);
+    const rawUnit = babyWeightMatch[2].toLowerCase();
+    const isKg = rawUnit.startsWith('k');
+    const valueInGrams = isKg && rawVal < 10 ? String(Math.round(rawVal * 1000)) : babyWeightMatch[1];
+    const meta = resolveCanonicalVitalMeta('baby-weight', 'Baby Weight', 'g')!;
+    discovered.push({
+      id: meta.id,
+      label: meta.label,
+      value: valueInGrams,
+      unit: 'g',
+      category: meta.category,
+      normalRange: meta.normalRange,
+      measuredAt,
+      sourceReportTitle: 'Shared in Chat',
+      selected: true,
+    });
+  }
+
+  // 3. Gestational age e.g. "gestational age is 24w 3d", "gestational age 22 weeks 2 days"
+  const gaMatch = trimmed.match(
+    /\b(?:gestational\s*age|ultrasound\s*ga)\s*(?:is|was|at|of|:|=)?\s*(\d{1,2}\s*(?:weeks?|wks?|w)(?:\s*(?:and\s*|\+\s*)?\d\s*(?:days?|d))?|\d{1,2}(?:\.\d+)?)\b/i
+  );
+  if (gaMatch) {
+    const meta = resolveCanonicalVitalMeta('gestational-age', 'Gestational Age')!;
+    const formatted = formatGestationalAgeValueAndUnit(gaMatch[1], meta.unit);
+    discovered.push({
+      id: meta.id,
+      label: meta.label,
+      value: formatted.value,
+      unit: formatted.unit,
+      category: meta.category,
+      normalRange: meta.normalRange,
+      measuredAt,
+      sourceReportTitle: 'Shared in Chat',
+      selected: true,
+    });
+  }
+
+  // 4. Maternal weight e.g. "my weight is 64.5 kg", "weight today 65 kg", "weigh 63.2 kg"
+  const maternalWeightMatch = trimmed.match(
+    /\b(?:my\s*weight|maternal\s*weight|current\s*weight|weight(?:\s*today|\s*now)?|i\s*weigh)\s*(?:is|was|at|of|:|=)?\s*(\d{2,3}(?:\.\d+)?)\s*(kg|kgs?|kilograms?|lbs?|pounds?)?\b/i
+  );
+  if (
+    maternalWeightMatch &&
+    !/\b(?:baby|fetal|foetal|efw)\s+weight/i.test(maternalWeightMatch[0])
+  ) {
+    const numVal = Number(maternalWeightMatch[1]);
+    if (numVal >= 30 && numVal <= 250) {
+      const unitRaw = (maternalWeightMatch[2] || 'kg').toLowerCase();
+      const unit = unitRaw.startsWith('lb') || unitRaw.startsWith('pound') ? 'lbs' : 'kg';
+      const meta = resolveCanonicalVitalMeta('maternal-weight', 'Maternal Weight', unit)!;
+      discovered.push({
+        id: meta.id,
+        label: meta.label,
+        value: maternalWeightMatch[1],
+        unit,
+        category: meta.category,
+        normalRange: meta.normalRange,
+        measuredAt,
+        sourceReportTitle: 'Shared in Chat',
+        selected: true,
+      });
+    }
+  }
+
+  // 5. Fetal heart rate e.g. "fetal heart rate 148 bpm", "FHR is 152", "baby's heart rate was 145 bpm"
+  const fhrMatch = trimmed.match(
+    /\b(?:fetal\s*heart\s*rate|baby(?:'s)?\s*heart\s*rate|baby(?:'s)?\s*heartbeat|fhr)\s*(?:is|was|at|of|:|=)?\s*(\d{2,3})(?:\s*bpm)?\b/i
+  );
+  if (fhrMatch) {
+    const meta = resolveCanonicalVitalMeta('fetal-heart-rate', 'Fetal Heart Rate')!;
+    discovered.push({
+      id: meta.id,
+      label: meta.label,
+      value: fhrMatch[1],
+      unit: meta.unit,
+      category: meta.category,
+      normalRange: meta.normalRange,
+      measuredAt,
+      sourceReportTitle: 'Shared in Chat',
+      selected: true,
+    });
+  }
+
+  // 6. Blood sugar / glucose e.g. "blood sugar is 92", "fasting glucose 88 mg/dL", "FBS 90"
+  const sugarMatch = trimmed.match(
+    /\b(?:fasting\s*blood\s*sugar|random\s*blood\s*sugar|blood\s*sugar|blood\s*glucose|fasting\s*glucose|sugar\s*level|glucose\s*level|fbs|rbs|ppbs)\s*(?:is|was|at|of|:|=)?\s*(\d{2,3}(?:\.\d+)?)(?:\s*mg\/dl)?\b/i
+  );
+  if (sugarMatch) {
+    const meta = resolveCanonicalVitalMeta('blood-sugar', 'Blood Sugar')!;
+    discovered.push({
+      id: meta.id,
+      label: meta.label,
+      value: sugarMatch[1],
+      unit: meta.unit,
+      category: meta.category,
+      normalRange: meta.normalRange,
+      measuredAt,
+      sourceReportTitle: 'Shared in Chat',
+      selected: true,
+    });
+  }
+
+  // 7. Hemoglobin e.g. "hemoglobin is 11.8", "Hb 12.1 g/dL"
+  const hbMatch = trimmed.match(
+    /\b(?:ha?emoglobin|hb|hgb)\s*(?:level)?\s*(?:is|was|at|of|:|=)?\s*(\d{1,2}(?:\.\d+)?)(?:\s*g\/dl)?\b/i
+  );
+  if (hbMatch) {
+    const meta = resolveCanonicalVitalMeta('hemoglobin', 'Hemoglobin')!;
+    discovered.push({
+      id: meta.id,
+      label: meta.label,
+      value: hbMatch[1],
+      unit: meta.unit,
+      category: meta.category,
+      normalRange: meta.normalRange,
+      measuredAt,
+      sourceReportTitle: 'Shared in Chat',
+      selected: true,
+    });
+  }
+
+  return discovered;
+};
+
+export const normalizeSuggestedVitals = (
+  raw: Partial<ChatSuggestedVitals> | undefined,
+  contextInput: Partial<JournalChatContextInput>,
+  answerText?: string
+): ChatSuggestedVitals | undefined => {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const userMessage = contextInput.message ?? '';
+  const existingHealthMeasurements = contextInput.measurements ?? [];
+
+  const isReportScanIntent = Boolean(
+    /\b(scan|check|find|extract|pull|sync|update|discover|latest)\b.*\b(report|reports|vital|vitals|measurement|measurements)\b/i.test(
+      userMessage
+    ) ||
+      /\b(report|reports)\b.*\b(vital|vitals|measurement|measurements|weight|bp|blood pressure|hemoglobin|heart rate|sugar|gestational)\b/i.test(
+        userMessage
+      ) ||
+      (answerText &&
+        /confirmation card right below|auto-update these vitals|discovered vitals from your reports/i.test(
+          answerText
+        ))
+  );
+
+  const rawItems = Array.isArray(raw?.items)
+    ? raw.items.filter((item) => item && String(item.value ?? '').trim() !== '')
+    : [];
+
+  const normalizedAiItems: ChatSuggestedVitalItem[] = [];
+  for (const item of rawItems) {
+    const meta = resolveCanonicalVitalMeta(
+      item.id,
+      item.label,
+      item.unit,
+      item.category,
+      item.normalRange,
+      existingHealthMeasurements
+    );
+    if (!meta) continue;
+
+    const rawVal = String(item.value ?? '').trim();
+    if (meta.id === 'gestational-age') {
+      const formatted = formatGestationalAgeValueAndUnit(rawVal, item.unit || meta.unit);
+      normalizedAiItems.push({
+        id: meta.id,
+        label: meta.label,
+        value: formatted.value,
+        unit: formatted.unit,
+        category: meta.category,
+        normalRange: item.normalRange?.trim() || meta.normalRange,
+        measuredAt: normalizeDateYMD(item.measuredAt, todayStr),
+        sourceReportTitle: item.sourceReportTitle?.trim() || undefined,
+        notes: item.notes?.trim() || undefined,
+        selected: item.selected ?? true,
+      });
+      continue;
+    }
+
+    const cleanedVal =
+      meta.unit &&
+      rawVal.toLowerCase().endsWith(meta.unit.toLowerCase()) &&
+      rawVal.length > meta.unit.length
+        ? rawVal.slice(0, -meta.unit.length).trim()
+        : rawVal;
+
+    normalizedAiItems.push({
+      id: meta.id,
+      label: meta.label,
+      value: cleanedVal,
+      unit: item.unit?.trim() || meta.unit,
+      category: meta.category,
+      normalRange: item.normalRange?.trim() || meta.normalRange,
+      measuredAt: normalizeDateYMD(item.measuredAt, todayStr),
+      sourceReportTitle: item.sourceReportTitle?.trim() || undefined,
+      notes: item.notes?.trim() || undefined,
+      selected: item.selected ?? true,
+    });
+  }
+
+  // Extract latest measurements from uploaded medical reports when scanning reports (only for Health section vitals)
+  const reportItems: ChatSuggestedVitalItem[] = [];
+  if (isReportScanIntent && Array.isArray(contextInput.reports)) {
+    const sortedReports = [...contextInput.reports].sort(
+      (a, b) =>
+        new Date(b.reportDate || b.createdAt || 0).getTime() -
+        new Date(a.reportDate || a.createdAt || 0).getTime()
+    );
+
+    for (const report of sortedReports) {
+      const reportDate = normalizeDateYMD(
+        report.reportDate || report.createdAt,
+        todayStr
+      );
+      const reportMeasurements = report.measurements ?? [];
+      let foundGaInReport = false;
+
+      for (const m of reportMeasurements) {
+        const valStr = String(m.value ?? '').trim();
+        if (!valStr) continue;
+        const meta = resolveCanonicalVitalMeta(
+          m.id || m.type,
+          m.label,
+          m.unit,
+          m.category,
+          m.normalRange,
+          existingHealthMeasurements
+        );
+        if (!meta) continue;
+
+        if (meta.id === 'gestational-age') {
+          foundGaInReport = true;
+          const formatted = formatGestationalAgeValueAndUnit(valStr, m.unit || meta.unit);
+          reportItems.push({
+            id: meta.id,
+            label: meta.label,
+            value: formatted.value,
+            unit: formatted.unit,
+            category: meta.category,
+            normalRange: m.normalRange?.trim() || meta.normalRange,
+            measuredAt: normalizeDateYMD(m.measuredAt, reportDate),
+            sourceReportTitle: report.title,
+            notes: m.notes?.trim() || `From ${report.title}`,
+            selected: true,
+          });
+          continue;
+        }
+
+        const cleanedVal =
+          meta.unit &&
+          valStr.toLowerCase().endsWith(meta.unit.toLowerCase()) &&
+          valStr.length > meta.unit.length
+            ? valStr.slice(0, -meta.unit.length).trim()
+            : valStr;
+
+        reportItems.push({
+          id: meta.id,
+          label: meta.label,
+          value: cleanedVal,
+          unit: m.unit?.trim() || meta.unit,
+          category: meta.category,
+          normalRange: m.normalRange?.trim() || meta.normalRange,
+          measuredAt: normalizeDateYMD(m.measuredAt, reportDate),
+          sourceReportTitle: report.title,
+          notes: m.notes?.trim() || `From ${report.title}`,
+          selected: true,
+        });
+      }
+
+      // Also infer Gestational Age from ultrasound report metadata/summary if not already in report.measurements
+      const isUltrasoundReport =
+        report.reportType === 'ultrasound' ||
+        /\b(ultrasound|sonography|scan|anomaly|growth|fetal|foetal|nt\s*scan|dating)\b/i.test(
+          `${report.title ?? ''} ${report.summary?.plainEnglish ?? ''}`
+        );
+
+      if (!foundGaInReport && isUltrasoundReport) {
+        const metaGa = resolveCanonicalVitalMeta(
+          'gestational-age',
+          'Gestational Age'
+        )!;
+        const metadataWeek = report.metadata?.pregnancyWeek?.trim();
+        let inferredGa = metadataWeek || '';
+
+        if (!inferredGa) {
+          const searchPool = [
+            ...(report.summary?.importantFindings ?? []),
+            report.summary?.plainEnglish ?? '',
+          ].join(' ');
+          const gaTextMatch =
+            searchPool.match(
+              /\b(?:gestational\s*age|ultrasound\s*ga|composite\s*ga|mean\s*ga|fetal\s*age|maturity|fetus\s*of|pregnancy\s*of)\s*(?:is|of|at|:|~|approx\.?)?\s*(\d{1,2}\s*(?:weeks?|wks?|w)(?:\s*(?:and\s*|\+\s*)?\d\s*(?:days?|d))?)/i
+            ) ||
+            searchPool.match(
+              /\b(\d{1,2}\s*(?:weeks?|wks?)\s*(?:and\s*)?\d\s*(?:days?)|\d{1,2}\s*w\s*\d\s*d)\b/i
+            );
+          if (gaTextMatch) {
+            inferredGa = gaTextMatch[1].trim();
+          }
+        }
+
+        if (inferredGa) {
+          const formatted = formatGestationalAgeValueAndUnit(inferredGa, metaGa.unit);
+          reportItems.push({
+            id: metaGa.id,
+            label: metaGa.label,
+            value: formatted.value,
+            unit: formatted.unit,
+            category: metaGa.category,
+            normalRange: metaGa.normalRange,
+            measuredAt: reportDate,
+            sourceReportTitle: report.title,
+            notes: `From ${report.title}`,
+            selected: true,
+          });
+        }
+      }
+    }
+  }
+
+  // Also check if user directly provided vital updates in their message
+  const userMessageItems = extractVitalsFromUserMessage(userMessage, todayStr);
+
+  // Merge items by canonical id, prioritizing AI items + newest readings
+  const byId = new Map<string, ChatSuggestedVitalItem>();
+  for (const candidate of [
+    ...normalizedAiItems,
+    ...userMessageItems,
+    ...reportItems,
+  ]) {
+    if (!candidate.value) continue;
+    const existing = byId.get(candidate.id);
+    if (!existing) {
+      byId.set(candidate.id, candidate);
+    } else if (
+      candidate.measuredAt > existing.measuredAt &&
+      !normalizedAiItems.some((aiItem) => aiItem.id === existing.id)
+    ) {
+      byId.set(candidate.id, candidate);
+    } else if (!existing.sourceReportTitle && candidate.sourceReportTitle) {
+      byId.set(candidate.id, {
+        ...existing,
+        sourceReportTitle: candidate.sourceReportTitle,
+      });
+    }
+  }
+
+  const finalItems = Array.from(byId.values());
+  if (finalItems.length === 0) {
+    return undefined;
+  }
+
+  return {
+    items: finalItems,
+    savedAt: raw?.savedAt,
+    dismissed: raw?.dismissed,
+  };
+};
+
 const JOURNAL_CHAT_SYSTEM_INSTRUCTION = `You are MIRA (Maternal Intelligence & Record Assistant), a warm, empathetic, and deeply knowledgeable pregnancy companion and daily journal assistant for an expectant parent.
 
 You have full access to the expectant's context in the JSON payload:
 - "profile": Name, age, blood group, location, current pregnancy week/day, trimester, expected due date, LMP, care provider, and primaryHospital.
 - "medicalReports": Uploaded ultrasound, blood test, urine test, prescription, and consultation reports (including plain-English summaries, important findings, diagnoses, measurements, prescribed medicines, historical comparisons, and questions for the doctor).
 - "appointments": Upcoming scheduled visits and past completed visits (doctor name, specialty, hospital, reason, observations, diagnoses, recommendations, prescribed medications, and follow-up dates).
-- "healthMeasurements": Tracked vitals and measurements (weight, blood pressure, hemoglobin, glucose, fetal heart rate, etc.) with previous values and normal ranges.
+- "healthMeasurements": Tracked vitals and measurements (maternal weight, baby weight, gestational age, fetal heart rate, blood pressure, blood sugar, hemoglobin, etc.) with previous values and normal ranges.
 - "medications": Currently active medications (with dose, frequency, duration, instructions) and discontinued medications.
 - "activeReminders": Daily/weekly reminders configured by the expectant.
 - "recentDailyLogs" & "knownState": Recent daily journal logs (meals, hydration, symptoms, mood, sleep, activities, medications taken, notes).
@@ -442,6 +1061,29 @@ YOUR RESPONSIBILITIES:
        - For specific daily times (e.g., once, twice, or three times a day): populate "times" with 24-hour "HH:mm" strings (e.g., ["09:00", "21:00"]). Infer appropriate times from the user's message or medication instructions (e.g., "after breakfast" -> "09:00", "after lunch" -> "13:30", "at bedtime/after dinner" -> "21:00").
        - For repeating interval reminders (e.g., "every 2 hours" for hydration): populate "interval" (number, e.g., 2), "intervalUnit" ("hours" or "minutes"), "startTime" ("HH:mm", default "08:00"), and "endTime" ("HH:mm", default "20:00"), and leave "times" empty.
    - When you include "suggestedReminder", mention in "answer" that you've prepared a pre-filled reminder form right below so they can review or adjust the schedule and save it.
+
+7. Chat-Integrated Vital Signs Discovery & Auto-Update ("suggestedVitals"):
+   - Populate "suggestedVitals" ONLY for vitals that exist in the expectant's Health section ("healthMeasurements") in TWO scenarios:
+     a) REPORT SCANNING FOR VITALS: When the expectant asks to scan, check, find, extract, or update their vital measurements from their uploaded medical reports (or asks what the latest vitals in their reports are). Scan across "medicalReports" (selecting the latest reading by "reportDate" for each tracked vital) and populate "suggestedVitals.items" ONLY for vitals tracked in "healthMeasurements":
+        - Maternal Weight ("maternal-weight"): unify any "Weight" or "Maternal Weight" reading into "maternal-weight".
+        - Baby Weight ("baby-weight"): unify any "Estimated Fetal Weight", "EFW", "Fetal Weight", or "Baby Weight" reading into "baby-weight".
+        - Gestational Age ("gestational-age"): infer from the latest ultrasound report (from "measurements", "metadata.pregnancyWeek", or "summary.importantFindings").
+        - Fetal Heart Rate ("fetal-heart-rate"): unify any "Fetal Heart Rate", "Baby Heart Rate", or "FHR" reading into "fetal-heart-rate". Do NOT include the expectant's own maternal heart rate / pulse.
+        - Blood Pressure ("blood-pressure")
+        - Blood Sugar ("blood-sugar")
+        - Hemoglobin ("hemoglobin")
+        Do NOT include unrelated routine lab rows (such as WBC, RBC, Neutrophils, Urine pH, BPD, FL, or maternal heart rate). Set "measuredAt" to the report's "reportDate" ("YYYY-MM-DD") and "sourceReportTitle" to the report's title.
+     b) USER-PROVIDED VITAL UPDATES IN CHAT: When the expectant shares, logs, or mentions new readings for any of their tracked Health vitals directly in "currentMessage" (e.g., "My weight today is 64.5 kg", "BP was 118/76 and baby heart rate 148 bpm", "Baby weight is 1250g", "Gestational age is 24w 3d", "My fasting blood sugar is 90", "Hemoglobin came back at 11.8"). Extract every mentioned tracked vital reading into "suggestedVitals.items" with "measuredAt" set to "currentDate" (or the specific date mentioned in "YYYY-MM-DD" format) and "sourceReportTitle" set to "Shared in Chat".
+   - Leave "suggestedVitals" omitted/null for general conversation where the expectant neither shares new vital readings nor asks to scan/extract vitals from reports.
+   - Use ONLY the canonical IDs and labels from the Health section:
+     - "maternal-weight": label "Maternal Weight", category "maternal", unit "kg", normalRange "Steady trimester gain"
+     - "baby-weight": label "Baby Weight", category "baby", unit "g", normalRange "Varies by week"
+     - "gestational-age": label "Gestational Age", category "baby", unit "weeks", normalRange "1 – 40 weeks"
+     - "fetal-heart-rate": label "Fetal Heart Rate", category "baby", unit "bpm", normalRange "110 – 160"
+     - "blood-pressure": label "Blood Pressure", category "maternal", unit "mmHg", normalRange "90/60 – 120/80"
+     - "blood-sugar": label "Blood Sugar", category "maternal", unit "mg/dL", normalRange "70 – 95 (fasting)"
+     - "hemoglobin": label "Hemoglobin", category "maternal", unit "g/dL", normalRange "11.0 – 14.0"
+   - When you include "suggestedVitals", mention in "answer" that you've prepared a confirmation card right below so they can review and auto-update these vitals to their Health tracker.
 
 Return valid JSON matching the schema exactly.`;
 
@@ -655,6 +1297,33 @@ export const generateJournalChatReply = async (
             },
             required: ['title'],
           },
+          suggestedVitals: {
+            type: 'OBJECT',
+            properties: {
+              items: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    id: { type: 'STRING' },
+                    label: { type: 'STRING' },
+                    value: { type: 'STRING' },
+                    unit: { type: 'STRING' },
+                    category: {
+                      type: 'STRING',
+                      enum: ['maternal', 'baby', 'custom'],
+                    },
+                    normalRange: { type: 'STRING' },
+                    measuredAt: { type: 'STRING' },
+                    sourceReportTitle: { type: 'STRING' },
+                    notes: { type: 'STRING' },
+                  },
+                  required: ['label', 'value'],
+                },
+              },
+            },
+            required: ['items'],
+          },
         },
         required: ['extracted', 'answer'],
       },
@@ -672,6 +1341,7 @@ export const generateJournalChatReply = async (
     summary?: string;
     suggestedAppointment?: Partial<ChatSuggestedAppointment>;
     suggestedReminder?: Partial<ChatSuggestedReminder>;
+    suggestedVitals?: Partial<ChatSuggestedVitals>;
   }>;
 
   const extracted = normalizeExtraction(parsed.extracted ?? EMPTY_EXTRACTION);
@@ -691,6 +1361,12 @@ export const generateJournalChatReply = async (
     parsed.answer
   );
 
+  const suggestedVitals = normalizeSuggestedVitals(
+    parsed.suggestedVitals,
+    contextInput,
+    parsed.answer
+  );
+
   return {
     extracted: merged,
     reply: {
@@ -701,6 +1377,7 @@ export const generateJournalChatReply = async (
       summary: parsed.summary,
       suggestedAppointment,
       suggestedReminder,
+      suggestedVitals,
     },
   };
 };

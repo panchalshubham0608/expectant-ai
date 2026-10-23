@@ -48,12 +48,12 @@ export const DEFAULT_VITAL_MEASUREMENTS: Measurement[] = [
     history: [],
   },
   {
-    id: 'blood-pressure',
-    label: 'Blood Pressure',
-    category: 'maternal',
+    id: 'gestational-age',
+    label: 'Gestational Age',
+    category: 'baby',
     value: '',
-    unit: 'mmHg',
-    normalRange: '90/60 – 120/80',
+    unit: 'weeks',
+    normalRange: '1 – 40 weeks',
     measuredAt: '',
     history: [],
   },
@@ -64,6 +64,16 @@ export const DEFAULT_VITAL_MEASUREMENTS: Measurement[] = [
     value: '',
     unit: 'bpm',
     normalRange: '110 – 160',
+    measuredAt: '',
+    history: [],
+  },
+  {
+    id: 'blood-pressure',
+    label: 'Blood Pressure',
+    category: 'maternal',
+    value: '',
+    unit: 'mmHg',
+    normalRange: '90/60 – 120/80',
     measuredAt: '',
     history: [],
   },
@@ -164,41 +174,153 @@ export const recomputeMeasurementFromHistory = (
   };
 };
 
+const matchSavedItemToDefaultId = (
+  item: Measurement,
+): string | 'IGNORE' | null => {
+  const cleanId = (item.id ?? '').trim().toLowerCase();
+  const cleanLabel = (item.label ?? '').trim().toLowerCase();
+  const combined = `${cleanId} ${cleanLabel}`.trim();
+
+  // 1. Baby Weight / Fetal Weight / EFW
+  if (
+    /\b(baby[- ]?weight|fetal[- ]?weight|foetal[- ]?weight|estimated[- ]?fetal[- ]?weight|efw)\b/i.test(
+      combined,
+    )
+  ) {
+    return 'baby-weight';
+  }
+
+  // 2. Maternal Weight (including legacy "Weight")
+  if (
+    /\b(maternal[- ]?weight|mother'?s?[- ]?weight|mom'?s?[- ]?weight|body[- ]?weight)\b/i.test(
+      combined,
+    ) ||
+    cleanId === 'weight' ||
+    cleanLabel === 'weight'
+  ) {
+    return 'maternal-weight';
+  }
+
+  // 3. Gestational Age
+  if (
+    /\b(gestational[- ]?age|pregnancy[- ]?week|ultrasound[- ]?ga|composite[- ]?ga|mean[- ]?ga)\b/i.test(
+      combined,
+    ) ||
+    cleanId === 'ga' ||
+    cleanLabel === 'ga'
+  ) {
+    return 'gestational-age';
+  }
+
+  // 4. Fetal Heart Rate (including "Baby Heart Rate" / "FHR")
+  if (
+    /\b(fetal[- ]?heart[- ]?rate|foetal[- ]?heart[- ]?rate|baby'?s?[- ]?heart[- ]?rate|fhr|fetal[- ]?hr|baby[- ]?hr)\b/i.test(
+      combined,
+    )
+  ) {
+    return 'fetal-heart-rate';
+  }
+
+  // Ignore expectant's / maternal heart rate (not tracked in pregnancy vitals)
+  if (
+    cleanId === 'heart-rate' ||
+    cleanId === 'heart rate' ||
+    cleanLabel === 'heart rate' ||
+    /\b(maternal[- ]?heart[- ]?rate|mother'?s?[- ]?heart[- ]?rate|pulse[- ]?rate)\b/i.test(
+      combined,
+    )
+  ) {
+    return 'IGNORE';
+  }
+
+  // 5. Blood Pressure
+  if (
+    /\b(blood[- ]?pressure|maternal[- ]?bp)\b/i.test(combined) ||
+    cleanId === 'bp' ||
+    cleanLabel === 'bp'
+  ) {
+    return 'blood-pressure';
+  }
+
+  // 6. Blood Sugar / Glucose
+  if (
+    !/\burine\b/i.test(combined) &&
+    /\b(blood[- ]?sugar|blood[- ]?glucose|fasting[- ]?blood[- ]?sugar|random[- ]?blood[- ]?sugar|fbs|rbs|ppbs|ogtt|glucose)\b/i.test(
+      combined,
+    )
+  ) {
+    return 'blood-sugar';
+  }
+
+  // 7. Hemoglobin
+  if (
+    !/\b(mch|mchc|corpuscular|a1c|glycosylated|glycated|urine)\b/i.test(
+      combined,
+    ) &&
+    /\b(ha?emoglobin|hb|hgb)\b/i.test(combined)
+  ) {
+    return 'hemoglobin';
+  }
+
+  return null;
+};
+
 export const mergeMeasurementsWithDefaults = (
   saved: Measurement[] | null | undefined,
 ): Measurement[] => {
   const savedList = saved ?? [];
-  const matchedIds = new Set<string>();
+  const consumedSavedIds = new Set<string>();
 
   const mergedDefaults = DEFAULT_VITAL_MEASUREMENTS.map((defaultVital) => {
-    const match = savedList.find(
-      (item) =>
-        item.id === defaultVital.id ||
-        item.label?.trim().toLowerCase() === defaultVital.label.toLowerCase(),
+    const matchingItems = savedList.filter(
+      (item) => matchSavedItemToDefaultId(item) === defaultVital.id,
     );
 
-    if (!match) {
+    if (matchingItems.length === 0) {
       return defaultVital;
     }
 
-    matchedIds.add(match.id);
-    const history = normalizeMeasurementHistory(match);
+    matchingItems.forEach((m) => consumedSavedIds.add(m.id));
+
+    // Combine and deduplicate history entries across all matching saved records (e.g. "Weight" + "Maternal Weight")
+    const historyByDateAndVal = new Map<string, MeasurementHistoryEntry>();
+    for (const matchItem of matchingItems) {
+      for (const entry of normalizeMeasurementHistory(matchItem)) {
+        const key = `${entry.measuredAt}::${entry.value.trim()}`;
+        if (!historyByDateAndVal.has(key)) {
+          historyByDateAndVal.set(key, entry);
+        }
+      }
+    }
+
+    const combinedHistory = Array.from(historyByDateAndVal.values());
+    const primaryMatch =
+      matchingItems.find((m) => m.id === defaultVital.id) ?? matchingItems[0];
+
     return recomputeMeasurementFromHistory(
       {
         ...defaultVital,
-        ...match,
-        id: match.id || defaultVital.id,
-        label: match.label || defaultVital.label,
-        unit: match.unit ?? defaultVital.unit,
-        normalRange: match.normalRange ?? defaultVital.normalRange,
-        category: match.category ?? defaultVital.category,
+        ...primaryMatch,
+        id: defaultVital.id,
+        label: defaultVital.label,
+        unit: defaultVital.unit || primaryMatch.unit,
+        normalRange: defaultVital.normalRange || primaryMatch.normalRange,
+        category: defaultVital.category,
+        isCustom: false,
       },
-      history,
+      combinedHistory,
     );
   });
 
+  // Mark ignored legacy items (like expectant's Heart Rate) as consumed so they don't appear
+  for (const item of savedList) {
+    if (matchSavedItemToDefaultId(item) === 'IGNORE') {
+      consumedSavedIds.add(item.id);
+    }
+  }
+
   const additionalVitals = savedList
-    .filter((item) => !matchedIds.has(item.id))
+    .filter((item) => !consumedSavedIds.has(item.id))
     .map((item) => {
       const history = normalizeMeasurementHistory(item);
       return recomputeMeasurementFromHistory(
