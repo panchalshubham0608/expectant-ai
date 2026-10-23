@@ -45,6 +45,8 @@ const toProfile = (
   emergencyContact: data.emergencyContact ?? "",
   syncRemindersToCalendar: data.syncRemindersToCalendar ?? false,
   syncAppointmentsToCalendar: data.syncAppointmentsToCalendar ?? false,
+  babyNameContext: data.babyNameContext ?? "",
+  babyNameCount: typeof data.babyNameCount === "number" ? data.babyNameCount : undefined,
   status: data.status ?? "active",
   creatorId: data.creatorId ?? '',
   sharedWith: data.sharedWith ?? [],
@@ -205,4 +207,17 @@ export const saveGeminiApiKey = async (userId: string, profileId: string, apiKey
   const keysCollectionRef = getKeysCollection(userId, profileId);
   const docRef = doc(keysCollectionRef, 'geminiApiKey');
   await setDoc(docRef, { geminiApiKey: apiKey }, { merge: true });
+};
+
+export const saveBabyNamePreferences = async (
+  userId: string,
+  profileId: string,
+  preferences: { babyNameContext: string; babyNameCount: number },
+): Promise<void> => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId, userId);
+  await updateDoc(docSnap.ref, {
+    babyNameContext: preferences.babyNameContext.trim(),
+    babyNameCount: preferences.babyNameCount,
+    updatedAt: serverTimestamp(),
+  });
 };

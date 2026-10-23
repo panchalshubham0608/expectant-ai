@@ -6,7 +6,7 @@ on:
   workflow_dispatch: # Allows you to run this manually from the Actions tab
 
 jobs:
-  cleanup-daily-moments:
+  cleanup-daily-digests:
     runs-on: ubuntu-latest
     environment: github-actions
     steps:
@@ -26,4 +26,4 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
-        run: npx tsx scripts/cleanup-daily-moments.ts
+        run: npx tsx scripts/cleanup-daily-digests.ts
