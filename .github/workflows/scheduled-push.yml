@@ -14,10 +14,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Dependencies
-        run: npm install firebase-admin tsx
+        run: npm install firebase-admin @google-cloud/firestore tsx
 
       - name: Send Push Notification via Firebase
         env:

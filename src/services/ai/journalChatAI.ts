@@ -224,7 +224,7 @@ export const normalizeSuggestedAppointment = (
     rawQuestions.length > 0
       ? rawQuestions
       : (contextInput.reports ?? [])
-          .flatMap((r) => r.questionsForDoctor ?? [])
+          .flatMap((r) => r.summary?.questionsForDoctor ?? [])
           .map((q) => q.trim())
           .filter(Boolean)
           .slice(0, 3);
