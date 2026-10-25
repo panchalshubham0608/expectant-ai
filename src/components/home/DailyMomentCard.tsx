@@ -61,7 +61,13 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
     setError(null);
     try {
       const apiKey = await getGeminiApiKey(userId, profileId).catch(() => undefined);
-      const refreshedMoment = await generateAndSaveDailyDigestForToday(userId, profileId, apiKey || undefined, false);
+      const refreshedMoment = await generateAndSaveDailyDigestForToday(
+        userId,
+        profileId,
+        apiKey || undefined,
+        false,
+        ['category', 'header', 'notification', 'card', 'emoji']
+      );
       setMoment(refreshedMoment);
     } catch (err: any) {
       setError(err.message || 'Failed to refresh daily moment');

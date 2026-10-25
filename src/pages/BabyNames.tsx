@@ -180,7 +180,8 @@ export default function BabyNames() {
         userId,
         id,
         apiKey || undefined,
-        false
+        false,
+        ['babyNames']
       );
       setTodayDigest(refreshed);
     } catch (err: any) {

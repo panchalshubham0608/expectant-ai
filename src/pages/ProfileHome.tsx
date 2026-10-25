@@ -3,7 +3,6 @@ import { useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import DailyMomentCard from '../components/home/DailyMomentCard';
-import SpiritualSlokaCard from '../components/home/SpiritualSlokaCard';
 import { Calendar, Baby, Clock, Sparkles, ChevronRight } from 'lucide-react';
 import { getPregnancyAge } from '../utils/pregnancyUtils';
 
@@ -148,11 +147,6 @@ function ProfileDetail() {
       {user?.uid && id && (
         <div className="flex flex-col gap-4">
           <DailyMomentCard userId={user.uid} profileId={id} />
-          <SpiritualSlokaCard
-            userId={user.uid}
-            profileId={id}
-            spiritualSlokaContext={profile.spiritualSlokaContext}
-          />
 
           <Link
             to={`/profile/${id}/weekly-updates`}
@@ -166,6 +160,25 @@ function ProfileDetail() {
               </div>
             </div>
             <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition-colors group-hover:bg-white group-hover:text-purple-700">
+              <ChevronRight size={20} />
+            </div>
+          </Link>
+
+          <Link
+            to={`/profile/${id}/daily`}
+            className="group relative flex items-center justify-between overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-600 to-teal-800 p-6 shadow-sm transition-all hover:shadow-md"
+          >
+            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white opacity-10 blur-2xl transition-transform duration-500 group-hover:scale-125"></div>
+            <div className="relative z-10 flex items-center gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">Today&apos;s daily digest ✨</h3>
+                <p className="text-sm font-medium text-emerald-50/90">
+                  Discover today&apos;s pregnancy moment, spiritual sloka, womb bonding, and baby
+                  names.
+                </p>
+              </div>
+            </div>
+            <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition-colors group-hover:bg-white group-hover:text-emerald-700">
               <ChevronRight size={20} />
             </div>
           </Link>

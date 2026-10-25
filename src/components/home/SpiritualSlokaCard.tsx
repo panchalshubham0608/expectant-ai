@@ -180,7 +180,8 @@ export default function SpiritualSlokaCard({
         userId,
         profileId,
         apiKey || undefined,
-        false
+        false,
+        ['spiritualSloka']
       );
       setDigest(refreshedDigest);
     } catch (err: unknown) {

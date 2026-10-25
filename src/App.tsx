@@ -17,6 +17,7 @@ import Reports from './pages/Reports';
 import Reminders from './pages/Reminders';
 import WeeklyUpdates from './pages/WeeklyUpdates';
 import BabyNames from './pages/BabyNames';
+import DailyDigestPage from './pages/DailyDigestPage';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile/:id" element={<AppLayout />}>
             <Route index element={<ProfileHome />} />
+            <Route path="daily" element={<DailyDigestPage />} />
             <Route path="journal" element={<Journal />} />
             <Route path="insights" element={<Insights />} />
             <Route path="pantry" element={<Pantry />} />
