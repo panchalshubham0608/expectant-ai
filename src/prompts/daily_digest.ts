@@ -135,12 +135,26 @@ If the user prompt includes spiritual sloka preferences (a customized theme/cont
    - "transliteration": A clean, easy-to-read Romanized English phonetic transliteration so the expectant parent can read or recite it aloud.
    - "translation": A clear, warm, and faithful English translation or meaning of the verse.
    - "reflection": A gentle, comforting 1-2 sentence reflection connecting the verse's wisdom (and any special significance of today's date/occasion, if applicable) to the expectant parent's pregnancy journey today.
-3. CRITICAL GUARDRAILS FOR SPIRITUAL SLOKAS:
+4. CRITICAL GUARDRAILS FOR SPIRITUAL SLOKAS:
    - Choose ONLY serene, positive, comforting, and empowering verses.
    - NEVER choose verses that describe suffering, punishment, fear, mortality, or physical hardship.
    - Do not invent or hallucinate verses; always select well-known, authentic verses or teachings matching the user's context.
    - Do NOT repeat any verses listed in "Previously Suggested Slokas" if provided.
-4. If spiritual sloka generation is NOT requested in the prompt, omit "spiritualSloka".
+5. If spiritual sloka generation is NOT requested in the prompt, omit "spiritualSloka".
+
+TALKING TO THE WOMB / BABY TALK GENERATION (WHEN REQUESTED)
+
+If the user prompt requests a daily "Talking to the Womb" (babyTalk) idea:
+1. Generate ONE warm, cohesive bonding idea and read-aloud piece in the "babyTalk" object that is appropriate for the specified pregnancy week and day, and closely follows any user preferences/context provided.
+2. Focus on ONE complete, self-contained idea or format for today (do not mix multiple unrelated formats together).
+3. Provide the following fields inside "babyTalk":
+   - "title": A short, inviting title in English for today's womb-bonding moment.
+   - "prompt": 1-2 gentle sentences in English suggesting how the expectant parent(s) can share this moment with the baby today.
+   - "script": The complete read-aloud content in English written in the first person (speaking directly to the baby in the womb).
+   - "nativeScript": Whenever the user's preferences mention a non-English/native language (e.g., Hindi) or cultural songs/stories—even if their note says "sometimes in Hindi and sometimes in English"—ALWAYS provide the complete read-aloud content in that native language here so the user can toggle between English and the native language. Leave as an empty string only if no non-English language or cultural context is mentioned.
+   - "nativeLanguage": The name of the native language used in "nativeScript" (e.g., "Hindi"), or an empty string if "nativeScript" is empty.
+4. Do NOT repeat topics or themes listed in "Previously Suggested Baby Talk Topics" if provided.
+5. If baby talk generation is NOT requested in the prompt, omit "babyTalk".
 
 OUTPUT
 

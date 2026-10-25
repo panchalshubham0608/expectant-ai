@@ -48,6 +48,8 @@ const toProfile = (
   babyNameContext: data.babyNameContext ?? "",
   babyNameCount: typeof data.babyNameCount === "number" ? data.babyNameCount : undefined,
   spiritualSlokaContext: data.spiritualSlokaContext ?? "",
+  babyTalkEnabled: data.babyTalkEnabled ?? false,
+  babyTalkContext: data.babyTalkContext ?? "",
   status: data.status ?? "active",
   creatorId: data.creatorId ?? '',
   sharedWith: data.sharedWith ?? [],
@@ -231,6 +233,19 @@ export const saveSpiritualSlokaPreferences = async (
   const docSnap = await getUpdatableProfileDocSnap(profileId, userId);
   await updateDoc(docSnap.ref, {
     spiritualSlokaContext: preferences.spiritualSlokaContext.trim(),
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const saveBabyTalkPreferences = async (
+  userId: string,
+  profileId: string,
+  preferences: { babyTalkEnabled: boolean; babyTalkContext?: string },
+): Promise<void> => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId, userId);
+  await updateDoc(docSnap.ref, {
+    babyTalkEnabled: preferences.babyTalkEnabled,
+    babyTalkContext: (preferences.babyTalkContext ?? '').trim(),
     updatedAt: serverTimestamp(),
   });
 };

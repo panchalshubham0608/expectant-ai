@@ -17,6 +17,7 @@ import {
   Sparkles,
   Baby,
   BookOpen,
+  HeartHandshake,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -24,6 +25,7 @@ import ShareProfileDialog from '../profile/ShareProfileDialog';
 import ApiKeyDialog from '../profile/ApiKeyDialog';
 import BabyNameSettingsDialog from '../profile/BabyNameSettingsDialog';
 import SpiritualSlokaSettingsDialog from '../profile/SpiritualSlokaSettingsDialog';
+import BabyTalkSettingsDialog from '../profile/BabyTalkSettingsDialog';
 
 function BottomNav() {
   const { id } = useParams();
@@ -32,6 +34,7 @@ function BottomNav() {
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
   const [isBabyNamesDialogOpen, setIsBabyNamesDialogOpen] = useState(false);
   const [isSpiritualSlokaDialogOpen, setIsSpiritualSlokaDialogOpen] = useState(false);
+  const [isBabyTalkDialogOpen, setIsBabyTalkDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { profile } = useProfile(user?.uid, id);
@@ -44,8 +47,8 @@ function BottomNav() {
       icon: Home,
     },
     {
-      name: 'Week',
-      path: `${basePath}/weekly-updates`,
+      name: 'Daily',
+      path: `${basePath}/daily`,
       icon: Sparkles,
     },
     {
@@ -95,6 +98,7 @@ function BottomNav() {
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.path === basePath}
               className={({ isActive }) =>
                 `
                 flex flex-col items-center gap-1 text-xs
@@ -143,6 +147,17 @@ function BottomNav() {
                 >
                   <BookOpen size={17} />
                   Spiritual sloka
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsBabyTalkDialogOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  <HeartHandshake size={17} />
+                  Talking to womb
                 </button>
                 <button
                   type="button"
@@ -223,6 +238,16 @@ function BottomNav() {
           userId={user.uid}
           profileId={id}
           initialContext={profile?.spiritualSlokaContext}
+        />
+      )}
+      {user && id && (
+        <BabyTalkSettingsDialog
+          isOpen={isBabyTalkDialogOpen}
+          onClose={() => setIsBabyTalkDialogOpen(false)}
+          userId={user.uid}
+          profileId={id}
+          initialEnabled={profile?.babyTalkEnabled}
+          initialContext={profile?.babyTalkContext}
         />
       )}
     </nav>

@@ -62,17 +62,21 @@ export const generateAndSaveDailyDigestForToday = async (
     const wantsBabyNames = Boolean(babyNameContext && babyNameCount > 0);
     const spiritualSlokaContext = typeof profile.spiritualSlokaContext === 'string' ? profile.spiritualSlokaContext.trim() : '';
     const wantsSpiritualSloka = Boolean(spiritualSlokaContext);
+    const wantsBabyTalk = Boolean(profile.babyTalkEnabled);
+    const babyTalkContext = typeof profile.babyTalkContext === 'string' ? profile.babyTalkContext.trim() : '';
 
     // 2. Fetch existing digest for today to check cache and preserve non-overridden fields
     const existingDigest = await getDailyDigest(userId, profileId, dateId);
     const hasExistingMoment = isFieldPresent(existingDigest, 'card');
     const hasExistingBabyNames = isFieldPresent(existingDigest, 'babyNames');
     const hasExistingSpiritualSloka = isFieldPresent(existingDigest, 'spiritualSloka');
+    const hasExistingBabyTalk = isFieldPresent(existingDigest, 'babyTalk');
 
     if (useCache && existingDigest && hasExistingMoment) {
       if (
         (!wantsBabyNames || hasExistingBabyNames) &&
-        (!wantsSpiritualSloka || hasExistingSpiritualSloka)
+        (!wantsSpiritualSloka || hasExistingSpiritualSloka) &&
+        (!wantsBabyTalk || hasExistingBabyTalk)
       ) {
         return existingDigest;
       }
@@ -112,7 +116,11 @@ export const generateAndSaveDailyDigestForToday = async (
       .filter(d => d.spiritualSloka?.originalScript)
       .map(d => `${d.spiritualSloka!.source}: ${d.spiritualSloka!.originalScript}`);
 
-    // 6. Generate digest (moment, baby names, and spiritual sloka if configured) using the AI Service
+    const recentBabyTalks = recentDigestsList
+      .filter(d => d.babyTalk?.title)
+      .map(d => `${d.babyTalk!.title}: ${d.babyTalk!.prompt}`);
+
+    // 6. Generate digest (moment, baby names, spiritual sloka, and baby talk if configured) using the AI Service
     const aiResponse = await generateDailyDigest(
       {
         pregnancyWeek,
@@ -133,6 +141,13 @@ export const generateAndSaveDailyDigestForToday = async (
               recentSlokas,
             }
           : {}),
+        ...(wantsBabyTalk
+          ? {
+              babyTalkEnabled: true,
+              babyTalkContext,
+              recentBabyTalks,
+            }
+          : {}),
       },
       userApiKey
     );
@@ -151,6 +166,7 @@ export const generateAndSaveDailyDigestForToday = async (
     };
 
     const resolvedSpiritualSloka = resolveField('spiritualSloka');
+    const resolvedBabyTalk = resolveField('babyTalk');
 
     const dailyDigest: DailyDigest = {
       category: resolveField('category'),
@@ -160,6 +176,7 @@ export const generateAndSaveDailyDigestForToday = async (
       emoji: resolveField('emoji'),
       babyNames: resolveField('babyNames') ?? [],
       ...(resolvedSpiritualSloka ? { spiritualSloka: resolvedSpiritualSloka } : {}),
+      ...(resolvedBabyTalk ? { babyTalk: resolvedBabyTalk } : {}),
       id: dateId,
       date: dateId,
       pregnancyWeek,

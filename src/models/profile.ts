@@ -33,6 +33,10 @@ export interface ExpectantProfile {
   // Spiritual Sloka Generation
   spiritualSlokaContext?: string;
 
+  // Talking to the Womb (Baby Talk)
+  babyTalkEnabled?: boolean;
+  babyTalkContext?: string;
+
   // Status
   status: "active" | "completed" | "archived";
 
