@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
+  AlertTriangle,
   Baby,
   Bookmark,
   Loader2,
   RefreshCw,
   SlidersHorizontal,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -91,6 +93,7 @@ export default function BabyNames() {
   const [genderFilter, setGenderFilter] = useState<'All' | BabyNameGender>('All');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [pendingIds, setPendingIds] = useState<Record<string, boolean>>({});
+  const [nameToUnshortlist, setNameToUnshortlist] = useState<BabyNameSuggestion | null>(null);
 
   const todayId = getTodayDateId();
   const babyNameContext = profile?.babyNameContext;
@@ -196,17 +199,35 @@ export default function BabyNames() {
     const favId = toFavoriteNameId(item.name);
     if (pendingIds[favId]) return;
 
+    if (favoriteIdsSet.has(favId)) {
+      setNameToUnshortlist(item);
+      return;
+    }
+
     setPendingIds((prev) => ({ ...prev, [favId]: true }));
     try {
-      if (favoriteIdsSet.has(favId)) {
-        await unshortlistBabyName(userId, id, item.name);
-      } else {
-        await shortlistBabyName(userId, id, {
-          name: item.name,
-          meaning: item.meaning,
-          gender: normalizeGender(item.gender),
-        });
-      }
+      await shortlistBabyName(userId, id, {
+        name: item.name,
+        meaning: item.meaning,
+        gender: normalizeGender(item.gender),
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to update shortlist');
+    } finally {
+      setPendingIds((prev) => ({ ...prev, [favId]: false }));
+    }
+  };
+
+  const handleConfirmUnshortlist = async () => {
+    if (!userId || !id || !nameToUnshortlist) return;
+    const item = nameToUnshortlist;
+    const favId = toFavoriteNameId(item.name);
+    if (pendingIds[favId]) return;
+
+    setNameToUnshortlist(null);
+    setPendingIds((prev) => ({ ...prev, [favId]: true }));
+    try {
+      await unshortlistBabyName(userId, id, item.name);
     } catch (err: any) {
       setError(err.message || 'Failed to update shortlist');
     } finally {
@@ -500,6 +521,64 @@ export default function BabyNames() {
           initialContext={babyNameContext}
           initialCount={babyNameCount}
         />
+      )}
+
+      {nameToUnshortlist && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="unshortlist-name-title"
+          onMouseDown={(event) =>
+            event.target === event.currentTarget && setNameToUnshortlist(null)
+          }
+        >
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h2 id="unshortlist-name-title" className="text-lg font-bold text-gray-900">
+                    Remove from Shortlist?
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNameToUnshortlist(null)}
+                className="rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="mt-3 text-sm leading-relaxed text-gray-600">
+              Are you sure you want to remove{' '}
+              <span className="font-semibold text-gray-900">{nameToUnshortlist.name}</span> from
+              your shortlisted names?
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setNameToUnshortlist(null)}
+                className="rounded-full px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmUnshortlist}
+                className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
