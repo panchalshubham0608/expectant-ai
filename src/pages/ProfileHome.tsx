@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import DailyMomentCard from '../components/home/DailyMomentCard';
+import SpiritualSlokaCard from '../components/home/SpiritualSlokaCard';
 import { Calendar, Baby, Clock, Sparkles, ChevronRight } from 'lucide-react';
 import { getPregnancyAge } from '../utils/pregnancyUtils';
 
@@ -147,6 +148,11 @@ function ProfileDetail() {
       {user?.uid && id && (
         <div className="flex flex-col gap-4">
           <DailyMomentCard userId={user.uid} profileId={id} />
+          <SpiritualSlokaCard
+            userId={user.uid}
+            profileId={id}
+            spiritualSlokaContext={profile.spiritualSlokaContext}
+          />
 
           <Link
             to={`/profile/${id}/weekly-updates`}

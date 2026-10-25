@@ -17,6 +17,14 @@ export interface BabyNameSuggestion {
   gender: BabyNameGender;
 }
 
+export interface SpiritualSloka {
+  source: string;
+  originalScript: string;
+  transliteration: string;
+  translation: string;
+  reflection: string;
+}
+
 export interface DailyDigestRequest {
   pregnancyWeek: number;
   pregnancyDay: number;
@@ -26,6 +34,8 @@ export interface DailyDigestRequest {
   babyNameContext?: string;
   babyNameCount?: number;
   recentBabyNames?: string[];
+  spiritualSlokaContext?: string;
+  recentSlokas?: string[];
 }
 
 export interface DailyDigestResponse {
@@ -38,6 +48,7 @@ export interface DailyDigestResponse {
   };
   emoji: string;
   babyNames?: BabyNameSuggestion[];
+  spiritualSloka?: SpiritualSloka;
 }
 
 export const generateDailyDigest = async (
@@ -51,6 +62,7 @@ export const generateDailyDigest = async (
   const shouldGenerateBabyNames = Boolean(
     request.babyNameContext?.trim() && request.babyNameCount && request.babyNameCount > 0
   );
+  const shouldGenerateSpiritualSloka = Boolean(request.spiritualSlokaContext?.trim());
 
   const userPrompt = `Please generate a daily pregnancy digest for the following specifics:
 - Pregnancy Week: ${request.pregnancyWeek}
@@ -63,6 +75,12 @@ ${request.recentMoments && request.recentMoments.length > 0 ? `\nDo not repeat t
 - Baby Name Context & Preferences: ${request.babyNameContext!.trim()}
 - Number of Baby Names to Generate (N): ${request.babyNameCount}
 ${request.recentBabyNames && request.recentBabyNames.length > 0 ? `- Previously Suggested Baby Names (do not repeat): ${request.recentBabyNames.join(', ')}` : ''}`
+      : ''
+  }${
+    shouldGenerateSpiritualSloka
+      ? `\n\nAlso generate ONE daily spiritual sloka/verse based on the user's spiritual theme and preferences:
+- Spiritual Theme & Preferences: ${request.spiritualSlokaContext!.trim()}
+${request.recentSlokas && request.recentSlokas.length > 0 ? `- Previously Suggested Slokas (do not repeat): ${request.recentSlokas.join(' | ')}` : ''}`
       : ''
   }
 `;
@@ -107,6 +125,17 @@ ${request.recentBabyNames && request.recentBabyNames.length > 0 ? `- Previously 
                 required: ['name', 'meaning', 'gender'],
               },
             },
+            spiritualSloka: {
+              type: 'OBJECT',
+              properties: {
+                source: { type: 'STRING' },
+                originalScript: { type: 'STRING' },
+                transliteration: { type: 'STRING' },
+                translation: { type: 'STRING' },
+                reflection: { type: 'STRING' },
+              },
+              required: ['source', 'originalScript', 'transliteration', 'translation', 'reflection'],
+            },
           },
           required: [
             'category',
@@ -115,6 +144,7 @@ ${request.recentBabyNames && request.recentBabyNames.length > 0 ? `- Previously 
             'card',
             'emoji',
             ...(shouldGenerateBabyNames ? ['babyNames'] : []),
+            ...(shouldGenerateSpiritualSloka ? ['spiritualSloka'] : []),
           ],
         },
       },
