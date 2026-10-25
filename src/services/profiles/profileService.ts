@@ -47,6 +47,7 @@ const toProfile = (
   syncAppointmentsToCalendar: data.syncAppointmentsToCalendar ?? false,
   babyNameContext: data.babyNameContext ?? "",
   babyNameCount: typeof data.babyNameCount === "number" ? data.babyNameCount : undefined,
+  spiritualSlokaContext: data.spiritualSlokaContext ?? "",
   status: data.status ?? "active",
   creatorId: data.creatorId ?? '',
   sharedWith: data.sharedWith ?? [],
@@ -221,3 +222,16 @@ export const saveBabyNamePreferences = async (
     updatedAt: serverTimestamp(),
   });
 };
+
+export const saveSpiritualSlokaPreferences = async (
+  userId: string,
+  profileId: string,
+  preferences: { spiritualSlokaContext: string },
+): Promise<void> => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId, userId);
+  await updateDoc(docSnap.ref, {
+    spiritualSlokaContext: preferences.spiritualSlokaContext.trim(),
+    updatedAt: serverTimestamp(),
+  });
+};
+

@@ -2,9 +2,10 @@ import type {
   DailyDigestResponse,
   BabyNameSuggestion,
   BabyNameGender,
+  SpiritualSloka,
 } from '../services/ai/dailyDigestService';
 
-export type { BabyNameSuggestion, BabyNameGender };
+export type { BabyNameSuggestion, BabyNameGender, SpiritualSloka };
 
 export interface FavoriteBabyName extends BabyNameSuggestion {
   id: string;

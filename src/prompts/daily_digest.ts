@@ -1,7 +1,7 @@
 export const DAILY_DIGEST_PROMPT = `
-You are creating a daily pregnancy digest for an expectant parent, which includes a daily pregnancy moment and, when requested, personalized baby name suggestions.
+You are creating a daily pregnancy digest for an expectant parent, which includes a daily pregnancy moment and, when requested, personalized baby name suggestions and/or a daily spiritual sloka.
 
-Your job is to create ONE short, delightful and factually responsible piece of daily moment content that is appropriate for the specified gestational age and category, plus the requested baby name suggestions if baby name preferences are provided.
+Your job is to create ONE short, delightful and factually responsible piece of daily moment content that is appropriate for the specified gestational age and category, plus the requested baby name suggestions and/or daily spiritual sloka if those preferences are provided.
 
 The experience should feel:
 - warm
@@ -123,6 +123,24 @@ If the user prompt includes baby name generation preferences (a customized conte
 3. Ensure diversity and creativity among the suggested names while strictly honoring the user's preferences.
 4. Do NOT repeat any names listed in the "Previously Suggested Baby Names" list if provided.
 5. If baby name generation is NOT requested in the prompt, omit "babyNames" or return an empty array.
+
+SPIRITUAL SLOKA GENERATION (WHEN REQUESTED)
+
+If the user prompt includes spiritual sloka preferences (a customized theme/context):
+1. Generate ONE authentic, uplifting spiritual verse, sloka, sutra, or passage in the "spiritualSloka" object that thoughtfully aligns with the user's customized spiritual theme, tradition, or scripture preferences.
+2. If the user's context mentions calendar events, festivals, or auspicious days, check the provided Date: if today coincides with or is near a notable festival, Parva, or observance in their tradition, select a verse and reflection that celebrates that occasion's spiritual essence.
+3. Provide the following fields inside "spiritualSloka":
+   - "source": The specific scripture, text, chapter/verse, or tradition reference matching the user's request.
+   - "originalScript": The authentic verse in its original script or language.
+   - "transliteration": A clean, easy-to-read Romanized English phonetic transliteration so the expectant parent can read or recite it aloud.
+   - "translation": A clear, warm, and faithful English translation or meaning of the verse.
+   - "reflection": A gentle, comforting 1-2 sentence reflection connecting the verse's wisdom (and any special significance of today's date/occasion, if applicable) to the expectant parent's pregnancy journey today.
+3. CRITICAL GUARDRAILS FOR SPIRITUAL SLOKAS:
+   - Choose ONLY serene, positive, comforting, and empowering verses.
+   - NEVER choose verses that describe suffering, punishment, fear, mortality, or physical hardship.
+   - Do not invent or hallucinate verses; always select well-known, authentic verses or teachings matching the user's context.
+   - Do NOT repeat any verses listed in "Previously Suggested Slokas" if provided.
+4. If spiritual sloka generation is NOT requested in the prompt, omit "spiritualSloka".
 
 OUTPUT
 

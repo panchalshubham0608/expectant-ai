@@ -16,12 +16,14 @@ import {
   BellRing,
   Sparkles,
   Baby,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
 import ShareProfileDialog from '../profile/ShareProfileDialog';
 import ApiKeyDialog from '../profile/ApiKeyDialog';
 import BabyNameSettingsDialog from '../profile/BabyNameSettingsDialog';
+import SpiritualSlokaSettingsDialog from '../profile/SpiritualSlokaSettingsDialog';
 
 function BottomNav() {
   const { id } = useParams();
@@ -29,6 +31,7 @@ function BottomNav() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
   const [isBabyNamesDialogOpen, setIsBabyNamesDialogOpen] = useState(false);
+  const [isSpiritualSlokaDialogOpen, setIsSpiritualSlokaDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { profile } = useProfile(user?.uid, id);
@@ -134,6 +137,17 @@ function BottomNav() {
                   type="button"
                   onClick={() => {
                     setIsMenuOpen(false);
+                    setIsSpiritualSlokaDialogOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  <BookOpen size={17} />
+                  Spiritual sloka
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
                     setIsShareDialogOpen(true);
                   }}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
@@ -200,6 +214,15 @@ function BottomNav() {
           profileId={id}
           initialContext={profile?.babyNameContext}
           initialCount={profile?.babyNameCount}
+        />
+      )}
+      {user && id && (
+        <SpiritualSlokaSettingsDialog
+          isOpen={isSpiritualSlokaDialogOpen}
+          onClose={() => setIsSpiritualSlokaDialogOpen(false)}
+          userId={user.uid}
+          profileId={id}
+          initialContext={profile?.spiritualSlokaContext}
         />
       )}
     </nav>

@@ -43,13 +43,16 @@ export const generateAndSaveDailyDigestForToday = async (
     const babyNameContext = typeof profile.babyNameContext === 'string' ? profile.babyNameContext.trim() : '';
     const babyNameCount = typeof profile.babyNameCount === 'number' && profile.babyNameCount > 0 ? profile.babyNameCount : 0;
     const wantsBabyNames = Boolean(babyNameContext && babyNameCount > 0);
+    const spiritualSlokaContext = typeof profile.spiritualSlokaContext === 'string' ? profile.spiritualSlokaContext.trim() : '';
+    const wantsSpiritualSloka = Boolean(spiritualSlokaContext);
 
     // 2. Check if a digest already exists for today to prevent duplicates
     if (useCache) {
       const existingDigest = await getDailyDigest(userId, profileId, dateId);
       if (existingDigest) {
         const hasBabyNames = Array.isArray(existingDigest.babyNames) && existingDigest.babyNames.length > 0;
-        if (!wantsBabyNames || hasBabyNames) {
+        const hasSpiritualSloka = Boolean(existingDigest.spiritualSloka?.originalScript);
+        if ((!wantsBabyNames || hasBabyNames) && (!wantsSpiritualSloka || hasSpiritualSloka)) {
           return existingDigest;
         }
       }
@@ -85,7 +88,11 @@ export const generateAndSaveDailyDigestForToday = async (
       )
     );
 
-    // 6. Generate digest (moment and baby names if configured) using the AI Service
+    const recentSlokas = recentDigestsList
+      .filter(d => d.id !== dateId && d.spiritualSloka?.originalScript)
+      .map(d => `${d.spiritualSloka!.source}: ${d.spiritualSloka!.originalScript}`);
+
+    // 6. Generate digest (moment, baby names, and spiritual sloka if configured) using the AI Service
     const aiResponse = await generateDailyDigest(
       {
         pregnancyWeek,
@@ -100,6 +107,12 @@ export const generateAndSaveDailyDigestForToday = async (
               recentBabyNames,
             }
           : {}),
+        ...(wantsSpiritualSloka
+          ? {
+              spiritualSlokaContext,
+              recentSlokas,
+            }
+          : {}),
       },
       userApiKey
     );
@@ -112,6 +125,7 @@ export const generateAndSaveDailyDigestForToday = async (
       card: aiResponse.card,
       emoji: aiResponse.emoji,
       babyNames: aiResponse.babyNames ?? [],
+      ...(aiResponse.spiritualSloka ? { spiritualSloka: aiResponse.spiritualSloka } : {}),
       id: dateId,
       date: dateId,
       pregnancyWeek,

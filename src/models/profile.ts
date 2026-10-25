@@ -30,6 +30,9 @@ export interface ExpectantProfile {
   babyNameContext?: string;
   babyNameCount?: number;
 
+  // Spiritual Sloka Generation
+  spiritualSlokaContext?: string;
+
   // Status
   status: "active" | "completed" | "archived";
 
