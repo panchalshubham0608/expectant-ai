@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Loader2, RefreshCw, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { BookOpen, Loader2, RefreshCw, SlidersHorizontal, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { generateAndSaveDailyDigestForToday } from '../../services/dailyDigests/dailyDigestsGeneratorService';
 import { getTodayDateId, subscribeToDailyDigest } from '../../services/dailyDigests/dailyDigestsService';
 import type { DailyDigest } from '../../models/dailyDigest';
@@ -25,6 +25,29 @@ export default function SpiritualSlokaCard({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const isSpeechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  useEffect(() => {
+    if (!isSpeechSupported) return;
+
+    const loadVoices = () => {
+      const available = window.speechSynthesis.getVoices();
+      if (available.length > 0) {
+        setVoices(available);
+      }
+    };
+
+    loadVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      window.speechSynthesis.cancel();
+    };
+  }, [isSpeechSupported]);
 
   useEffect(() => {
     const dateId = getTodayDateId();
@@ -78,7 +101,77 @@ export default function SpiritualSlokaCard({
     };
   }, [userId, profileId, isConfigured, trimmedContext]);
 
+  const stopSpeaking = () => {
+    if (isSpeechSupported) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+  };
+
+  const handleToggleSpeak = () => {
+    const sloka = digest?.spiritualSloka;
+    if (!isSpeechSupported || !sloka) return;
+
+    if (isSpeaking) {
+      stopSpeaking();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const availableVoices =
+      voices.length > 0 ? voices : window.speechSynthesis.getVoices();
+    const normalizeLang = (lang: string) => lang.toLowerCase().replace(/_/g, '-');
+
+    const saVoice = availableVoices.find((v) => {
+      const l = normalizeLang(v.lang);
+      return l === 'sa' || l.startsWith('sa-');
+    });
+    const hiVoice = availableVoices.find((v) => {
+      const l = normalizeLang(v.lang);
+      return l === 'hi' || l.startsWith('hi-');
+    });
+    const enInVoice = availableVoices.find((v) => normalizeLang(v.lang) === 'en-in');
+    const enVoice = availableVoices.find((v) => {
+      const l = normalizeLang(v.lang);
+      return l === 'en' || l.startsWith('en-');
+    });
+
+    const hasDevanagari = /[\u0900-\u097F]/.test(sloka.originalScript);
+    const cleanedVerseText = sloka.originalScript.replace(/[।॥]/g, '. ');
+
+    const verseUtterance = new SpeechSynthesisUtterance(cleanedVerseText);
+
+    if (hasDevanagari) {
+      const selectedIndicVoice = saVoice || hiVoice;
+      if (selectedIndicVoice) {
+        verseUtterance.voice = selectedIndicVoice;
+        verseUtterance.lang = selectedIndicVoice.lang;
+      } else {
+        // Fallback to hi-IN locale tag so the OS synthesizer speaks Devanagari instead of English
+        verseUtterance.lang = 'hi-IN';
+      }
+    } else {
+      const selectedVoice = saVoice || hiVoice || enInVoice || enVoice;
+      if (selectedVoice) {
+        verseUtterance.voice = selectedVoice;
+        verseUtterance.lang = selectedVoice.lang;
+      } else {
+        verseUtterance.lang = 'en-IN';
+      }
+    }
+
+    verseUtterance.rate = 0.85;
+
+    verseUtterance.onend = () => setIsSpeaking(false);
+    verseUtterance.onerror = () => setIsSpeaking(false);
+
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(verseUtterance);
+  };
+
   const handleRefresh = async () => {
+    stopSpeaking();
     setIsRefreshing(true);
     setError(null);
     try {
@@ -172,7 +265,22 @@ export default function SpiritualSlokaCard({
               Daily Spiritual Sloka
             </h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {isSpeechSupported && (
+              <button
+                type="button"
+                onClick={handleToggleSpeak}
+                className={`rounded-full p-1.5 transition ${
+                  isSpeaking
+                    ? 'bg-amber-600 text-white shadow-sm hover:bg-amber-700'
+                    : 'text-amber-700 hover:bg-amber-100/70 hover:text-amber-900'
+                }`}
+                aria-label={isSpeaking ? 'Stop reading sloka' : 'Read sloka aloud'}
+                title={isSpeaking ? 'Stop reading' : 'Read aloud'}
+              >
+                {isSpeaking ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsSettingsOpen(true)}
