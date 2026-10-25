@@ -71,9 +71,13 @@ export default function BabyNameSettingsDialog({
       if (contextChanged || countChanged) {
         const apiKey = await getGeminiApiKey(userId, profileId).catch(() => undefined);
         // Trigger regeneration in the background so today's names reflect the updated settings
-        generateAndSaveDailyDigestForToday(userId, profileId, apiKey || undefined, false).catch(
-          () => undefined
-        );
+        generateAndSaveDailyDigestForToday(
+          userId,
+          profileId,
+          apiKey || undefined,
+          false,
+          ['babyNames']
+        ).catch(() => undefined);
       }
 
       onClose();

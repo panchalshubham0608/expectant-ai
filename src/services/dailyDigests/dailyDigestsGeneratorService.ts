@@ -1,6 +1,10 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { getProfilesCollection } from '../../lib/collections';
-import { generateDailyDigest, type DailyDigestCategory } from '../ai/dailyDigestService';
+import {
+  generateDailyDigest,
+  type DailyDigestCategory,
+  type DailyDigestResponse,
+} from '../ai/dailyDigestService';
 import { getDailyDigest, saveDailyDigest, getRecentDailyDigests, getTodayDateId } from './dailyDigestsService';
 import { getGeneratedBabyNames, saveGeneratedBabyNames } from './generatedBabyNamesService';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
@@ -15,13 +19,26 @@ const CATEGORIES: DailyDigestCategory[] = [
   'couple',
 ];
 
+export type DailyDigestOverrideField = keyof DailyDigestResponse;
+
 const inFlightGenerations = new Map<string, Promise<DailyDigest>>();
+
+const isFieldPresent = (digest: DailyDigest | null, field: DailyDigestOverrideField): boolean => {
+  if (!digest) return false;
+  const val = digest[field];
+  if (val === undefined || val === null) return false;
+  if (Array.isArray(val)) return val.length > 0;
+  if (typeof val === 'string') return val.trim().length > 0;
+  if (typeof val === 'object') return Object.values(val).some(v => typeof v === 'string' && v.trim().length > 0);
+  return true;
+};
 
 export const generateAndSaveDailyDigestForToday = async (
   userId: string,
   profileId: string,
   userApiKey?: string,
-  useCache: boolean = true
+  useCache: boolean = true,
+  overrideFields?: DailyDigestOverrideField[]
 ): Promise<DailyDigest> => {
   const dateId = getTodayDateId();
   const inFlightKey = `${userId}:${profileId}:${dateId}`;
@@ -31,7 +48,7 @@ export const generateAndSaveDailyDigestForToday = async (
   }
 
   const runGeneration = async (): Promise<DailyDigest> => {
-    // 1. Fetch the user's profile to calculate pregnancy progress and read baby name preferences
+    // 1. Fetch the user's profile to calculate pregnancy progress and read preferences
     const profileRef = doc(getProfilesCollection(userId), profileId);
     const profileSnap = await getDoc(profileRef);
 
@@ -46,15 +63,18 @@ export const generateAndSaveDailyDigestForToday = async (
     const spiritualSlokaContext = typeof profile.spiritualSlokaContext === 'string' ? profile.spiritualSlokaContext.trim() : '';
     const wantsSpiritualSloka = Boolean(spiritualSlokaContext);
 
-    // 2. Check if a digest already exists for today to prevent duplicates
-    if (useCache) {
-      const existingDigest = await getDailyDigest(userId, profileId, dateId);
-      if (existingDigest) {
-        const hasBabyNames = Array.isArray(existingDigest.babyNames) && existingDigest.babyNames.length > 0;
-        const hasSpiritualSloka = Boolean(existingDigest.spiritualSloka?.originalScript);
-        if ((!wantsBabyNames || hasBabyNames) && (!wantsSpiritualSloka || hasSpiritualSloka)) {
-          return existingDigest;
-        }
+    // 2. Fetch existing digest for today to check cache and preserve non-overridden fields
+    const existingDigest = await getDailyDigest(userId, profileId, dateId);
+    const hasExistingMoment = isFieldPresent(existingDigest, 'card');
+    const hasExistingBabyNames = isFieldPresent(existingDigest, 'babyNames');
+    const hasExistingSpiritualSloka = isFieldPresent(existingDigest, 'spiritualSloka');
+
+    if (useCache && existingDigest && hasExistingMoment) {
+      if (
+        (!wantsBabyNames || hasExistingBabyNames) &&
+        (!wantsSpiritualSloka || hasExistingSpiritualSloka)
+      ) {
+        return existingDigest;
       }
     }
 
@@ -76,7 +96,7 @@ export const generateAndSaveDailyDigestForToday = async (
     ]);
 
     const recentMoments = recentDigestsList
-      .filter(d => d.id !== dateId)
+      .filter(d => d.card?.title && d.card?.content)
       .map(d => `[${d.category}] ${d.card.title}: ${d.card.content}`);
 
     const recentBabyNames = Array.from(
@@ -89,7 +109,7 @@ export const generateAndSaveDailyDigestForToday = async (
     );
 
     const recentSlokas = recentDigestsList
-      .filter(d => d.id !== dateId && d.spiritualSloka?.originalScript)
+      .filter(d => d.spiritualSloka?.originalScript)
       .map(d => `${d.spiritualSloka!.source}: ${d.spiritualSloka!.originalScript}`);
 
     // 6. Generate digest (moment, baby names, and spiritual sloka if configured) using the AI Service
@@ -117,25 +137,39 @@ export const generateAndSaveDailyDigestForToday = async (
       userApiKey
     );
 
-    // 7. Save to Firestore and persist generated baby names to history collection
+    // 7. Resolve each field: override if missing on existingDigest, if overrideFields is omitted on force-refresh, or if listed in overrideFields
+    const shouldOverride = (field: DailyDigestOverrideField): boolean =>
+      !isFieldPresent(existingDigest, field) ||
+      Boolean(overrideFields?.includes(field)) ||
+      (!useCache && (!overrideFields || overrideFields.length === 0));
+
+    const resolveField = <K extends DailyDigestOverrideField>(field: K): DailyDigestResponse[K] => {
+      if (shouldOverride(field) || !existingDigest) {
+        return aiResponse[field];
+      }
+      return existingDigest[field] ?? aiResponse[field];
+    };
+
+    const resolvedSpiritualSloka = resolveField('spiritualSloka');
+
     const dailyDigest: DailyDigest = {
-      category: aiResponse.category,
-      header: aiResponse.header,
-      notification: aiResponse.notification,
-      card: aiResponse.card,
-      emoji: aiResponse.emoji,
-      babyNames: aiResponse.babyNames ?? [],
-      ...(aiResponse.spiritualSloka ? { spiritualSloka: aiResponse.spiritualSloka } : {}),
+      category: resolveField('category'),
+      header: resolveField('header'),
+      notification: resolveField('notification'),
+      card: resolveField('card'),
+      emoji: resolveField('emoji'),
+      babyNames: resolveField('babyNames') ?? [],
+      ...(resolvedSpiritualSloka ? { spiritualSloka: resolvedSpiritualSloka } : {}),
       id: dateId,
       date: dateId,
       pregnancyWeek,
       pregnancyDay,
-      createdAt: Date.now(),
+      createdAt: existingDigest?.createdAt ?? Date.now(),
     };
 
     await saveDailyDigest(userId, profileId, dailyDigest);
 
-    if (dailyDigest.babyNames && dailyDigest.babyNames.length > 0) {
+    if (shouldOverride('babyNames') && dailyDigest.babyNames && dailyDigest.babyNames.length > 0) {
       await saveGeneratedBabyNames(userId, profileId, dailyDigest.babyNames, dateId);
     }
 

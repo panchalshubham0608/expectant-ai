@@ -50,9 +50,13 @@ function SpiritualSlokaSettingsModalContent({
       if (contextChanged) {
         const apiKey = await getGeminiApiKey(userId, profileId).catch(() => undefined);
         // Trigger regeneration in the background so today's digest includes the updated sloka
-        generateAndSaveDailyDigestForToday(userId, profileId, apiKey || undefined, false).catch(
-          () => undefined
-        );
+        generateAndSaveDailyDigestForToday(
+          userId,
+          profileId,
+          apiKey || undefined,
+          false,
+          ['spiritualSloka']
+        ).catch(() => undefined);
       }
 
       onClose();
