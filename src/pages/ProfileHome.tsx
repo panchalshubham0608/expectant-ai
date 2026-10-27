@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
+import CustomMessageCard from '../components/home/CustomMessageCard';
 import DailyMomentCard from '../components/home/DailyMomentCard';
 import { Calendar, Baby, Clock, Sparkles, ChevronRight } from 'lucide-react';
 import { getPregnancyAge } from '../utils/pregnancyUtils';
@@ -146,6 +147,14 @@ function ProfileDetail() {
 
       {user?.uid && id && (
         <div className="flex flex-col gap-4">
+          <CustomMessageCard
+            userId={user.uid}
+            profileId={id}
+            message={profile.customMessage}
+            updatedAt={profile.customMessageUpdatedAt}
+            dismissed={profile.customMessageDismissed}
+          />
+
           <DailyMomentCard userId={user.uid} profileId={id} />
 
           <Link
