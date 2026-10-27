@@ -37,6 +37,11 @@ export interface ExpectantProfile {
   babyTalkEnabled?: boolean;
   babyTalkContext?: string;
 
+  // Custom Message from Partner
+  customMessage?: string;
+  customMessageUpdatedAt?: string;
+  customMessageDismissed?: boolean;
+
   // Status
   status: "active" | "completed" | "archived";
 

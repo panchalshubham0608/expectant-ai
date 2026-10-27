@@ -18,6 +18,7 @@ import {
   Baby,
   BookOpen,
   HeartHandshake,
+  Heart,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -26,6 +27,7 @@ import ApiKeyDialog from '../profile/ApiKeyDialog';
 import BabyNameSettingsDialog from '../profile/BabyNameSettingsDialog';
 import SpiritualSlokaSettingsDialog from '../profile/SpiritualSlokaSettingsDialog';
 import BabyTalkSettingsDialog from '../profile/BabyTalkSettingsDialog';
+import CustomMessageDialog from '../profile/CustomMessageDialog';
 
 function BottomNav() {
   const { id } = useParams();
@@ -35,6 +37,7 @@ function BottomNav() {
   const [isBabyNamesDialogOpen, setIsBabyNamesDialogOpen] = useState(false);
   const [isSpiritualSlokaDialogOpen, setIsSpiritualSlokaDialogOpen] = useState(false);
   const [isBabyTalkDialogOpen, setIsBabyTalkDialogOpen] = useState(false);
+  const [isCustomMessageDialogOpen, setIsCustomMessageDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { profile } = useProfile(user?.uid, id);
@@ -126,6 +129,17 @@ function BottomNav() {
             </button>
             {isMenuOpen && (
               <div className="absolute bottom-full right-0 mb-4 w-48 overflow-hidden rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsCustomMessageDialogOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  <Heart size={17} />
+                  Custom message
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -248,6 +262,17 @@ function BottomNav() {
           profileId={id}
           initialEnabled={profile?.babyTalkEnabled}
           initialContext={profile?.babyTalkContext}
+        />
+      )}
+      {user && id && (
+        <CustomMessageDialog
+          isOpen={isCustomMessageDialogOpen}
+          onClose={() => setIsCustomMessageDialogOpen(false)}
+          userId={user.uid}
+          profileId={id}
+          initialMessage={profile?.customMessage}
+          initialUpdatedAt={profile?.customMessageUpdatedAt}
+          initialDismissed={profile?.customMessageDismissed}
         />
       )}
     </nav>

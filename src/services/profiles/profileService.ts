@@ -50,6 +50,15 @@ const toProfile = (
   spiritualSlokaContext: data.spiritualSlokaContext ?? "",
   babyTalkEnabled: data.babyTalkEnabled ?? false,
   babyTalkContext: data.babyTalkContext ?? "",
+  customMessage: data.customMessage ?? "",
+  customMessageUpdatedAt:
+    data.customMessageUpdatedAt?.toDate?.()?.toISOString() ??
+    (typeof data.customMessageUpdatedAt === "string"
+      ? data.customMessageUpdatedAt
+      : data.customMessage
+        ? new Date().toISOString()
+        : undefined),
+  customMessageDismissed: data.customMessageDismissed ?? false,
   status: data.status ?? "active",
   creatorId: data.creatorId ?? '',
   sharedWith: data.sharedWith ?? [],
@@ -246,6 +255,43 @@ export const saveBabyTalkPreferences = async (
   await updateDoc(docSnap.ref, {
     babyTalkEnabled: preferences.babyTalkEnabled,
     babyTalkContext: (preferences.babyTalkContext ?? '').trim(),
+    updatedAt: serverTimestamp(),
+  });
+};
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+export const isCustomMessageWithin24Hours = (isoDateString?: string): boolean => {
+  if (!isoDateString) return false;
+  const updatedTime = new Date(isoDateString).getTime();
+  if (Number.isNaN(updatedTime)) return false;
+  const now = new Date().getTime();
+  const elapsed = now - updatedTime;
+  return elapsed >= -60_000 && elapsed <= TWENTY_FOUR_HOURS_MS;
+};
+
+export const saveCustomMessage = async (
+  userId: string,
+  profileId: string,
+  customMessage: string,
+): Promise<void> => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId, userId);
+  const trimmed = customMessage.trim();
+  await updateDoc(docSnap.ref, {
+    customMessage: trimmed,
+    customMessageUpdatedAt: trimmed ? serverTimestamp() : null,
+    customMessageDismissed: false,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const dismissCustomMessage = async (
+  userId: string,
+  profileId: string,
+): Promise<void> => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId, userId);
+  await updateDoc(docSnap.ref, {
+    customMessageDismissed: true,
     updatedAt: serverTimestamp(),
   });
 };
