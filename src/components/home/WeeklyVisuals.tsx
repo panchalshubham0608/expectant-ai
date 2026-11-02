@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface WeeklyVisualsProps {
@@ -9,8 +9,12 @@ interface WeeklyVisualsProps {
 export default function WeeklyVisuals({ week }: WeeklyVisualsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [week]);
+
   // Check if provided week supports visuals
-  if (week < 12 || week > 16) {
+  if (week < 1 || week > 42) {
     return <></>;
   }
 
@@ -18,6 +22,7 @@ export default function WeeklyVisuals({ week }: WeeklyVisualsProps) {
   const allModules = import.meta.glob('../../assets/weeks/*/*.{png,jpg,jpeg,svg,webp}', { eager: true, import: 'default' });
   const images = Object.keys(allModules)
     .filter((path) => path.startsWith(`../../assets/weeks/${week}/`))
+    .sort()
     .map((path) => allModules[path] as string);
 
   if (images.length === 0) {
