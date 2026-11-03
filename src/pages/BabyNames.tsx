@@ -5,6 +5,7 @@ import {
   Baby,
   Bookmark,
   Loader2,
+  Plus,
   RefreshCw,
   SlidersHorizontal,
   Sparkles,
@@ -33,6 +34,8 @@ import type {
 import BabyNameSettingsDialog from '../components/profile/BabyNameSettingsDialog';
 
 const GENDERS: BabyNameGender[] = ['Boy', 'Girl', 'Unisex'];
+const MAX_CUSTOM_NAME_LENGTH = 80;
+const MAX_CUSTOM_MEANING_LENGTH = 300;
 
 const GENDER_STYLES: Record<
   BabyNameGender,
@@ -94,6 +97,13 @@ export default function BabyNames() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [pendingIds, setPendingIds] = useState<Record<string, boolean>>({});
   const [nameToUnshortlist, setNameToUnshortlist] = useState<BabyNameSuggestion | null>(null);
+
+  const [isAddCustomOpen, setIsAddCustomOpen] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customMeaning, setCustomMeaning] = useState('');
+  const [customGender, setCustomGender] = useState<BabyNameGender>('Boy');
+  const [customNameError, setCustomNameError] = useState<string | null>(null);
+  const [isSavingCustom, setIsSavingCustom] = useState(false);
 
   const todayId = getTodayDateId();
   const babyNameContext = profile?.babyNameContext;
@@ -232,6 +242,60 @@ export default function BabyNames() {
       setError(err.message || 'Failed to update shortlist');
     } finally {
       setPendingIds((prev) => ({ ...prev, [favId]: false }));
+    }
+  };
+
+  const handleOpenAddCustom = () => {
+    setCustomName('');
+    setCustomMeaning('');
+    setCustomGender(genderFilter === 'All' ? 'Boy' : genderFilter);
+    setCustomNameError(null);
+    setIsAddCustomOpen(true);
+  };
+
+  const handleAddCustomSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId || !id) return;
+
+    const trimmedName = customName.trim();
+    const trimmedMeaning = customMeaning.trim();
+
+    if (!trimmedName) {
+      setCustomNameError('Please enter a baby name.');
+      return;
+    }
+    if (trimmedName.length > MAX_CUSTOM_NAME_LENGTH) {
+      setCustomNameError(`Name must be ${MAX_CUSTOM_NAME_LENGTH} characters or fewer.`);
+      return;
+    }
+    if (!trimmedMeaning) {
+      setCustomNameError('Please enter the meaning of the name.');
+      return;
+    }
+    if (trimmedMeaning.length > MAX_CUSTOM_MEANING_LENGTH) {
+      setCustomNameError(`Meaning must be ${MAX_CUSTOM_MEANING_LENGTH} characters or fewer.`);
+      return;
+    }
+
+    const favId = toFavoriteNameId(trimmedName);
+    if (!favId) {
+      setCustomNameError('Please enter a valid baby name.');
+      return;
+    }
+
+    setIsSavingCustom(true);
+    setCustomNameError(null);
+    try {
+      await shortlistBabyName(userId, id, {
+        name: trimmedName,
+        meaning: trimmedMeaning,
+        gender: customGender,
+      });
+      setIsAddCustomOpen(false);
+    } catch (err: any) {
+      setCustomNameError(err.message || 'Failed to add custom name to shortlist.');
+    } finally {
+      setIsSavingCustom(false);
     }
   };
 
@@ -414,6 +478,23 @@ export default function BabyNames() {
           </div>
         ) : activeTab === 'shortlisted' ? (
           <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Bookmark className="text-teal-600" size={18} />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-teal-800">
+                  Shortlisted Names
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAddCustom}
+                className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-teal-100 transition hover:bg-teal-100/70"
+              >
+                <Plus size={13} />
+                <span>Add Name</span>
+              </button>
+            </div>
+
             {favorites.length === 0 ? (
               <div className="py-6 text-center">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
@@ -421,9 +502,17 @@ export default function BabyNames() {
                 </div>
                 <h3 className="text-sm font-bold text-gray-900">No Shortlisted Names Yet</h3>
                 <p className="mx-auto mt-1 max-w-xs text-xs text-gray-500">
-                  Tap &ldquo;Shortlist&rdquo; on any daily baby name suggestion to save your
-                  favorites here.
+                  Tap &ldquo;Shortlist&rdquo; on any daily baby name suggestion or add your own
+                  custom name to save your favorites here.
                 </p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddCustom}
+                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-full bg-teal-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700"
+                >
+                  <Plus size={14} />
+                  <span>Add Custom Name</span>
+                </button>
               </div>
             ) : (
               renderCategorizedNames(favorites)
@@ -521,6 +610,141 @@ export default function BabyNames() {
           initialContext={babyNameContext}
           initialCount={babyNameCount}
         />
+      )}
+
+      {isAddCustomOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="add-custom-name-title"
+          onMouseDown={(event) =>
+            event.target === event.currentTarget && !isSavingCustom && setIsAddCustomOpen(false)
+          }
+        >
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+                  <Bookmark size={20} />
+                </div>
+                <div>
+                  <h2 id="add-custom-name-title" className="text-xl font-bold text-gray-900">
+                    Add Shortlisted Name
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    Save your own baby name idea and its meaning
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingCustom}
+                onClick={() => setIsAddCustomOpen(false)}
+                className="rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCustomSubmit} className="mt-5 space-y-4">
+              <div>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="customBabyName" className="block text-sm font-medium text-gray-700">
+                    Baby name
+                  </label>
+                  <span className="text-xs text-gray-400">
+                    {customName.length}/{MAX_CUSTOM_NAME_LENGTH}
+                  </span>
+                </div>
+                <input
+                  id="customBabyName"
+                  type="text"
+                  maxLength={MAX_CUSTOM_NAME_LENGTH}
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  className="mt-1.5 block w-full rounded-2xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  placeholder="E.g., Aarav"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="customBabyMeaning"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Meaning
+                  </label>
+                  <span className="text-xs text-gray-400">
+                    {customMeaning.length}/{MAX_CUSTOM_MEANING_LENGTH}
+                  </span>
+                </div>
+                <textarea
+                  id="customBabyMeaning"
+                  rows={3}
+                  maxLength={MAX_CUSTOM_MEANING_LENGTH}
+                  value={customMeaning}
+                  onChange={(e) => setCustomMeaning(e.target.value)}
+                  className="mt-1.5 block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  placeholder="E.g., Peaceful, wisdom, or melodious..."
+                  required
+                />
+              </div>
+
+              <div>
+                <span className="block text-sm font-medium text-gray-700">Gender</span>
+                <div className="mt-2 flex items-center gap-2">
+                  {GENDERS.map((g) => {
+                    const isSelected = customGender === g;
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setCustomGender(g)}
+                        className={`rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                          isSelected
+                            ? GENDER_STYLES[g].activeFilterBtn
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {customNameError && (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">
+                  {customNameError}
+                </p>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isSavingCustom}
+                  onClick={() => setIsAddCustomOpen(false)}
+                  className="rounded-full px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingCustom}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-50"
+                >
+                  <Bookmark size={15} className="fill-current" />
+                  <span>{isSavingCustom ? 'Saving...' : 'Shortlist Name'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {nameToUnshortlist && (
