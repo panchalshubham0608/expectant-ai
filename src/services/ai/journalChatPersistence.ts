@@ -219,6 +219,7 @@ export const upsertDailyLogFromExtraction = async (
       ...asNonEmptyArray((previous.activities as Activity[]) ?? []),
       ...asNonEmptyArray((extraction.activities as Activity[]) ?? []),
     ],
+    ...(previous.activitySummary ? { activitySummary: previous.activitySummary } : {}),
     symptoms: [
       ...asNonEmptyArray((previous.symptoms as any[]) ?? []),
       ...asNonEmptyArray((extraction.symptoms as any[]) ?? []),

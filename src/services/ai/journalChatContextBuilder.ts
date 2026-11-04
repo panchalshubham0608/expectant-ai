@@ -155,6 +155,7 @@ export interface JournalChatContext {
     hydration: DailyLog['hydration'];
     symptoms: DailyLog['symptoms'];
     activities: DailyLog['activities'];
+    activitySummary?: DailyLog['activitySummary'];
     medications: DailyLog['medications'];
     sleep?: DailyLog['sleep'];
     mood?: DailyLog['mood'];
@@ -310,6 +311,7 @@ export const buildJournalChatContext = ({
       hydration: log.hydration ?? [],
       symptoms: log.symptoms ?? [],
       activities: log.activities ?? [],
+      activitySummary: log.activitySummary,
       medications: log.medications ?? [],
       sleep: log.sleep,
       mood: log.mood,

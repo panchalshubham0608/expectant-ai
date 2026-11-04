@@ -31,6 +31,8 @@ import {
 
 interface MeasurementsCardProps {
   measurements: Measurement[];
+  isLoading?: boolean;
+  error?: string | null;
   onSave: (measurements: Measurement[]) => Promise<void>;
   onDelete?: (measurementId: string) => Promise<void>;
 }
@@ -186,6 +188,8 @@ const getPlaceholderForVital = (measurement: Measurement): string => {
 
 export default function MeasurementsCard({
   measurements,
+  isLoading = false,
+  error = null,
   onSave,
   onDelete,
 }: MeasurementsCardProps) {
@@ -489,7 +493,7 @@ export default function MeasurementsCard({
         </h3>
 
         <div className="flex shrink-0 items-center gap-3">
-          {isExpanded && (
+          {isExpanded && !isLoading && (
             <button
               type="button"
               onClick={(e) => {
@@ -514,177 +518,191 @@ export default function MeasurementsCard({
       {/* Expanded Body */}
       {isExpanded && (
         <div className="mt-5 space-y-4">
-          {/* Category Filter Pills & Trends Button */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {(
-                [
-                  { id: 'all', label: 'All' },
-                  { id: 'maternal', label: 'Maternal' },
-                  { id: 'baby', label: 'Baby' },
-                  ...(allVitals.some((v) => v.category === 'custom' || v.isCustom)
-                    ? [{ id: 'custom', label: 'Custom' }]
-                    : []),
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setCategoryFilter(tab.id as 'all' | VitalCategory)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                    categoryFilter === tab.id
-                      ? 'bg-purple-600 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+          {error && (
+            <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700 ring-1 ring-inset ring-red-600/20">
+              {error}
             </div>
+          )}
 
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700">
-                {loggedVitalsCount}/{allVitals.length}
-              </span>
-              <button
-                type="button"
-                onClick={() => setChartConfig({ isOpen: true })}
-                className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-                title="View Vitals Trends"
-              >
-                <Activity size={13} className="text-purple-600" />
-                <span>Trends</span>
-              </button>
+          {isLoading ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="animate-spin text-purple-500" size={24} />
             </div>
-          </div>
+          ) : (
+            <>
+              {/* Category Filter Pills & Trends Button */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(
+                    [
+                      { id: 'all', label: 'All' },
+                      { id: 'maternal', label: 'Maternal' },
+                      { id: 'baby', label: 'Baby' },
+                      ...(allVitals.some((v) => v.category === 'custom' || v.isCustom)
+                        ? [{ id: 'custom', label: 'Custom' }]
+                        : []),
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setCategoryFilter(tab.id as 'all' | VitalCategory)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                        categoryFilter === tab.id
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
 
-          {/* Stacked Full-Width Vital Cards (matching ActiveMedicationsCard) */}
-          <div className="space-y-3">
-            {filteredVitals.map((vital) => {
-              const hasValue = String(vital.value ?? '').trim() !== '';
-              const delta = calculateVitalDelta(vital);
-              const historyCount = normalizeMeasurementHistory(vital).length;
-              const badge = getCategoryBadge(vital.category);
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700">
+                    {loggedVitalsCount}/{allVitals.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setChartConfig({ isOpen: true })}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                    title="View Vitals Trends"
+                  >
+                    <Activity size={13} className="text-purple-600" />
+                    <span>Trends</span>
+                  </button>
+                </div>
+              </div>
 
-              return (
-                <div
-                  key={vital.id}
-                  onClick={() => setSelectedVitalId(vital.id)}
-                  className="group relative flex cursor-pointer flex-col gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br from-purple-50/50 to-white p-4 ring-1 ring-purple-100/60 transition hover:shadow-sm hover:ring-purple-200"
-                >
-                  {/* Top Row: Icon + Name + Badge on Left, Value / Log Action on Right */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs ring-1 ring-slate-100">
-                        {getVitalIcon(vital)}
-                      </div>
+              {/* Stacked Full-Width Vital Cards (matching ActiveMedicationsCard) */}
+              <div className="space-y-3">
+                {filteredVitals.map((vital) => {
+                  const hasValue = String(vital.value ?? '').trim() !== '';
+                  const delta = calculateVitalDelta(vital);
+                  const historyCount = normalizeMeasurementHistory(vital).length;
+                  const badge = getCategoryBadge(vital.category);
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <h4 className="font-semibold text-gray-900 leading-snug">
-                            {vital.label}
-                          </h4>
-                          <span
-                            className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${badge.className}`}
-                          >
-                            {badge.label}
-                          </span>
-                        </div>
+                  return (
+                    <div
+                      key={vital.id}
+                      onClick={() => setSelectedVitalId(vital.id)}
+                      className="group relative flex cursor-pointer flex-col gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br from-purple-50/50 to-white p-4 ring-1 ring-purple-100/60 transition hover:shadow-sm hover:ring-purple-200"
+                    >
+                      {/* Top Row: Icon + Name + Badge on Left, Value / Log Action on Right */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-2xs ring-1 ring-slate-100">
+                            {getVitalIcon(vital)}
+                          </div>
 
-                        {vital.normalRange && (
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            Ref: {vital.normalRange}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right Side: Latest Value or Log Button */}
-                    <div className="shrink-0 text-right">
-                      {hasValue ? (
-                        <div className="flex flex-col items-end">
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-lg font-bold tracking-tight text-slate-900">
-                              {vital.value}
-                            </span>
-                            {vital.unit && (
-                              <span className="text-xs font-semibold text-slate-500">
-                                {vital.unit}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <h4 className="font-semibold text-gray-900 leading-snug">
+                                {vital.label}
+                              </h4>
+                              <span
+                                className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${badge.className}`}
+                              >
+                                {badge.label}
                               </span>
+                            </div>
+
+                            {vital.normalRange && (
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                Ref: {vital.normalRange}
+                              </p>
                             )}
                           </div>
-                          {delta && (
-                            <span
-                              className={`mt-0.5 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                                delta.direction === 'up'
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : delta.direction === 'down'
-                                    ? 'bg-amber-50 text-amber-700'
-                                    : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {delta.direction === 'up' && <TrendingUp size={11} />}
-                              {delta.direction === 'down' && <TrendingDown size={11} />}
-                              {delta.text}
+                        </div>
+
+                        {/* Right Side: Latest Value or Log Button */}
+                        <div className="shrink-0 text-right">
+                          {hasValue ? (
+                            <div className="flex flex-col items-end">
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-lg font-bold tracking-tight text-slate-900">
+                                  {vital.value}
+                                </span>
+                                {vital.unit && (
+                                  <span className="text-xs font-semibold text-slate-500">
+                                    {vital.unit}
+                                  </span>
+                                )}
+                              </div>
+                              {delta && (
+                                <span
+                                  className={`mt-0.5 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                    delta.direction === 'up'
+                                      ? 'bg-emerald-50 text-emerald-700'
+                                      : delta.direction === 'down'
+                                        ? 'bg-amber-50 text-amber-700'
+                                        : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {delta.direction === 'up' && <TrendingUp size={11} />}
+                                  {delta.direction === 'down' && <TrendingDown size={11} />}
+                                  {delta.text}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700 ring-1 ring-purple-200/60 transition group-hover:bg-purple-100">
+                              <Plus size={13} />
+                              <span>Log</span>
                             </span>
                           )}
                         </div>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700 ring-1 ring-purple-200/60 transition group-hover:bg-purple-100">
-                          <Plus size={13} />
-                          <span>Log</span>
-                        </span>
+                      </div>
+
+                      {/* Optional Note */}
+                      {vital.notes && (
+                        <div className="rounded-xl bg-white/70 px-3 py-2 text-xs text-slate-600 ring-1 ring-inset ring-slate-200/50">
+                          {vital.notes}
+                        </div>
                       )}
-                    </div>
-                  </div>
 
-                  {/* Optional Note */}
-                  {vital.notes && (
-                    <div className="rounded-xl bg-white/70 px-3 py-2 text-xs text-slate-600 ring-1 ring-inset ring-slate-200/50">
-                      {vital.notes}
-                    </div>
-                  )}
-
-                  {/* Bottom Footer */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-purple-100/50 pt-2 text-xs text-slate-500">
-                    {hasValue && vital.measuredAt ? (
-                      <span className="inline-flex items-center gap-1 text-slate-500">
-                        <Clock size={12} className="shrink-0 text-slate-400" />
-                        <span>Recorded {formatDisplayDate(vital.measuredAt)}</span>
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">No readings logged yet</span>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      {historyCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setChartConfig({ isOpen: true, selectedId: vital.id });
-                          }}
-                          className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-600 shadow-2xs ring-1 ring-slate-200/80 transition hover:bg-purple-50 hover:text-purple-700"
-                          title="View trend chart"
-                        >
-                          <History size={11} />
-                          <span>
-                            {historyCount} {historyCount === 1 ? 'log' : 'logs'}
+                      {/* Bottom Footer */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-purple-100/50 pt-2 text-xs text-slate-500">
+                        {hasValue && vital.measuredAt ? (
+                          <span className="inline-flex items-center gap-1 text-slate-500">
+                            <Clock size={12} className="shrink-0 text-slate-400" />
+                            <span>Recorded {formatDisplayDate(vital.measuredAt)}</span>
                           </span>
-                        </button>
-                      )}
-                      {hasValue && (
-                        <span className="inline-flex items-center gap-0.5 font-semibold text-purple-700 group-hover:text-purple-900">
-                          <Plus size={13} />
-                          <span>Add</span>
-                        </span>
-                      )}
+                        ) : (
+                          <span className="text-slate-400">No readings logged yet</span>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          {historyCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setChartConfig({ isOpen: true, selectedId: vital.id });
+                              }}
+                              className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-600 shadow-2xs ring-1 ring-slate-200/80 transition hover:bg-purple-50 hover:text-purple-700"
+                              title="View trend chart"
+                            >
+                              <History size={11} />
+                              <span>
+                                {historyCount} {historyCount === 1 ? 'log' : 'logs'}
+                              </span>
+                            </button>
+                          )}
+                          {hasValue && (
+                            <span className="inline-flex items-center gap-0.5 font-semibold text-purple-700 group-hover:text-purple-900">
+                              <Plus size={13} />
+                              <span>Add</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 
