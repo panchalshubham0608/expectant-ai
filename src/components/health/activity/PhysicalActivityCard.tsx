@@ -22,6 +22,7 @@ import type { Activity } from '../../../models/activity';
 import type { DailyLog } from '../../../models/dailylLog';
 import type { ExpectantProfile } from '../../../models/profile';
 import { subscribeToRecentDailyLogs } from '../../../services/ai/journalChatPersistence';
+import { subscribeToLatestHealthActivityInsight } from '../../../services/ai/healthInsightsService';
 import {
   addManualActivityToDailyLog,
   removeActivityFromDailyLog,
@@ -33,8 +34,8 @@ interface PhysicalActivityCardProps {
   profile?: Partial<ExpectantProfile> | null;
 }
 
-const DAILY_STEPS_GOAL = 6000;
-const DAILY_ACTIVE_MINUTES_GOAL = 30;
+const DEFAULT_STEPS_GOAL = 6000;
+const DEFAULT_ACTIVE_MINUTES_GOAL = 30;
 
 const ACTIVITY_PRESETS = [
   'Walking',
@@ -101,6 +102,8 @@ export default function PhysicalActivityCard({
   const last7DaysKeys = useMemo(() => getLast7DaysKeys(), []);
 
   const [dailyLogs, setDailyLogs] = useState<DailyLog[]>([]);
+  const [aiStepsGoal, setAiStepsGoal] = useState<number | null>(null);
+  const [aiActiveMinsGoal, setAiActiveMinsGoal] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(true);
@@ -128,7 +131,7 @@ export default function PhysicalActivityCard({
       return;
     }
 
-    const unsubscribe = subscribeToRecentDailyLogs(
+    const unsubscribeLogs = subscribeToRecentDailyLogs(
       user.uid,
       profileId,
       (logs) => {
@@ -138,8 +141,25 @@ export default function PhysicalActivityCard({
       14,
     );
 
-    return () => unsubscribe();
+    const unsubscribeInsight = subscribeToLatestHealthActivityInsight(
+      user.uid,
+      profileId,
+      (insight) => {
+        if (insight) {
+          setAiStepsGoal(insight.recommendedDailySteps);
+          setAiActiveMinsGoal(insight.recommendedActiveMinutes);
+        }
+      },
+    );
+
+    return () => {
+      unsubscribeLogs();
+      unsubscribeInsight();
+    };
   }, [user?.uid, profileId]);
+
+  const dailyStepsGoal = aiStepsGoal ?? DEFAULT_STEPS_GOAL;
+  const dailyActiveMinutesGoal = aiActiveMinsGoal ?? DEFAULT_ACTIVE_MINUTES_GOAL;
 
   const logsByDate = useMemo(() => {
     const map = new Map<string, DailyLog>();
@@ -207,9 +227,9 @@ export default function PhysicalActivityCard({
       chartMetric === 'steps' ? d.steps : d.activeMinutes,
     );
     const defaultGoal =
-      chartMetric === 'steps' ? DAILY_STEPS_GOAL : DAILY_ACTIVE_MINUTES_GOAL;
+      chartMetric === 'steps' ? dailyStepsGoal : dailyActiveMinutesGoal;
     return Math.max(defaultGoal, ...values, 1);
-  }, [dayMetricsList, chartMetric]);
+  }, [dayMetricsList, chartMetric, dailyStepsGoal, dailyActiveMinutesGoal]);
 
   const handleSyncGoogleHealth = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -290,12 +310,12 @@ export default function PhysicalActivityCard({
 
   const stepsPercent = Math.min(
     100,
-    Math.round(((selectedDayData?.steps ?? 0) / DAILY_STEPS_GOAL) * 100),
+    Math.round(((selectedDayData?.steps ?? 0) / dailyStepsGoal) * 100),
   );
   const activeMinsPercent = Math.min(
     100,
     Math.round(
-      ((selectedDayData?.activeMinutes ?? 0) / DAILY_ACTIVE_MINUTES_GOAL) * 100,
+      ((selectedDayData?.activeMinutes ?? 0) / dailyActiveMinutesGoal) * 100,
     ),
   );
 
@@ -453,7 +473,8 @@ export default function PhysicalActivityCard({
                 />
               </div>
               <p className="mt-1 text-[11px] text-gray-500">
-                {stepsPercent}% of {DAILY_STEPS_GOAL.toLocaleString()} goal
+                {stepsPercent}% of {dailyStepsGoal.toLocaleString()}{' '}
+                {aiStepsGoal ? 'AI goal' : 'goal'}
               </p>
             </div>
 
@@ -474,7 +495,7 @@ export default function PhysicalActivityCard({
                 />
               </div>
               <p className="mt-1 text-[11px] text-gray-500">
-                ACOG target: {DAILY_ACTIVE_MINUTES_GOAL}m/day
+                {aiActiveMinsGoal ? 'AI target' : 'ACOG target'}: {dailyActiveMinutesGoal}m/day
               </p>
             </div>
 

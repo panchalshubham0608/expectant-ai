@@ -14,6 +14,7 @@ import {
 import MeasurementsCard from '../components/health/measurements/MeasurementsCard';
 import ActiveMedicationsCard from '../components/health/medication/ActiveMedicationsCard';
 import PhysicalActivityCard from '../components/health/activity/PhysicalActivityCard';
+import AIHealthActivityCard from '../components/health/insights/AIHealthActivityCard';
 
 function Health() {
   const { id } = useParams<{ id: string }>();
@@ -86,6 +87,13 @@ function Health() {
           </div>
         ) : (
           <div className="flex flex-col gap-5">
+            {id && (
+              <AIHealthActivityCard
+                profileId={id}
+                profile={profile}
+                measurements={mergedMeasurements}
+              />
+            )}
             {id && <PhysicalActivityCard profileId={id} profile={profile} />}
             <ActiveMedicationsCard />
             <MeasurementsCard
