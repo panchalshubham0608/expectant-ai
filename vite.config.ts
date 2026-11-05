@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => ({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      workbox: {
+        navigateFallbackDenylist: [/\/(privacy|terms|google[a-z0-9]+)\.html$/i],
+      },
       manifest: {
         name: "Expectant AI",
         short_name: "Expectant AI",

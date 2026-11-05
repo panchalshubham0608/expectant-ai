@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy — Expectant AI</title>
+    <link rel="icon" href="./expectant-ai.ico" />
+    <style>
+      :root {
+        --bg-top: #eefbf2;
+        --bg-mid: #faf9f6;
+        --bg-bot: #ffffff;
+        --brand: #15803d;
+        --brand-light: #dcfce7;
+        --text-main: #0f172a;
+        --text-muted: #475569;
+        --border: #e2e8f0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+          Cantarell, sans-serif;
+        background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 35%, var(--bg-bot) 100%);
+        color: var(--text-main);
+        line-height: 1.65;
+      }
+      .container {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 20px 72px;
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 36px 32px;
+        box-shadow: 0 24px 60px -35px rgba(15, 23, 42, 0.22);
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .header img {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+      }
+      .brand-tag {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--brand);
+        margin: 0;
+      }
+      h1 {
+        font-size: 28px;
+        margin: 4px 0 0;
+        letter-spacing: -0.02em;
+      }
+      .meta {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-bottom: 24px;
+      }
+      h2 {
+        font-size: 18px;
+        color: var(--text-main);
+        margin: 28px 0 10px;
+      }
+      p,
+      li {
+        font-size: 15px;
+        color: #334155;
+      }
+      ul {
+        padding-left: 20px;
+        margin: 8px 0 16px;
+      }
+      li {
+        margin-bottom: 6px;
+      }
+      .callout {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 16px;
+        padding: 16px 18px;
+        margin: 20px 0;
+      }
+      .callout strong {
+        color: var(--brand);
+      }
+      code {
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-size: 13px;
+      }
+      .footer {
+        margin-top: 32px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 14px;
+      }
+      a {
+        color: var(--brand);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <div class="header">
+          <img src="./expectant-ai.ico" alt="Expectant AI" />
+          <div>
+            <p class="brand-tag">Expectant AI</p>
+            <h1>Privacy Policy</h1>
+          </div>
+        </div>
+
+        <p class="meta">Effective Date: November 5, 2026 &bull; Last Updated: November 5, 2026</p>
+
+        <p>
+          <strong>Expectant AI</strong> ("we", "our", or "the Application") is an AI-powered
+          pregnancy companion designed to help expectant parents organize prenatal health records,
+          track daily wellness and physical activity, and receive supportive, stage-aware insights.
+          This Privacy Policy explains what data we collect, how we use and protect it, and how we
+          handle data accessed through Google APIs.
+        </p>
+
+        <h2>1. Information We Collect</h2>
+        <ul>
+          <li>
+            <strong>Google Account Information:</strong> When you sign in with Google via Firebase
+            Authentication, we receive your basic profile information (name, email address, and
+            profile photo URL) to authenticate and identify your account.
+          </li>
+          <li>
+            <strong>Pregnancy &amp; Health Profile Data:</strong> Information you voluntarily enter,
+            including expected due date, last menstrual period (LMP), maternal date of birth, blood
+            group, care provider details, vital measurements, medications, appointments, reminders,
+            daily journal entries, and uploaded medical reports.
+          </li>
+          <li>
+            <strong>Google Health Physical Activity Data (Optional):</strong> When you explicitly
+            click <em>Sync Google Health</em> and grant permission to the
+            <code>https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly</code>
+            scope, Expectant AI reads your past 7 days of physical activity metrics (daily step
+            counts, active minutes, distance, active calories burned, and exercise sessions).
+          </li>
+          <li>
+            <strong>Google Calendar Data (Optional):</strong> When you explicitly sync prenatal
+            appointments or reminders to Google Calendar and grant permission to the
+            <code>https://www.googleapis.com/auth/calendar</code> scope, Expectant AI creates and
+            manages a dedicated secondary calendar named <strong>"Expectant AI"</strong> on your
+            Google Calendar account to schedule your prenatal checkups and daily reminders.
+          </li>
+        </ul>
+
+        <h2>2. How We Use Your Information</h2>
+        <ul>
+          <li>
+            To display your pregnancy timeline, health measurements, appointments, and 7-day
+            physical activity progress in your private dashboard.
+          </li>
+          <li>
+            To generate personalized, stage-specific prenatal wellness cards, daily digests, report
+            summaries, and conversational answers through the MIRA assistant using Google Gemini AI.
+          </li>
+          <li>
+            To create and update appointment and reminder events inside your dedicated
+            <strong>"Expectant AI"</strong> Google Calendar when requested by you.
+          </li>
+        </ul>
+
+        <div class="callout">
+          <strong>Google API Services User Data Policy (Limited Use Disclosure):</strong>
+          <p style="margin: 8px 0 0">
+            Expectant AI's use and transfer to any other app of information received from Google
+            APIs will adhere to the
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Google API Services User Data Policy</a
+            >, including the Limited Use requirements. Specifically:
+          </p>
+          <ul style="margin-bottom: 0">
+            <li>
+              We only access Google Health and Google Calendar data after your explicit consent.
+            </li>
+            <li>
+              We do <strong>not</strong> sell, rent, or share your Google user data with third-party
+              advertisers or data brokers.
+            </li>
+            <li>
+              We do <strong>not</strong> use your Google user data for serving advertisements or
+              training generalized foundation AI models.
+            </li>
+          </ul>
+        </div>
+
+        <h2>3. Data Storage &amp; Security</h2>
+        <p>
+          Your profile, daily logs, and synced activity summaries are stored in Google Cloud
+          Firestore scoped strictly to your authenticated user account (and any family member you
+          explicitly invite via profile sharing). All communications between your browser, Firebase,
+          Google APIs, and the Google Gemini API are encrypted in transit over HTTPS/TLS.
+        </p>
+
+        <h2>4. Revoking Access &amp; Deleting Your Data</h2>
+        <ul>
+          <li>
+            You can revoke Expectant AI's access to your Google account, Google Health, or Google
+            Calendar at any time from your
+            <a
+              href="https://myaccount.google.com/permissions"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Google Account Third-Party Connections</a
+            >
+            page.
+          </li>
+          <li>
+            You can delete individual health logs, measurements, reports, appointments, or your
+            entire pregnancy profile directly within the application.
+          </li>
+        </ul>
+
+        <h2>5. Contact Us</h2>
+        <p>
+          If you have any questions about this Privacy Policy or how your data is handled, please
+          contact the developer via the project repository at
+          <a
+            href="https://github.com/panchalshubham0608/expectant-ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            >github.com/panchalshubham0608/expectant-ai</a
+          >.
+        </p>
+
+        <div class="footer">
+          <a href="./">&larr; Back to Expectant AI</a>
+          <a href="./terms.html">Terms of Service &rarr;</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

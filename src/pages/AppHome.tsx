@@ -58,6 +58,24 @@ function AppHome() {
             {isSigningIn ? 'Signing in…' : 'Continue with Google'}
           </button>
           {error && <p className="text-center text-sm leading-6 text-red-600">{error}</p>}
+
+          <div className="border-t border-gray-100 pt-4 text-center text-xs text-gray-500">
+            <span>By continuing, you agree to our </span>
+            <a
+              href={`${import.meta.env.BASE_URL}privacy.html`}
+              className="font-semibold text-green-700 hover:underline"
+            >
+              Privacy Policy
+            </a>
+            <span> &amp; </span>
+            <a
+              href={`${import.meta.env.BASE_URL}terms.html`}
+              className="font-semibold text-green-700 hover:underline"
+            >
+              Terms of Service
+            </a>
+            <span>.</span>
+          </div>
         </div>
       </main>
     </div>
