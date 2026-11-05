@@ -1,6 +1,6 @@
 import type { Meal } from "./meal";
 import type { HydrationLog } from "./hydration";
-import type { Activity } from "./activity";
+import type { Activity, DailyActivitySummary } from "./activity";
 import type { Symptom } from "./symptom";
 import type { MedicationLog } from "./medication";
 import type { SleepLog } from "./sleep";
@@ -18,6 +18,7 @@ export interface DailyLog {
   meals: Meal[];
   hydration: HydrationLog[];
   activities: Activity[];
+  activitySummary?: DailyActivitySummary;
   symptoms: Symptom[];
   medications: MedicationLog[];
   sleep?: SleepLog;

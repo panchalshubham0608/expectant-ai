@@ -1004,14 +1004,17 @@ You have full access to the expectant's context in the JSON payload:
 - "healthMeasurements": Tracked vitals and measurements (maternal weight, baby weight, gestational age, fetal heart rate, blood pressure, blood sugar, hemoglobin, etc.) with previous values and normal ranges.
 - "medications": Currently active medications (with dose, frequency, duration, instructions) and discontinued medications.
 - "activeReminders": Daily/weekly reminders configured by the expectant.
-- "recentDailyLogs" & "knownState": Recent daily journal logs (meals, hydration, symptoms, mood, sleep, activities, medications taken, notes).
+- "healthActivityInsight": The latest AI Health & Activity Coach assessment generated for the expectant (headline, summary, activityStatus, activityStatusLabel, activityScore, overallScore, personalized recommendedDailySteps & recommendedActiveMinutes targets, weeklyProgressNote, positive highlights, nextActions, and stage-specific precautions).
+- "physicalActivityOverview": Aggregated 7-day and today's physical activity combining synced Google Health data (daily steps, active minutes, distance in km, active calories, and synced workouts with heart rate) and manually logged exercises, along with percentage progress toward her personalized daily step and active-minute goals.
+- "recentDailyLogs" & "knownState": Recent daily journal logs (meals, hydration, symptoms, mood, sleep, activities, activitySummary, medications taken, notes).
 - "recentConversation": The ongoing chat history.
 - "currentMessage": The expectant's latest message or question.
 
 YOUR RESPONSIBILITIES:
 1. Personalized, Context-Aware Answers ("answer"):
-   - Answer any question the expectant asks using their specific profile, reports, appointments, measurements, medications, and recent logs.
-   - When asked about reports, measurements, medications, or appointments, cite the relevant dates, values, doctor names, and findings clearly and accurately in plain, reassuring language.
+   - Answer any question the expectant asks using their specific profile, reports, appointments, measurements, medications, AI health & activity insight card ("healthActivityInsight"), physical activity overview ("physicalActivityOverview"), and recent logs.
+   - When asked about reports, measurements, medications, appointments, or physical activity/steps/workouts, cite the relevant dates, values, doctor names, step/active-minute counts, personalized AI goals ("recommendedDailySteps", "recommendedActiveMinutes"), and findings clearly and accurately in plain, reassuring language.
+   - When the expectant asks about her exercise routine, step goal, energy levels, or overall wellness card, reference her "physicalActivityOverview" (today's and 7-day average steps, active minutes, distance, calories, and synced Google Health vs. manual workouts) alongside her "healthActivityInsight" (wellness/activity scores, highlights, next actions, and stage-specific precautions).
    - Use clean formatting in "answer": short paragraphs, bullet points ("- ") for lists, and **bold** for key terms, dates, or values when helpful.
    - Keep your tone warm, supportive, and conversational.
    - Maintain continuity with "recentConversation".
@@ -1215,6 +1218,9 @@ export const generateJournalChatReply = async (
                       type: 'STRING',
                       enum: ['low', 'moderate', 'high'],
                     },
+                    steps: { type: 'NUMBER' },
+                    distanceKm: { type: 'NUMBER' },
+                    caloriesKcal: { type: 'NUMBER' },
                     timestamp: { type: 'STRING' },
                     notes: { type: 'STRING' },
                   },

@@ -13,6 +13,7 @@ import { updateMeasurements } from '../../services/measurements/measurementsServ
 import { saveReminder } from '../../services/reminders/reminderService';
 import { subscribeToMedicalReports } from '../../services/reports/medicalReportService';
 import { subscribeToMedications } from '../../services/medication/medicationService';
+import { subscribeToLatestHealthActivityInsight } from '../../services/ai/healthInsightsService';
 import {
   type ChatSuggestedAppointment,
   type ChatSuggestedReminder,
@@ -34,6 +35,7 @@ import {
 } from '../../services/ai/journalChatService';
 import type { ConversationMessage } from '../../models/chat';
 import type { DailyLog } from '../../models/dailylLog';
+import type { AIHealthActivityInsight } from '../../models/health';
 import {
   mergeMeasurementsWithDefaults,
   normalizeMeasurementHistory,
@@ -113,6 +115,8 @@ function ChatWindow() {
   const [reports, setReports] = useState<Report[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [recentDailyLogs, setRecentDailyLogs] = useState<DailyLog[]>([]);
+  const [healthActivityInsight, setHealthActivityInsight] =
+    useState<AIHealthActivityInsight | null>(null);
 
   const [chatRecords, setChatRecords] = useState<JournalChatRecord[]>([]);
   const [hasLoadedChats, setHasLoadedChats] = useState(false);
@@ -170,10 +174,18 @@ function ChatWindow() {
       }
     });
 
+    const unsubHealthInsight = subscribeToLatestHealthActivityInsight(
+      userId,
+      id,
+      (latestInsight) => setHealthActivityInsight(latestInsight),
+      () => undefined
+    );
+
     return () => {
       unsubReports();
       unsubMedications();
       unsubDailyLogs();
+      unsubHealthInsight();
     };
   }, [userId, id]);
 
@@ -590,6 +602,7 @@ function ChatWindow() {
           medications,
           reminders,
           recentDailyLogs,
+          healthActivityInsight,
           history: chatHistory,
           knownState: knownExtraction,
         },

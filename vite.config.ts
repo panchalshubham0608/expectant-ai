@@ -36,8 +36,11 @@ export default defineConfig(({ mode }) => ({
     }),
   ],
   server: (() => {
-    const devHttps = process.env.DEV_HTTPS === 'true' || process.env.DEV_HTTPS === '1' || process.env.DEV_HTTPS === 'true';
-    if (!devHttps) return { host: true };
+    const headers = {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    };
+    const devHttps = process.env.DEV_HTTPS === 'true' || process.env.DEV_HTTPS === '1';
+    if (!devHttps) return { host: true, headers };
 
     // Allow optional custom cert/key via env vars DEV_HTTPS_KEY and DEV_HTTPS_CERT
     const keyPath = process.env.DEV_HTTPS_KEY || process.env.DEV_HTTPS_KEY_FILE;
@@ -47,14 +50,14 @@ export default defineConfig(({ mode }) => ({
       try {
         const key = fs.readFileSync(path.resolve(keyPath));
         const cert = fs.readFileSync(path.resolve(certPath));
-        return { host: true, https: { key, cert } };
+        return { host: true, headers, https: { key, cert } };
       } catch (err) {
         console.warn('DEV_HTTPS is enabled but failed to read cert/key files, falling back to https: true', err);
-        return { host: true, https: {} };
+        return { host: true, headers, https: {} };
       }
     }
 
     // Let Vite use its default self-signed/https behaviour
-    return { host: true, https: {} };
+    return { host: true, headers, https: {} };
   })(),
 }));

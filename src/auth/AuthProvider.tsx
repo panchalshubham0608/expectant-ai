@@ -11,6 +11,7 @@ import type { User } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase';
 import { AuthContext } from './AuthContext';
 import { registerForNotifications } from '../lib/messaging';
+import { clearGoogleHealthToken } from '../services/health/googleHealthService';
 
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -57,6 +58,9 @@ function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!auth) return;
     return onAuthStateChanged(auth, (nextUser) => {
+      if (!nextUser) {
+        clearGoogleHealthToken();
+      }
       setUser(nextUser);
       setIsLoading(false);
     });

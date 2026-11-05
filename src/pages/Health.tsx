@@ -13,6 +13,8 @@ import {
 } from '../services/measurements/measurementsService';
 import MeasurementsCard from '../components/health/measurements/MeasurementsCard';
 import ActiveMedicationsCard from '../components/health/medication/ActiveMedicationsCard';
+import PhysicalActivityCard from '../components/health/activity/PhysicalActivityCard';
+import AIHealthActivityCard from '../components/health/insights/AIHealthActivityCard';
 
 function Health() {
   const { id } = useParams<{ id: string }>();
@@ -76,22 +78,28 @@ function Health() {
 
       {/* Main Content */}
       <div className="relative z-20 -mt-8 px-4">
-        {(error || measurementsError) && (
-          <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error || measurementsError}</p>
+        {error && (
+          <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
         )}
-        {(isLoading || isLoadingMeasurements) ? (
-          <div className="rounded-3xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">
-            Loading health profile…
-          </div>
-        ) : !profile ? (
+        {!isLoading && !profile ? (
           <div className="rounded-3xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">
             Profile unavailable.
           </div>
         ) : (
           <div className="flex flex-col gap-5">
+            {id && (
+              <AIHealthActivityCard
+                profileId={id}
+                profile={profile}
+                measurements={mergedMeasurements}
+              />
+            )}
+            {id && <PhysicalActivityCard profileId={id} profile={profile} />}
             <ActiveMedicationsCard />
             <MeasurementsCard
               measurements={mergedMeasurements}
+              isLoading={isLoadingMeasurements}
+              error={measurementsError}
               onSave={saveMeasurements}
               onDelete={removeMeasurement}
             />

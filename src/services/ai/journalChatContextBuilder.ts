@@ -1,6 +1,7 @@
 import type { Appointment } from '../../models/appointment';
 import type { ConversationMessage } from '../../models/chat';
 import type { DailyLog } from '../../models/dailylLog';
+import type { AIHealthActivityInsight } from '../../models/health';
 import type { Measurement } from '../../models/measurement';
 import type { Medication } from '../../models/medication';
 import type { ExpectantProfile } from '../../models/profile';
@@ -31,6 +32,7 @@ export interface JournalChatContextInput {
   medications?: Medication[] | null;
   reminders?: Reminder[] | null;
   recentDailyLogs?: DailyLog[] | null;
+  healthActivityInsight?: AIHealthActivityInsight | null;
   history?: ConversationMessage[];
   knownState?: JournalMessageExtraction;
 }
@@ -155,11 +157,55 @@ export interface JournalChatContext {
     hydration: DailyLog['hydration'];
     symptoms: DailyLog['symptoms'];
     activities: DailyLog['activities'];
+    activitySummary?: DailyLog['activitySummary'];
     medications: DailyLog['medications'];
     sleep?: DailyLog['sleep'];
     mood?: DailyLog['mood'];
     notes: DailyLog['notes'];
   }>;
+  healthActivityInsight?: AIHealthActivityInsight | null;
+  physicalActivityOverview: {
+    recommendedDailySteps: number;
+    recommendedActiveMinutes: number;
+    goalSource: 'ai_personalized' | 'default';
+    todayActivity: {
+      date: string;
+      steps: number;
+      activeMinutes: number;
+      distanceKm: number;
+      activeCaloriesKcal: number;
+      stepGoalProgressPercent: number;
+      activeMinutesGoalProgressPercent: number;
+      lastSyncedAt?: string;
+      exercises: Array<{
+        type: string;
+        durationMinutes?: number;
+        intensity?: string;
+        steps?: number;
+        distanceKm?: number;
+        caloriesKcal?: number;
+        averageHeartRateBpm?: number;
+        source: string;
+      }>;
+    };
+    sevenDaySummary: {
+      daysWithTrackedActivity: number;
+      totalSteps7Days: number;
+      averageDailySteps: number;
+      totalActiveMinutes7Days: number;
+      averageDailyActiveMinutes: number;
+      totalDistanceKm7Days: number;
+      totalActiveCaloriesKcal7Days: number;
+      dailyBreakdown: Array<{
+        date: string;
+        steps: number;
+        activeMinutes: number;
+        distanceKm: number;
+        activeCaloriesKcal: number;
+        exerciseCount: number;
+      }>;
+    };
+  };
   currentMessage: string;
   knownState: JournalMessageExtraction;
   recentConversation: string;
@@ -175,6 +221,7 @@ export const buildJournalChatContext = ({
   medications,
   reminders,
   recentDailyLogs,
+  healthActivityInsight,
   history,
   knownState,
 }: JournalChatContextInput): JournalChatContext => {
@@ -310,14 +357,91 @@ export const buildJournalChatContext = ({
       hydration: log.hydration ?? [],
       symptoms: log.symptoms ?? [],
       activities: log.activities ?? [],
+      activitySummary: log.activitySummary,
       medications: log.medications ?? [],
       sleep: log.sleep,
       mood: log.mood,
       notes: log.notes ?? [],
     }));
 
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const recommendedDailySteps = healthActivityInsight?.recommendedDailySteps ?? 6500;
+  const recommendedActiveMinutes = healthActivityInsight?.recommendedActiveMinutes ?? 30;
+
+  const computeLogActivityTotals = (log?: {
+    date: string;
+    activities?: DailyLog['activities'];
+    activitySummary?: DailyLog['activitySummary'];
+  }) => {
+    const acts = log?.activities ?? [];
+    const summary = log?.activitySummary;
+    const manualSteps = acts
+      .filter((a) => a.source !== 'google_health')
+      .reduce((acc, a) => acc + (a.steps ?? 0), 0);
+    const manualMinutes = acts
+      .filter((a) => a.source !== 'google_health')
+      .reduce((acc, a) => acc + (a.durationMinutes ?? 0), 0);
+    const manualCalories = acts
+      .filter((a) => a.source !== 'google_health')
+      .reduce((acc, a) => acc + (a.caloriesKcal ?? 0), 0);
+    const manualDistance = acts
+      .filter((a) => a.source !== 'google_health')
+      .reduce((acc, a) => acc + (a.distanceKm ?? 0), 0);
+
+    return {
+      date: log?.date ?? todayDateStr,
+      steps: (summary?.steps ?? 0) + manualSteps,
+      activeMinutes: (summary?.activeMinutes ?? 0) + manualMinutes,
+      distanceKm: Number(((summary?.distanceKm ?? 0) + manualDistance).toFixed(2)),
+      activeCaloriesKcal: (summary?.activeCaloriesKcal ?? 0) + manualCalories,
+      lastSyncedAt: summary?.syncedAt,
+      exercises: acts.map((a) => ({
+        type: a.type,
+        durationMinutes: a.durationMinutes,
+        intensity: a.intensity,
+        steps: a.steps,
+        distanceKm: a.distanceKm,
+        caloriesKcal: a.caloriesKcal,
+        averageHeartRateBpm: a.averageHeartRateBpm,
+        source: a.source ?? 'manual',
+      })),
+    };
+  };
+
+  const todayLogEntry = formattedDailyLogs.find((l) => l.date === todayDateStr);
+  const todayTotals = computeLogActivityTotals(todayLogEntry);
+
+  const sevenDayBreakdown = formattedDailyLogs.map((l) => {
+    const t = computeLogActivityTotals(l);
+    return {
+      date: t.date,
+      steps: t.steps,
+      activeMinutes: t.activeMinutes,
+      distanceKm: t.distanceKm,
+      activeCaloriesKcal: t.activeCaloriesKcal,
+      exerciseCount: t.exercises.length,
+    };
+  });
+
+  const totalSteps7Days = sevenDayBreakdown.reduce((acc, d) => acc + d.steps, 0);
+  const totalActiveMinutes7Days = sevenDayBreakdown.reduce(
+    (acc, d) => acc + d.activeMinutes,
+    0
+  );
+  const totalDistanceKm7Days = Number(
+    sevenDayBreakdown.reduce((acc, d) => acc + d.distanceKm, 0).toFixed(2)
+  );
+  const totalActiveCaloriesKcal7Days = sevenDayBreakdown.reduce(
+    (acc, d) => acc + d.activeCaloriesKcal,
+    0
+  );
+  const daysWithTrackedActivity = sevenDayBreakdown.filter(
+    (d) => d.steps > 0 || d.activeMinutes > 0 || d.exerciseCount > 0
+  ).length;
+  const divisor = Math.max(1, sevenDayBreakdown.length || 7);
+
   return {
-    currentDate: new Date().toISOString().slice(0, 10),
+    currentDate: todayDateStr,
     profile: {
       name: profile?.fullName ?? 'Expectant parent',
       dateOfBirth: profile?.dateOfBirth,
@@ -360,6 +484,41 @@ export const buildJournalChatContext = ({
     },
     activeReminders,
     recentDailyLogs: formattedDailyLogs,
+    healthActivityInsight: healthActivityInsight ?? null,
+    physicalActivityOverview: {
+      recommendedDailySteps,
+      recommendedActiveMinutes,
+      goalSource: healthActivityInsight ? 'ai_personalized' : 'default',
+      todayActivity: {
+        date: todayTotals.date,
+        steps: todayTotals.steps,
+        activeMinutes: todayTotals.activeMinutes,
+        distanceKm: todayTotals.distanceKm,
+        activeCaloriesKcal: todayTotals.activeCaloriesKcal,
+        stepGoalProgressPercent: Math.min(
+          100,
+          Math.round((todayTotals.steps / Math.max(1, recommendedDailySteps)) * 100)
+        ),
+        activeMinutesGoalProgressPercent: Math.min(
+          100,
+          Math.round(
+            (todayTotals.activeMinutes / Math.max(1, recommendedActiveMinutes)) * 100
+          )
+        ),
+        lastSyncedAt: todayTotals.lastSyncedAt,
+        exercises: todayTotals.exercises,
+      },
+      sevenDaySummary: {
+        daysWithTrackedActivity,
+        totalSteps7Days,
+        averageDailySteps: Math.round(totalSteps7Days / divisor),
+        totalActiveMinutes7Days,
+        averageDailyActiveMinutes: Math.round(totalActiveMinutes7Days / divisor),
+        totalDistanceKm7Days,
+        totalActiveCaloriesKcal7Days,
+        dailyBreakdown: sevenDayBreakdown,
+      },
+    },
     currentMessage: message,
     knownState:
       knownState ?? {
@@ -373,6 +532,6 @@ export const buildJournalChatContext = ({
       },
     recentConversation: recentHistory,
     instructions:
-      'Use the expectant profile, medical reports, appointments, health measurements, medications, reminders, and recent daily logs faithfully to answer questions with warmth, clarity, and personalization. Never diagnose conditions or prescribe/change treatments.',
+      'Use the expectant profile, medical reports, appointments, health measurements, medications, reminders, AI health & activity insight card, physical activity overview (Google Health + manual logs), and recent daily logs faithfully to answer questions with warmth, clarity, and personalization. Never diagnose conditions or prescribe/change treatments.',
   };
 };

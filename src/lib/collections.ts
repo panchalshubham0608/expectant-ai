@@ -31,3 +31,4 @@ export const getWeeklyUpdatesCollection = (userId: string, profileId: string) =>
 export const getNotificationsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'notifications');
 export const getDailyLogsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'dailyLogs');
 export const getJournalChatsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'journalChats');
+export const getHealthSnapshotsCollection = (userId: string, profileId: string) => getProfileSubcollection(userId, profileId, 'healthSnapshots');
