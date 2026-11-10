@@ -5,11 +5,13 @@ import {
   Baby,
   Bot,
   Calendar,
+  Camera,
   Check,
   CheckCircle2,
   Droplets,
   FileText,
   HeartPulse,
+  Image as ImageIcon,
   Loader2,
   MessageSquareText,
   RotateCcw,
@@ -19,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import type { ChatAttachmentMeta } from '../../models/chat';
 import type { Measurement, VitalCategory } from '../../models/measurement';
 import type {
   ChatSuggestedAppointment,
@@ -26,12 +29,17 @@ import type {
   ChatSuggestedVitalItem,
   ChatSuggestedVitals,
 } from '../../services/ai/journalChatService';
+import {
+  formatAttachmentSize,
+  isImageMimeType,
+} from '../../utils/chatAttachments';
 import ChatAppointmentFormCard from './ChatAppointmentFormCard';
 import ChatReminderFormCard from './ChatReminderFormCard';
 
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
   message: string;
+  attachments?: ChatAttachmentMeta[];
   followUpQuestion?: string;
   timestamp?: string;
   isError?: boolean;
@@ -627,6 +635,7 @@ const formatTime = (iso?: string) => {
 function ChatBubble({
   role,
   message,
+  attachments,
   followUpQuestion,
   timestamp,
   isError = false,
@@ -645,6 +654,7 @@ function ChatBubble({
 }: ChatBubbleProps) {
   const isUser = role === 'user';
   const timeLabel = formatTime(timestamp);
+  const hasAttachments = Boolean(attachments && attachments.length > 0);
   const hasInteractiveCard = Boolean(
     suggestedAppointment ||
       suggestedReminder ||
@@ -684,11 +694,96 @@ function ChatBubble({
               : 'rounded-bl-sm bg-white text-gray-800 shadow-xs ring-1 ring-gray-100'
         }`}
       >
-        {isUser ? (
-          <p className="whitespace-pre-wrap leading-relaxed">{message}</p>
-        ) : (
-          renderFormattedMessage(message)
+        {hasAttachments && (
+          <div className={`space-y-2 ${message.trim() ? 'mb-2.5' : ''}`}>
+            {attachments!.map((att) => {
+              const isImage = isImageMimeType(att.mimeType);
+              const sourceLabel =
+                att.source === 'camera'
+                  ? 'Camera Photo'
+                  : att.source === 'gallery'
+                    ? 'Gallery Photo'
+                    : att.mimeType === 'application/pdf'
+                      ? 'PDF Document'
+                      : 'Document';
+
+              if (isImage && att.previewDataUrl) {
+                return (
+                  <div
+                    key={att.id}
+                    className={`overflow-hidden rounded-xl border ${
+                      isUser
+                        ? 'border-emerald-500/60 bg-emerald-800/60'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                  >
+                    <img
+                      src={att.previewDataUrl}
+                      alt={att.name}
+                      className="max-h-48 w-full object-cover"
+                    />
+                    <div
+                      className={`flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] ${
+                        isUser ? 'text-emerald-50' : 'text-gray-600'
+                      }`}
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-1.5 truncate font-medium">
+                        {att.source === 'camera' ? (
+                          <Camera size={12} className="shrink-0" />
+                        ) : (
+                          <ImageIcon size={12} className="shrink-0" />
+                        )}
+                        <span className="truncate">{att.name}</span>
+                      </span>
+                      <span className="shrink-0 text-[10px] opacity-80">
+                        {formatAttachmentSize(att.size)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={att.id}
+                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 ${
+                    isUser
+                      ? 'border-emerald-500/50 bg-emerald-800/55 text-white'
+                      : 'border-gray-200 bg-gray-50 text-gray-800'
+                  }`}
+                >
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                      isUser
+                        ? 'bg-emerald-600/70 text-emerald-50'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    {isImage ? <ImageIcon size={15} /> : <FileText size={15} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold">{att.name}</p>
+                    <p
+                      className={`text-[10px] ${
+                        isUser ? 'text-emerald-100/85' : 'text-gray-500'
+                      }`}
+                    >
+                      {sourceLabel} • {formatAttachmentSize(att.size)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
+
+        {message.trim() ? (
+          isUser ? (
+            <p className="whitespace-pre-wrap leading-relaxed">{message}</p>
+          ) : (
+            renderFormattedMessage(message)
+          )
+        ) : null}
 
         {!isUser && !isError && suggestedAppointment && onSaveAppointment && (
           <ChatAppointmentFormCard

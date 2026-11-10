@@ -33,7 +33,10 @@ import {
   updateJournalChatSuggestedVitals,
   upsertDailyLogFromExtraction,
 } from '../../services/ai/journalChatService';
-import type { ConversationMessage } from '../../models/chat';
+import type {
+  ChatAttachmentMeta,
+  ConversationMessage,
+} from '../../models/chat';
 import type { DailyLog } from '../../models/dailylLog';
 import type { AIHealthActivityInsight } from '../../models/health';
 import {
@@ -44,6 +47,10 @@ import {
 } from '../../models/measurement';
 import type { Medication } from '../../models/medication';
 import type { Report } from '../../models/report';
+import {
+  type ChatAttachmentInput,
+  stripAttachmentBase64,
+} from '../../utils/chatAttachments';
 import ChatBubble from './ChatBubble';
 import ChatInput from './ChatInput';
 
@@ -51,6 +58,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   message: string;
+  attachments?: ChatAttachmentMeta[];
   followUpQuestion?: string;
   suggestedAppointment?: ChatSuggestedAppointment;
   suggestedReminder?: ChatSuggestedReminder;
@@ -58,6 +66,7 @@ interface Message {
   timestamp?: string;
   isError?: boolean;
   retryPrompt?: string;
+  retryAttachments?: ChatAttachmentInput[];
 }
 
 const getTimeGreeting = () => {
@@ -122,6 +131,7 @@ function ChatWindow() {
   const [hasLoadedChats, setHasLoadedChats] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [attachments, setAttachments] = useState<ChatAttachmentInput[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [knownExtraction, setKnownExtraction] = useState<JournalMessageExtraction>(
@@ -213,17 +223,18 @@ function ChatWindow() {
     );
 
     const history: Message[] = filteredRecords.map((record, index) => {
-      const prevUserMessage =
+      const prevUserRecord =
         record.role === 'assistant' &&
         index > 0 &&
         filteredRecords[index - 1]?.role === 'user'
-          ? filteredRecords[index - 1].content
+          ? filteredRecords[index - 1]
           : undefined;
 
       return {
         id: String(record.id),
         role: record.role as 'user' | 'assistant',
         message: record.content,
+        attachments: record.attachments,
         followUpQuestion:
           record.role === 'assistant' ? record.reply?.followUpQuestion : undefined,
         suggestedAppointment:
@@ -255,7 +266,7 @@ function ChatWindow() {
             ? normalizeSuggestedVitals(
                 record.reply?.suggestedVitals,
                 {
-                  message: prevUserMessage,
+                  message: prevUserRecord?.content,
                   reports,
                   measurements: mergedMeasurements,
                 },
@@ -553,13 +564,19 @@ function ChatWindow() {
     }
   };
 
-  async function sendPrompt(rawContent: string, isRetry = false) {
+  async function sendPrompt(
+    rawContent: string,
+    isRetry = false,
+    overrideAttachments?: ChatAttachmentInput[]
+  ) {
     const content = rawContent.trim();
-    if (!content || isSending) return;
+    const activeAttachments = overrideAttachments ?? attachments;
+    if ((!content && activeAttachments.length === 0) || isSending) return;
 
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const userMessageId = `user-${now}`;
+    const attachmentMetas = activeAttachments.map(stripAttachmentBase64);
 
     const cleanHistory = messages.filter((m) => !m.isError);
 
@@ -568,10 +585,12 @@ function ChatWindow() {
         id: userMessageId,
         role: 'user',
         message: content,
+        ...(attachmentMetas.length > 0 ? { attachments: attachmentMetas } : {}),
         timestamp: nowIso,
       };
       setMessages([...cleanHistory, userMessage]);
       setInput('');
+      setAttachments([]);
     } else {
       setMessages(cleanHistory);
     }
@@ -590,11 +609,13 @@ function ChatWindow() {
         content: message.message,
         timestamp: message.timestamp ?? nowIso,
         observationIds: [],
+        ...(message.attachments ? { attachments: message.attachments } : {}),
       }));
 
       const result = await generateJournalChatReply(
         {
           message: content,
+          attachments: activeAttachments,
           profile: profile ?? null,
           reports,
           appointments: appointments ?? [],
@@ -639,6 +660,9 @@ function ChatWindow() {
               content,
               timestamp: nowIso,
               observationIds: [],
+              ...(attachmentMetas.length > 0
+                ? { attachments: attachmentMetas }
+                : {}),
             },
             result.extracted,
             result.reply
@@ -673,6 +697,7 @@ function ChatWindow() {
           timestamp: new Date().toISOString(),
           isError: true,
           retryPrompt: content,
+          retryAttachments: activeAttachments,
         },
       ]);
     } finally {
@@ -736,6 +761,7 @@ function ChatWindow() {
             key={message.id}
             role={message.role}
             message={message.message}
+            attachments={message.attachments}
             followUpQuestion={message.followUpQuestion}
             userInitial={userInitial}
             suggestedAppointment={message.suggestedAppointment}
@@ -763,8 +789,15 @@ function ChatWindow() {
             timestamp={message.timestamp}
             isError={message.isError}
             onRetry={
-              message.isError && message.retryPrompt
-                ? () => sendPrompt(message.retryPrompt!, true)
+              message.isError &&
+              (message.retryPrompt !== undefined ||
+                (message.retryAttachments && message.retryAttachments.length > 0))
+                ? () =>
+                    sendPrompt(
+                      message.retryPrompt ?? '',
+                      true,
+                      message.retryAttachments
+                    )
                 : undefined
             }
           />
@@ -810,8 +843,10 @@ function ChatWindow() {
       <ChatInput
         value={input}
         onChange={setInput}
+        attachments={attachments}
+        onAttachmentsChange={setAttachments}
         onSend={() => sendPrompt(input)}
-        disabled={!input.trim()}
+        disabled={!input.trim() && attachments.length === 0}
         isLoading={isSending}
       />
     </div>

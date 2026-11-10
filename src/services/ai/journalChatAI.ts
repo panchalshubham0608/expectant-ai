@@ -801,6 +801,10 @@ export const normalizeSuggestedVitals = (
     if (!meta) continue;
 
     const rawVal = String(item.value ?? '').trim();
+    const defaultSourceTitle =
+      item.sourceReportTitle?.trim() ||
+      contextInput.attachments?.[0]?.name ||
+      undefined;
     if (meta.id === 'gestational-age') {
       const formatted = formatGestationalAgeValueAndUnit(rawVal, item.unit || meta.unit);
       normalizedAiItems.push({
@@ -811,7 +815,7 @@ export const normalizeSuggestedVitals = (
         category: meta.category,
         normalRange: item.normalRange?.trim() || meta.normalRange,
         measuredAt: normalizeDateYMD(item.measuredAt, todayStr),
-        sourceReportTitle: item.sourceReportTitle?.trim() || undefined,
+        sourceReportTitle: defaultSourceTitle,
         notes: item.notes?.trim() || undefined,
         selected: item.selected ?? true,
       });
@@ -833,7 +837,7 @@ export const normalizeSuggestedVitals = (
       category: meta.category,
       normalRange: item.normalRange?.trim() || meta.normalRange,
       measuredAt: normalizeDateYMD(item.measuredAt, todayStr),
-      sourceReportTitle: item.sourceReportTitle?.trim() || undefined,
+      sourceReportTitle: defaultSourceTitle,
       notes: item.notes?.trim() || undefined,
       selected: item.selected ?? true,
     });
@@ -1009,10 +1013,15 @@ You have full access to the expectant's context in the JSON payload:
 - "recentDailyLogs" & "knownState": Recent daily journal logs (meals, hydration, symptoms, mood, sleep, activities, activitySummary, medications taken, notes).
 - "recentConversation": The ongoing chat history.
 - "currentMessage": The expectant's latest message or question.
+- "attachedFiles": Metadata for any photos (from Camera or Gallery) or documents (such as PDFs, lab results, prescriptions, or text/CSV files) attached by the expectant with "currentMessage". The actual image/document binary contents are attached directly as inline multimodal parts.
 
 YOUR RESPONSIBILITIES:
-1. Personalized, Context-Aware Answers ("answer"):
-   - Answer any question the expectant asks using their specific profile, reports, appointments, measurements, medications, AI health & activity insight card ("healthActivityInsight"), physical activity overview ("physicalActivityOverview"), and recent logs.
+1. Personalized, Context-Aware Answers ("answer") & Multimodal File Analysis:
+   - Answer any question the expectant asks using their specific profile, reports, appointments, measurements, medications, AI health & activity insight card ("healthActivityInsight"), physical activity overview ("physicalActivityOverview"), recent logs, and any inline attached photos or documents ("attachedFiles").
+   - When the expectant attaches one or more files (photos from Camera/Gallery or Documents like PDFs/text files):
+     - Carefully inspect every attached image or document alongside "currentMessage".
+     - If an attached file is a medical report, lab result, ultrasound scan, prescription, or vital monitor photo, explain its key findings, measurements, and takeaways clearly in plain, reassuring language and relate them to her current pregnancy stage and history.
+     - If an attached photo shows a meal, snack, beverage, or food item/label, identify the foods, answer any pregnancy nutrition or food-safety questions she asked, and log the meal/hydration in "extracted" if she is sharing what she ate or drank.
    - When asked about reports, measurements, medications, appointments, or physical activity/steps/workouts, cite the relevant dates, values, doctor names, step/active-minute counts, personalized AI goals ("recommendedDailySteps", "recommendedActiveMinutes"), and findings clearly and accurately in plain, reassuring language.
    - When the expectant asks about her exercise routine, step goal, energy levels, or overall wellness card, reference her "physicalActivityOverview" (today's and 7-day average steps, active minutes, distance, calories, and synced Google Health vs. manual workouts) alongside her "healthActivityInsight" (wellness/activity scores, highlights, next actions, and stage-specific precautions).
    - Use clean formatting in "answer": short paragraphs, bullet points ("- ") for lists, and **bold** for key terms, dates, or values when helpful.
@@ -1025,8 +1034,8 @@ YOUR RESPONSIBILITIES:
    - If the expectant describes urgent red-flag symptoms (e.g., severe abdominal pain, heavy vaginal bleeding, severe headache with vision changes, high fever, or noticeably reduced fetal movement), gently advise contacting their care provider or hospital right away.
 
 3. Structured Daily Journal Extraction ("extracted"):
-   - Extract ONLY newly mentioned journal facts from "currentMessage" (do NOT repeat items already present in "knownState" or "recentConversation").
-   - If "currentMessage" is purely a question (e.g., asking about a report or appointment) and does not log any new meals, hydration, symptoms, mood, sleep, activities, or medications taken, return empty arrays in "extracted".
+   - Extract ONLY newly mentioned journal facts from "currentMessage" and any attached photos/documents (do NOT repeat items already present in "knownState" or "recentConversation").
+   - If "currentMessage" (and any attached file) is purely a question (e.g., asking about a report or appointment) and does not log any new meals, hydration, symptoms, mood, sleep, activities, or medications taken, return empty arrays in "extracted".
 
 4. Optional Follow-Up ("followUpQuestion"):
    - Optionally include a single, natural, caring follow-up question in "followUpQuestion" if it helps continue the conversation or check in on them.
@@ -1034,15 +1043,15 @@ YOUR RESPONSIBILITIES:
 5. Chat-Integrated Appointment Scheduling ("suggestedAppointment"):
    - Populate "suggestedAppointment" ONLY when:
      a) The expectant asks to schedule, book, create, or set up an appointment, checkup, or scan, OR
-     b) The expectant asks about a follow-up visit, upcoming milestone scan, or recent report/symptom that directly warrants scheduling a doctor visit.
+     b) The expectant asks about a follow-up visit, upcoming milestone scan, or recent/attached report or symptom that directly warrants scheduling a doctor visit.
    - Leave "suggestedAppointment" omitted/null for general conversation where scheduling a visit is not relevant.
    - When populating "suggestedAppointment", carefully analyze past and upcoming "appointments" first to infer accurate metadata:
-     - "doctorName": Match the doctor from the user's message, the appointment with a "followUpDate", or past follow-up appointments (or "profile.careProvider").
+     - "doctorName": Match the doctor from the user's message, attached document, the appointment with a "followUpDate", or past follow-up appointments (or "profile.careProvider").
      - "specialty": Infer from past appointments with that same doctor or past follow-up appointments (e.g., "OB-GYN").
      - "hospital": Infer from past appointments with that same doctor or past follow-up appointments (e.g., the specific clinic such as "Dr. Garima Jain Clinic" recorded on past visits with that doctor, falling back to "profile.primaryHospital" only if no appointment has a hospital).
      - "reason": Clear visit purpose matching past appointment conventions or the user's request (e.g., "Follow-Up Visit", "20-Week Anomaly Scan", "Routine Prenatal Checkup").
      - "scheduledAt": ISO 8601 local datetime string ("YYYY-MM-DDTHH:mm") resolved relative to "currentDate" if the user mentioned a day/time, or from a recent appointment's "followUpDate", or a sensible upcoming default.
-     - "questions": 2 to 4 relevant questions for the doctor seeded from the user's message, recent medical reports ("questionsForDoctor" or key findings), past appointment recommendations/observations, and recent symptoms/logs.
+     - "questions": 2 to 4 relevant questions for the doctor seeded from the user's message, recent/attached medical reports ("questionsForDoctor" or key findings), past appointment recommendations/observations, and recent symptoms/logs.
    - When you include "suggestedAppointment", mention in "answer" that you've prepared a pre-filled appointment form right below so they can review or adjust the details and save it.
 
 6. Chat-Integrated Reminder Setup ("suggestedReminder"):
@@ -1050,7 +1059,7 @@ YOUR RESPONSIBILITIES:
      a) The expectant asks to create, set, add, or schedule a reminder or alarm (e.g., for taking a medication, drinking water/hydration, walking, kick counts, or checking vitals), OR
      b) The expectant mentions forgetting a medication or routine habit and asks for help remembering it.
    - Leave "suggestedReminder" omitted/null for general conversation where setting a reminder is not requested or relevant.
-   - When populating "suggestedReminder", infer accurate details from the user's request, "medications.active", "medicalReports", and "activeReminders":
+   - When populating "suggestedReminder", infer accurate details from the user's request, attached prescriptions, "medications.active", "medicalReports", and "activeReminders":
      - "title": Clear, concise reminder title (e.g., "Take Iron Supplement", "Hydration Check", "Evening Walk").
      - "description": Helpful instructions or dose details (e.g., "Take 1 tablet after lunch" inferred from "medications.active" or reports, or "Drink a full glass of water").
      - Choose EITHER specific times OR a repeating interval:
@@ -1060,7 +1069,7 @@ YOUR RESPONSIBILITIES:
 
 7. Chat-Integrated Vital Signs Discovery & Auto-Update ("suggestedVitals"):
    - Populate "suggestedVitals" ONLY for vitals that exist in the expectant's Health section ("healthMeasurements") in TWO scenarios:
-     a) REPORT SCANNING FOR VITALS: When the expectant asks to scan, check, find, extract, or update their vital measurements from their uploaded medical reports (or asks what the latest vitals in their reports are). Scan across "medicalReports" (selecting the latest reading by "reportDate" for each tracked vital) and populate "suggestedVitals.items" ONLY for vitals tracked in "healthMeasurements":
+     a) REPORT SCANNING FOR VITALS (OR ATTACHED REPORT/MONITOR IMAGE): When the expectant asks to scan, check, find, extract, or update their vital measurements from their uploaded medical reports, OR when she attaches a medical report PDF / lab photo / vital monitor photo containing tracked Health vitals. Scan across the attached file(s) or "medicalReports" (selecting the latest reading by "reportDate" for each tracked vital) and populate "suggestedVitals.items" ONLY for vitals tracked in "healthMeasurements":
         - Maternal Weight ("maternal-weight"): unify any "Weight" or "Maternal Weight" reading into "maternal-weight".
         - Baby Weight ("baby-weight"): unify any "Estimated Fetal Weight", "EFW", "Fetal Weight", or "Baby Weight" reading into "baby-weight".
         - Gestational Age ("gestational-age"): infer from the latest ultrasound report (from "measurements", "metadata.pregnancyWeek", or "summary.importantFindings") and keep the value in weeks only (e.g., "21" with unit "weeks" instead of "21 weeks 3 days").
@@ -1068,9 +1077,9 @@ YOUR RESPONSIBILITIES:
         - Blood Pressure ("blood-pressure")
         - Blood Sugar ("blood-sugar")
         - Hemoglobin ("hemoglobin")
-        Do NOT include unrelated routine lab rows (such as WBC, RBC, Neutrophils, Urine pH, BPD, FL, or maternal heart rate). Set "measuredAt" to the report's "reportDate" ("YYYY-MM-DD") and "sourceReportTitle" to the report's title.
+        Do NOT include unrelated routine lab rows (such as WBC, RBC, Neutrophils, Urine pH, BPD, FL, or maternal heart rate). Set "measuredAt" to the report's "reportDate" ("YYYY-MM-DD", or "currentDate" if undated) and "sourceReportTitle" to the report's title or attached file name.
      b) USER-PROVIDED VITAL UPDATES IN CHAT: When the expectant shares, logs, or mentions new readings for any of their tracked Health vitals directly in "currentMessage" (e.g., "My weight today is 64.5 kg", "BP was 118/76 and baby heart rate 148 bpm", "Baby weight is 1250g", "Gestational age is 21 weeks", "My fasting blood sugar is 90", "Hemoglobin came back at 11.8"). Extract every mentioned tracked vital reading into "suggestedVitals.items" with "measuredAt" set to "currentDate" (or the specific date mentioned in "YYYY-MM-DD" format) and "sourceReportTitle" set to "Shared in Chat".
-   - Leave "suggestedVitals" omitted/null for general conversation where the expectant neither shares new vital readings nor asks to scan/extract vitals from reports.
+   - Leave "suggestedVitals" omitted/null for general conversation where the expectant neither shares new vital readings nor attaches/scans vitals from reports.
    - Use ONLY the canonical IDs and labels from the Health section:
      - "maternal-weight": label "Maternal Weight", category "maternal", unit "kg", normalRange "Steady trimester gain"
      - "baby-weight": label "Baby Weight", category "baby", unit "g", normalRange "Varies by week"
@@ -1095,10 +1104,27 @@ export const generateJournalChatReply = async (
   const model = env?.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
   const context = buildJournalChatContext(contextInput);
+  const contextJson = JSON.stringify(context, null, 2);
+  const validAttachments = (contextInput.attachments ?? []).filter(
+    (att) => Boolean(att.base64Data && att.mimeType)
+  );
+
+  const contents =
+    validAttachments.length > 0
+      ? [
+          { text: contextJson },
+          ...validAttachments.map((att) => ({
+            inlineData: {
+              mimeType: att.mimeType,
+              data: att.base64Data,
+            },
+          })),
+        ]
+      : contextJson;
 
   const response = await ai.models.generateContent({
     model,
-    contents: JSON.stringify(context, null, 2),
+    contents,
     config: {
       systemInstruction: JOURNAL_CHAT_SYSTEM_INSTRUCTION,
       responseMimeType: 'application/json',
