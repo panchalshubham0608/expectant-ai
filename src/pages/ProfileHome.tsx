@@ -89,7 +89,7 @@ function ProfileDetail() {
     if (age.isFuture) {
       gestationalAgeText = 'LMP is in the future';
     } else {
-      gestationalAgeText = `${age.weeks} wk, ${age.days} d`;
+      gestationalAgeText = age.days > 0 ? `${age.weeks} wk, ${age.days} d` : `${age.weeks} wk`;
     }
   } else if (profile.lastMenstrualPeriod) {
     gestationalAgeText = 'Invalid date';
