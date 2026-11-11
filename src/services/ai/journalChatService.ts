@@ -27,6 +27,7 @@ export {
   updateJournalChatSuggestedReminder,
   updateJournalChatSuggestedVitals,
   clearJournalChats,
+  deleteJournalChatMessages,
   upsertDailyLogFromExtraction,
   subscribeToJournalChats,
   subscribeToRecentDailyLogs,

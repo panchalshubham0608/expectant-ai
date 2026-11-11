@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowDown, Bot, FolderOpen, Sparkles } from 'lucide-react';
+import {
+  ArrowDown,
+  Bot,
+  FolderOpen,
+  Loader2,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -19,6 +27,7 @@ import {
   type ChatSuggestedAppointment,
   type ChatSuggestedReminder,
   type ChatSuggestedVitals,
+  deleteJournalChatMessages,
   EMPTY_JOURNAL_EXTRACTION,
   generateJournalChatReply,
   type JournalChatRecord,
@@ -140,6 +149,9 @@ function ChatWindow() {
   const [previewAttachment, setPreviewAttachment] =
     useState<ChatAttachmentMeta | null>(null);
   const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeletingMessages, setIsDeletingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [knownExtraction, setKnownExtraction] = useState<JournalMessageExtraction>(
@@ -772,63 +784,169 @@ function ChatWindow() {
   }
 
   const displayedMessages = messages.length > 0 ? messages : [welcomeMessage];
+  const selectableIds = useMemo(
+    () =>
+      displayedMessages
+        .filter((m) => m.id !== 'welcome-1')
+        .map((m) => m.id),
+    [displayedMessages]
+  );
+  const selectedSet = useMemo(
+    () => new Set(selectedMessageIds),
+    [selectedMessageIds]
+  );
+  const isSelectionMode = selectedMessageIds.length > 0;
+  const allSelectableSelected =
+    selectableIds.length > 0 &&
+    selectableIds.every((msgId) => selectedSet.has(msgId));
+
+  const handleLongPressMessage = (messageId: string) => {
+    if (messageId === 'welcome-1') return;
+    setSelectedMessageIds((prev) =>
+      prev.includes(messageId) ? prev : [...prev, messageId]
+    );
+  };
+
+  const handleToggleSelectMessage = (messageId: string) => {
+    if (messageId === 'welcome-1') return;
+    setSelectedMessageIds((prev) =>
+      prev.includes(messageId)
+        ? prev.filter((idItem) => idItem !== messageId)
+        : [...prev, messageId]
+    );
+  };
+
+  const handleClearSelection = () => {
+    if (isDeletingMessages) return;
+    setSelectedMessageIds([]);
+    setIsDeleteConfirmOpen(false);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (allSelectableSelected) {
+      setSelectedMessageIds([]);
+    } else {
+      setSelectedMessageIds(selectableIds);
+    }
+  };
+
+  const handleConfirmDeleteMessages = async () => {
+    if (selectedMessageIds.length === 0 || isDeletingMessages) return;
+    setIsDeletingMessages(true);
+    const idsToDelete = [...selectedMessageIds];
+    const deleteSet = new Set(idsToDelete);
+
+    try {
+      if (userId && id) {
+        await deleteJournalChatMessages(userId, id, idsToDelete);
+      }
+      setMessages((prev) => prev.filter((m) => !deleteSet.has(m.id)));
+      setChatRecords((prev) => prev.filter((r) => !deleteSet.has(String(r.id))));
+      setSelectedMessageIds([]);
+      setIsDeleteConfirmOpen(false);
+    } finally {
+      setIsDeletingMessages(false);
+    }
+  };
 
   return (
     <div className="space-y-4 pb-28">
       {/* Sticky Chat App Top Bar */}
       <div className="sticky top-0 z-20 -mx-4 -mt-6 border-b border-emerald-100/80 bg-white/95 px-4 py-3 shadow-2xs backdrop-blur-md">
-        <div className="flex items-center justify-between gap-2.5">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="relative shrink-0">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-xs ring-2 ring-emerald-100">
-                <Bot size={20} />
-              </div>
-              <span
-                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
-                aria-hidden="true"
-              />
+        {isSelectionMode ? (
+          <div className="flex min-h-[48px] items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                aria-label="Cancel selection"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition hover:bg-gray-200 active:scale-95"
+              >
+                <X size={18} />
+              </button>
+              <span className="truncate text-sm font-bold text-gray-900">
+                {selectedMessageIds.length} selected
+              </span>
             </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <h1 className="truncate text-sm font-bold tracking-wide text-gray-900">
-                  MIRA
-                </h1>
-                <Sparkles
-                  size={13}
-                  className="shrink-0 text-emerald-600"
+            <div className="flex shrink-0 items-center gap-2">
+              {selectableIds.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAll}
+                  className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200/80 transition hover:bg-emerald-100"
+                >
+                  {allSelectableSelected ? 'Deselect all' : 'Select all'}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                aria-label={`Delete ${selectedMessageIds.length} selected ${
+                  selectedMessageIds.length === 1 ? 'message' : 'messages'
+                }`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-red-700 active:scale-95"
+              >
+                <Trash2 size={14} />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="relative shrink-0">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-xs ring-2 ring-emerald-100">
+                  <Bot size={20} />
+                </div>
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
                   aria-hidden="true"
                 />
               </div>
 
-              <p className="truncate text-[11px] font-medium text-gray-600">
-                <span className="font-semibold text-emerald-700">M</span>aternal{' '}
-                <span className="font-semibold text-emerald-700">I</span>ntelligence &{' '}
-                <span className="font-semibold text-emerald-700">R</span>ecord{' '}
-                <span className="font-semibold text-emerald-700">A</span>ssistant
-              </p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="truncate text-sm font-bold tracking-wide text-gray-900">
+                    MIRA
+                  </h1>
+                  <Sparkles
+                    size={13}
+                    className="shrink-0 text-emerald-600"
+                    aria-hidden="true"
+                  />
+                </div>
 
-              <p className="mt-0.5 truncate text-[11px] text-gray-400">
-                Online • Share your day or ask anything
-              </p>
+                <p className="truncate text-[11px] font-medium text-gray-600">
+                  <span className="font-semibold text-emerald-700">M</span>aternal{' '}
+                  <span className="font-semibold text-emerald-700">I</span>ntelligence &{' '}
+                  <span className="font-semibold text-emerald-700">R</span>ecord{' '}
+                  <span className="font-semibold text-emerald-700">A</span>ssistant
+                </p>
+
+                <p className="mt-0.5 truncate text-[11px] text-gray-400">
+                  Online • Share your day or ask anything
+                </p>
+              </div>
             </div>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setIsMediaGalleryOpen(true)}
-            title="Shared media & documents"
-            aria-label="Open shared media and documents"
-            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] text-emerald-700 shadow-2xs ring-1 ring-emerald-200/80 transition hover:from-emerald-100/80 hover:to-emerald-100 active:scale-95"
-          >
-            <FolderOpen size={16} />
-            {allChatAttachments.length > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 text-[9px] font-bold text-white shadow-2xs ring-2 ring-white">
-                {allChatAttachments.length}
-              </span>
-            )}
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setIsMediaGalleryOpen(true)}
+              title="Shared media & documents"
+              aria-label="Open shared media and documents"
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] text-emerald-700 shadow-2xs ring-1 ring-emerald-200/80 transition hover:from-emerald-100/80 hover:to-emerald-100 active:scale-95"
+            >
+              <FolderOpen size={16} />
+              {allChatAttachments.length > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 text-[9px] font-bold text-white shadow-2xs ring-2 ring-white">
+                  {allChatAttachments.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Chat Messages */}
@@ -842,6 +960,11 @@ function ChatWindow() {
             onPreviewAttachment={(att) => setPreviewAttachment(att)}
             followUpQuestion={message.followUpQuestion}
             userInitial={userInitial}
+            selectable={message.id !== 'welcome-1'}
+            isSelectionMode={isSelectionMode}
+            isSelected={selectedSet.has(message.id)}
+            onLongPressSelect={() => handleLongPressMessage(message.id)}
+            onToggleSelect={() => handleToggleSelectMessage(message.id)}
             suggestedAppointment={message.suggestedAppointment}
             onSaveAppointment={(draft) =>
               handleSaveSuggestedAppointment(message.id, draft)
@@ -927,6 +1050,82 @@ function ChatWindow() {
         disabled={!input.trim() && attachments.length === 0}
         isLoading={isSending}
       />
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteConfirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-messages-modal-title"
+          onClick={() => {
+            if (!isDeletingMessages) setIsDeleteConfirmOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl ring-1 ring-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-100">
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h2
+                  id="delete-messages-modal-title"
+                  className="text-sm font-bold text-gray-900"
+                >
+                  Delete{' '}
+                  {selectedMessageIds.length === 1
+                    ? 'message'
+                    : `${selectedMessageIds.length} messages`}
+                  ?
+                </h2>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs leading-relaxed text-gray-600">
+              Are you sure you want to permanently remove{' '}
+              {selectedMessageIds.length === 1
+                ? 'this selected message'
+                : `these ${selectedMessageIds.length} selected messages`}{' '}
+              from your MIRA chat history?
+            </p>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isDeletingMessages}
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="rounded-full px-4 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingMessages}
+                onClick={handleConfirmDeleteMessages}
+                className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {isDeletingMessages ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    <span>Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ChatMediaGalleryModal
         isOpen={isMediaGalleryOpen}

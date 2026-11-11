@@ -181,6 +181,27 @@ export const clearJournalChats = async (
   await batch.commit();
 };
 
+export const deleteJournalChatMessages = async (
+  userId: string,
+  profileId: string,
+  messageIds: string[]
+): Promise<void> => {
+  const validIds = messageIds.filter(
+    (id) => Boolean(id) && id !== 'welcome-1' && !id.startsWith('error-')
+  );
+  if (validIds.length === 0) return;
+
+  const chatsRef = getJournalChatsCollection(userId, profileId);
+  const db = requireDb();
+  const batch = writeBatch(db);
+
+  validIds.forEach((msgId) => {
+    batch.delete(doc(chatsRef, msgId));
+  });
+
+  await batch.commit();
+};
+
 export const upsertDailyLogFromExtraction = async (
   userId: string,
   profileId: string,
