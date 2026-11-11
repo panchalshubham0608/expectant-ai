@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Loader2, RefreshCw, SlidersHorizontal, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { generateAndSaveDailyDigestForToday } from '../../services/dailyDigests/dailyDigestsGeneratorService';
 import { getTodayDateId, subscribeToDailyDigest } from '../../services/dailyDigests/dailyDigestsService';
@@ -28,7 +28,17 @@ export default function SpiritualSlokaCard({
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const pauseTimerRef = useRef<number | null>(null);
+  const speechSessionRef = useRef(0);
   const isSpeechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  const clearPauseTimer = () => {
+    if (pauseTimerRef.current !== null) {
+      window.clearTimeout(pauseTimerRef.current);
+      pauseTimerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     if (!isSpeechSupported) return;
@@ -44,6 +54,9 @@ export default function SpiritualSlokaCard({
     window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
 
     return () => {
+      speechSessionRef.current += 1;
+      clearPauseTimer();
+      activeUtteranceRef.current = null;
       window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
       window.speechSynthesis.cancel();
     };
@@ -102,6 +115,9 @@ export default function SpiritualSlokaCard({
   }, [userId, profileId, isConfigured, trimmedContext]);
 
   const stopSpeaking = () => {
+    speechSessionRef.current += 1;
+    clearPauseTimer();
+    activeUtteranceRef.current = null;
     if (isSpeechSupported) {
       window.speechSynthesis.cancel();
     }
@@ -117,57 +133,233 @@ export default function SpiritualSlokaCard({
       return;
     }
 
+    speechSessionRef.current += 1;
+    const currentSession = speechSessionRef.current;
+    clearPauseTimer();
     window.speechSynthesis.cancel();
 
     const availableVoices =
       voices.length > 0 ? voices : window.speechSynthesis.getVoices();
     const normalizeLang = (lang: string) => lang.toLowerCase().replace(/_/g, '-');
 
-    const saVoice = availableVoices.find((v) => {
-      const l = normalizeLang(v.lang);
-      return l === 'sa' || l.startsWith('sa-');
-    });
-    const hiVoice = availableVoices.find((v) => {
-      const l = normalizeLang(v.lang);
-      return l === 'hi' || l.startsWith('hi-');
-    });
-    const enInVoice = availableVoices.find((v) => normalizeLang(v.lang) === 'en-in');
-    const enVoice = availableVoices.find((v) => {
-      const l = normalizeLang(v.lang);
-      return l === 'en' || l.startsWith('en-');
-    });
+    const SOFT_FEMALE_VOICE_KEYWORDS = [
+      'swara',
+      'lekha',
+      'veena',
+      'kiara',
+      'neerja',
+      'kalpana',
+      'heera',
+      'aditi',
+      'raveena',
+      'priya',
+      'meera',
+      'kavya',
+      'ananya',
+      'sangeeta',
+      'isha',
+      'tara',
+      'kanya',
+      'ava',
+      'samantha',
+      'serena',
+      'aria',
+      'jenny',
+      'sonia',
+      'victoria',
+      'karen',
+      'moira',
+      'tessa',
+      'allison',
+      'zoe',
+      'female',
+      'woman',
+      'हिन्दी',
+    ];
 
-    const hasDevanagari = /[\u0900-\u097F]/.test(sloka.originalScript);
-    const cleanedVerseText = sloka.originalScript.replace(/[।॥]/g, '. ');
+    const MALE_VOICE_KEYWORDS = [
+      'rishi',
+      'neel',
+      'hemant',
+      'madhur',
+      'prabhat',
+      'ravi',
+      'amit',
+      'raj',
+      'kunal',
+      'daniel',
+      'alex',
+      'aaron',
+      'fred',
+      'oliver',
+      'thomas',
+      'david',
+      'mark',
+      'james',
+      'guy',
+      'christopher',
+      'eric',
+      'steffan',
+      'male',
+      'man',
+    ];
 
-    const verseUtterance = new SpeechSynthesisUtterance(cleanedVerseText);
+    const scoreVoiceForSoftFemale = (voice: SpeechSynthesisVoice): number => {
+      const id = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+      let score = 0;
 
-    if (hasDevanagari) {
-      const selectedIndicVoice = saVoice || hiVoice;
-      if (selectedIndicVoice) {
-        verseUtterance.voice = selectedIndicVoice;
-        verseUtterance.lang = selectedIndicVoice.lang;
-      } else {
-        // Fallback to hi-IN locale tag so the OS synthesizer speaks Devanagari instead of English
-        verseUtterance.lang = 'hi-IN';
+      if (SOFT_FEMALE_VOICE_KEYWORDS.some((kw) => id.includes(kw))) {
+        score += 40;
       }
-    } else {
-      const selectedVoice = saVoice || hiVoice || enInVoice || enVoice;
-      if (selectedVoice) {
-        verseUtterance.voice = selectedVoice;
-        verseUtterance.lang = selectedVoice.lang;
-      } else {
-        verseUtterance.lang = 'en-IN';
+      if (/\bfemale\b/.test(id)) {
+        score += 25;
       }
-    }
+      if (
+        MALE_VOICE_KEYWORDS.some((kw) =>
+          new RegExp(`\\b${kw}\\b`, 'i').test(id)
+        )
+      ) {
+        score -= 60;
+      }
+      if (
+        id.includes('natural') ||
+        id.includes('neural') ||
+        id.includes('premium') ||
+        id.includes('enhanced')
+      ) {
+        score += 20;
+      }
+      if (id.includes('google')) {
+        score += 12;
+      }
+      return score;
+    };
 
-    verseUtterance.rate = 0.85;
+    const pickSoftFemaleVoice = (
+      predicate: (NormalizedLang: string) => boolean
+    ): SpeechSynthesisVoice | undefined => {
+      const candidates = availableVoices.filter((v) =>
+        predicate(normalizeLang(v.lang))
+      );
+      if (candidates.length === 0) return undefined;
+      return [...candidates].sort(
+        (a, b) => scoreVoiceForSoftFemale(b) - scoreVoiceForSoftFemale(a)
+      )[0];
+    };
 
-    verseUtterance.onend = () => setIsSpeaking(false);
-    verseUtterance.onerror = () => setIsSpeaking(false);
+    const saVoice = pickSoftFemaleVoice((l) => l === 'sa' || l.startsWith('sa-'));
+    const hiVoice = pickSoftFemaleVoice((l) => l === 'hi' || l.startsWith('hi-'));
+    const enInVoice = pickSoftFemaleVoice((l) => l === 'en-in');
+    const enVoice = pickSoftFemaleVoice((l) => l === 'en' || l.startsWith('en-'));
+
+    const splitIntoReadableChunks = (
+      raw: string,
+      isVerse: boolean,
+      sectionEndPauseMs: number
+    ): Array<{ text: string; isVerse: boolean; pauseAfterMs: number }> => {
+      const cleaned = raw
+        .replace(/[।॥|]+\s*[\d०-९.:-]+\s*[।॥|]*/g, '. ')
+        .replace(/[।॥]+/g, '. ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleaned) return [];
+
+      // Split long passages on sentence boundaries so browser TTS never truncates long text
+      const sentences = cleaned
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => /[\p{L}]/u.test(s));
+
+      const items = sentences.length > 0 ? sentences : [cleaned];
+      return items.map((text, idx) => ({
+        text,
+        isVerse,
+        pauseAfterMs: idx === items.length - 1 ? sectionEndPauseMs : 200,
+      }));
+    };
+
+    const chunks: Array<{ text: string; isVerse: boolean; pauseAfterMs: number }> = [
+      ...splitIntoReadableChunks(sloka.originalScript, true, 600),
+      ...splitIntoReadableChunks(sloka.translation, false, 600),
+      ...splitIntoReadableChunks(sloka.reflection, false, 0),
+    ];
+
+    if (chunks.length === 0) return;
+
+    const speakChunk = (index: number) => {
+      if (speechSessionRef.current !== currentSession) return;
+      if (index >= chunks.length) {
+        activeUtteranceRef.current = null;
+        setIsSpeaking(false);
+        return;
+      }
+
+      const part = chunks[index];
+      const utterance = new SpeechSynthesisUtterance(part.text);
+      // Keep a strong reference in a ref so the browser JS engine never garbage-collects the active utterance
+      activeUtteranceRef.current = utterance;
+
+      const hasDevanagari = /[\u0900-\u097F]/.test(part.text);
+
+      if (hasDevanagari) {
+        const selectedIndicVoice = part.isVerse
+          ? hiVoice || saVoice
+          : hiVoice || saVoice;
+        if (selectedIndicVoice) {
+          utterance.voice = selectedIndicVoice;
+          utterance.lang = selectedIndicVoice.lang;
+        } else {
+          utterance.lang = 'hi-IN';
+        }
+      } else {
+        const selectedVoice = enInVoice || enVoice || hiVoice || saVoice;
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+          utterance.lang = selectedVoice.lang;
+        } else {
+          utterance.lang = 'en-IN';
+        }
+      }
+
+      // Soft, soothing maternal cadence and gentle pitch
+      utterance.rate = part.isVerse ? 0.82 : 0.88;
+      utterance.pitch = part.isVerse ? 1.04 : 1.06;
+      utterance.volume = 0.92;
+
+      const advanceAfterPause = () => {
+        if (speechSessionRef.current !== currentSession) return;
+        const nextIndex = index + 1;
+        if (nextIndex >= chunks.length) {
+          activeUtteranceRef.current = null;
+          setIsSpeaking(false);
+          return;
+        }
+        const delayMs = part.pauseAfterMs;
+        if (delayMs > 0) {
+          pauseTimerRef.current = window.setTimeout(() => {
+            pauseTimerRef.current = null;
+            speakChunk(nextIndex);
+          }, delayMs);
+        } else {
+          speakChunk(nextIndex);
+        }
+      };
+
+      utterance.onend = advanceAfterPause;
+
+      utterance.onerror = (event) => {
+        if (speechSessionRef.current !== currentSession) return;
+        if (event.error === 'interrupted' || event.error === 'canceled') {
+          return;
+        }
+        advanceAfterPause();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    };
 
     setIsSpeaking(true);
-    window.speechSynthesis.speak(verseUtterance);
+    speakChunk(0);
   };
 
   const handleRefresh = async () => {
