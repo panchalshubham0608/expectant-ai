@@ -52,7 +52,7 @@ export interface DailyDigestRequest {
 export interface DailyDigestResponse {
   category: DailyDigestCategory;
   header: string;
-  notification: string;
+  notification?: string;
   card: {
     title: string;
     content: string;
@@ -125,7 +125,6 @@ ${request.recentSlokas && request.recentSlokas.length > 0 ? `- Previously Sugges
               enum: ['baby-fact', 'body-fact', 'pregnancy-tip', 'did-you-know', 'milestone', 'couple'],
             },
             header: { type: 'STRING' },
-            notification: { type: 'STRING' },
             card: {
               type: 'OBJECT',
               properties: {
@@ -193,7 +192,6 @@ ${request.recentSlokas && request.recentSlokas.length > 0 ? `- Previously Sugges
           required: [
             'category',
             'header',
-            'notification',
             'card',
             'emoji',
             ...(shouldGenerateBabyNames ? ['babyNames'] : []),

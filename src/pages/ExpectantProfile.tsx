@@ -70,7 +70,10 @@ export default function ExpectantProfile() {
     if (age.isFuture) {
       gestationalAgeText = "LMP is in the future";
     } else {
-      gestationalAgeText = `${age.weeks} week${age.weeks !== 1 ? 's' : ''}, ${age.days} day${age.days !== 1 ? 's' : ''}`;
+      const weeksText = `${age.weeks} week${age.weeks !== 1 ? 's' : ''}`;
+      gestationalAgeText = age.days > 0
+        ? `${weeksText}, ${age.days} day${age.days !== 1 ? 's' : ''}`
+        : weeksText;
     }
   } else if (profile.lastMenstrualPeriod) {
     gestationalAgeText = "Invalid date";

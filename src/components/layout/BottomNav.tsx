@@ -28,12 +28,14 @@ import BabyNameSettingsDialog from '../profile/BabyNameSettingsDialog';
 import SpiritualSlokaSettingsDialog from '../profile/SpiritualSlokaSettingsDialog';
 import BabyTalkSettingsDialog from '../profile/BabyTalkSettingsDialog';
 import CustomMessageDialog from '../profile/CustomMessageDialog';
+import MomentPreferenceCard from '../../features/health/components/MomentPreferenceCard';
 
 function BottomNav() {
   const { id } = useParams();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
+  const [isDailyWondersDialogOpen, setIsDailyWondersDialogOpen] = useState(false);
   const [isBabyNamesDialogOpen, setIsBabyNamesDialogOpen] = useState(false);
   const [isSpiritualSlokaDialogOpen, setIsSpiritualSlokaDialogOpen] = useState(false);
   const [isBabyTalkDialogOpen, setIsBabyTalkDialogOpen] = useState(false);
@@ -144,6 +146,17 @@ function BottomNav() {
                   type="button"
                   onClick={() => {
                     setIsMenuOpen(false);
+                    setIsDailyWondersDialogOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  <Sparkles size={17} />
+                  Daily wonders
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
                     setIsBabyNamesDialogOpen(true);
                   }}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
@@ -231,6 +244,14 @@ function BottomNav() {
         <ApiKeyDialog
           isOpen={isApiKeyDialogOpen}
           onClose={() => setIsApiKeyDialogOpen(false)}
+          userId={user.uid}
+          profileId={id}
+        />
+      )}
+      {user && id && (
+        <MomentPreferenceCard
+          isOpen={isDailyWondersDialogOpen}
+          onClose={() => setIsDailyWondersDialogOpen(false)}
           userId={user.uid}
           profileId={id}
         />

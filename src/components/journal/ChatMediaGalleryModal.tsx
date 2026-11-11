@@ -71,11 +71,6 @@ function ChatMediaGalleryModal({
 
     const unsubscribe = subscribeToDriveCacheUpdates(() => {
       setDriveCacheTick((t) => t + 1);
-      attachments.forEach((att) => {
-        if (att.url && !getAttachmentPreviewUrl(att)) {
-          void fetchDriveFilePreview(att.url, att.mimeType, false);
-        }
-      });
     });
 
     attachments.forEach((att) => {

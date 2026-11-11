@@ -1,14 +1,32 @@
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getUsersCollection } from '../../lib/collections';
+import { isFirebaseConfigured } from '../../lib/firebase';
 
 export const GOOGLE_DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const ROOT_DRIVE_FOLDER_NAME = 'expectant-ai';
 export const MIRA_CHAT_DRIVE_SUBFOLDER = 'mira-attachments';
 
-// Keep Drive OAuth token strictly in memory (never in localStorage/sessionStorage per security rules)
-let cachedDriveAccessToken: string | null = null;
-let pendingTokenPromise: Promise<string> | null = null;
+const TOKEN_EXPIRY_BUFFER_MS = 60_000; // 1 minute buffer before expiry
+const DEFAULT_TOKEN_TTL_SECONDS = 3500;
 
-// In-memory cache of downloaded Google Drive file Blob URLs and text contents keyed by Drive fileId
+interface StoredGoogleDriveAuth {
+  accessToken?: string;
+  expiresAt?: number;
+  updatedAt?: string;
+}
+
+// Keep Drive OAuth token in memory and synced to the authenticated user's private Firestore document
+let cachedDriveAccessToken: string | null = null;
+let cachedTokenExpiresAt = 0;
+let loadedFirestoreUserId: string | null = null;
+
+let pendingTokenPromise: Promise<string> | null = null;
+let isRefreshingTokenState = false;
+const activePreviewFetchIds = new Set<string>();
+const failedSilentPreviewFileIds = new Set<string>();
+
+// Runtime object URLs created from direct Drive API responses for the active view
 const driveBlobUrlCache = new Map<string, string>();
 const driveTextContentCache = new Map<string, string>();
 const inFlightDriveFetches = new Map<
@@ -16,15 +34,31 @@ const inFlightDriveFetches = new Map<
   Promise<{ blobUrl: string; textContent?: string } | null>
 >();
 const driveCacheListeners = new Set<() => void>();
+let isNotifyingListeners = false;
 
 const notifyDriveCacheListeners = (): void => {
-  driveCacheListeners.forEach((listener) => {
+  if (isNotifyingListeners) return;
+  isNotifyingListeners = true;
+  queueMicrotask(() => {
     try {
-      listener();
-    } catch {
-      // Ignore listener errors
+      driveCacheListeners.forEach((listener) => {
+        try {
+          listener();
+        } catch {
+          // Ignore listener errors
+        }
+      });
+    } finally {
+      isNotifyingListeners = false;
     }
   });
+};
+
+const setRefreshingTokenState = (refreshing: boolean): void => {
+  if (isRefreshingTokenState !== refreshing) {
+    isRefreshingTokenState = refreshing;
+    notifyDriveCacheListeners();
+  }
 };
 
 export const subscribeToDriveCacheUpdates = (
@@ -36,20 +70,103 @@ export const subscribeToDriveCacheUpdates = (
   };
 };
 
-export const setGoogleDriveToken = (token: string | null): void => {
+export const isDriveTokenRefreshing = (): boolean => isRefreshingTokenState;
+
+export const isDriveFilePreviewLoading = (driveUrl?: string): boolean => {
+  const fileId = extractGoogleDriveFileId(driveUrl);
+  if (!fileId) return false;
+  return activePreviewFetchIds.has(fileId);
+};
+
+export const isAnyDriveActivityInProgress = (): boolean =>
+  isRefreshingTokenState || activePreviewFetchIds.size > 0;
+
+const isCachedTokenValid = (): boolean =>
+  Boolean(
+    cachedDriveAccessToken &&
+      cachedTokenExpiresAt > Date.now() + TOKEN_EXPIRY_BUFFER_MS
+  );
+
+const persistDriveAuthToFirestore = async (
+  userId: string,
+  authData: {
+    accessToken: string;
+    expiresAt: number;
+  }
+): Promise<void> => {
+  if (!isFirebaseConfigured || !userId) return;
+  try {
+    const userRef = doc(getUsersCollection(), userId);
+    const payload: StoredGoogleDriveAuth = {
+      accessToken: authData.accessToken,
+      expiresAt: authData.expiresAt,
+      updatedAt: new Date().toISOString(),
+    };
+    await setDoc(userRef, { googleDriveAuth: payload }, { merge: true });
+  } catch {
+    // Non-fatal if offline
+  }
+};
+
+const loadDriveAuthFromFirestore = async (
+  userId: string
+): Promise<StoredGoogleDriveAuth | null> => {
+  if (!isFirebaseConfigured || !userId) return null;
+  try {
+    const userRef = doc(getUsersCollection(), userId);
+    const snap = await getDoc(userRef);
+    loadedFirestoreUserId = userId;
+    if (!snap.exists()) return null;
+    const data = snap.data()?.googleDriveAuth as StoredGoogleDriveAuth | undefined;
+    if (!data) return null;
+
+    if (
+      data.accessToken &&
+      typeof data.expiresAt === 'number' &&
+      data.expiresAt > Date.now() + TOKEN_EXPIRY_BUFFER_MS
+    ) {
+      cachedDriveAccessToken = data.accessToken;
+      cachedTokenExpiresAt = data.expiresAt;
+      failedSilentPreviewFileIds.clear();
+    }
+    return data;
+  } catch {
+    return null;
+  }
+};
+
+export const setGoogleDriveToken = (
+  token: string | null,
+  expiresInSeconds = DEFAULT_TOKEN_TTL_SECONDS
+): void => {
   cachedDriveAccessToken = token;
+  cachedTokenExpiresAt = token
+    ? Date.now() + expiresInSeconds * 1000
+    : 0;
   if (token) {
+    failedSilentPreviewFileIds.clear();
+    const uid = getAuth().currentUser?.uid;
+    if (uid) {
+      loadedFirestoreUserId = uid;
+      void persistDriveAuthToFirestore(uid, {
+        accessToken: token,
+        expiresAt: cachedTokenExpiresAt,
+      });
+    }
     notifyDriveCacheListeners();
   }
 };
 
 export const clearGoogleDriveToken = (): void => {
   cachedDriveAccessToken = null;
+  cachedTokenExpiresAt = 0;
+  loadedFirestoreUserId = null;
   pendingTokenPromise = null;
+  failedSilentPreviewFileIds.clear();
+  setRefreshingTokenState(false);
 };
 
-export const hasGoogleDriveToken = (): boolean =>
-  Boolean(cachedDriveAccessToken);
+export const hasGoogleDriveToken = (): boolean => isCachedTokenValid();
 
 export const extractGoogleDriveFileId = (driveUrl?: string): string | null => {
   if (!driveUrl) return null;
@@ -71,10 +188,40 @@ export const getCachedDriveTextContent = (
   return fileId ? driveTextContentCache.get(fileId) : undefined;
 };
 
+/**
+ * Restores the user's valid Google Drive session from Firestore in the background
+ * without opening any browser popup.
+ */
+export const restoreGoogleDriveSession = async (
+  userId?: string
+): Promise<string | null> => {
+  if (isCachedTokenValid()) {
+    return cachedDriveAccessToken;
+  }
+
+  const uid = userId ?? getAuth().currentUser?.uid;
+  if (!uid) return null;
+
+  setRefreshingTokenState(true);
+  try {
+    await loadDriveAuthFromFirestore(uid);
+    if (isCachedTokenValid() && cachedDriveAccessToken) {
+      notifyDriveCacheListeners();
+      return cachedDriveAccessToken;
+    }
+    return null;
+  } finally {
+    setRefreshingTokenState(false);
+  }
+};
+
 export const ensureGoogleDriveToken = async (
-  forceRefresh = false
+  forceRefresh = false,
+  options?: { silentOnly?: boolean }
 ): Promise<string> => {
-  if (cachedDriveAccessToken && !forceRefresh) {
+  const silentOnly = options?.silentOnly ?? false;
+
+  if (!forceRefresh && isCachedTokenValid() && cachedDriveAccessToken) {
     return cachedDriveAccessToken;
   }
 
@@ -83,8 +230,25 @@ export const ensureGoogleDriveToken = async (
   }
 
   pendingTokenPromise = (async () => {
+    setRefreshingTokenState(true);
     try {
       const auth = getAuth();
+      const uid = auth.currentUser?.uid;
+
+      // 1. Check Firestore-persisted token first (survives page reloads for the 1-hour OAuth window)
+      if (!forceRefresh && uid && loadedFirestoreUserId !== uid) {
+        await loadDriveAuthFromFirestore(uid);
+        if (isCachedTokenValid() && cachedDriveAccessToken) {
+          notifyDriveCacheListeners();
+          return cachedDriveAccessToken;
+        }
+      }
+
+      if (silentOnly) {
+        throw new Error('SILENT_DRIVE_TOKEN_UNAVAILABLE');
+      }
+
+      // 2. Acquire fresh Google Drive token via Firebase GoogleAuthProvider
       const provider = new GoogleAuthProvider();
       provider.addScope(GOOGLE_DRIVE_FILE_SCOPE);
       if (auth.currentUser?.email) {
@@ -99,17 +263,28 @@ export const ensureGoogleDriveToken = async (
         throw new Error('Failed to obtain Google Drive access token.');
       }
 
-      cachedDriveAccessToken = token;
-      notifyDriveCacheListeners();
+      const tokenResponse = (
+        result as unknown as {
+          _tokenResponse?: { oauthExpireIn?: number };
+        }
+      )._tokenResponse;
+      const expiresIn = tokenResponse?.oauthExpireIn ?? DEFAULT_TOKEN_TTL_SECONDS;
+
+      setGoogleDriveToken(token, expiresIn);
       return token;
     } finally {
       pendingTokenPromise = null;
+      setRefreshingTokenState(false);
     }
   })();
 
   return pendingTokenPromise;
 };
 
+/**
+ * Fetches file content directly from the Google Drive REST API (`alt=media`)
+ * without storing preview data in Firestore or persistent browser storage.
+ */
 export const fetchDriveFilePreview = async (
   driveUrl?: string,
   mimeType?: string,
@@ -126,23 +301,34 @@ export const fetchDriveFilePreview = async (
     };
   }
 
+  if (!allowInteractiveAuth && failedSilentPreviewFileIds.has(fileId)) {
+    return null;
+  }
+
   const inFlight = inFlightDriveFetches.get(fileId);
   if (inFlight) {
     return inFlight;
   }
 
-  if (!cachedDriveAccessToken && !allowInteractiveAuth) {
-    return null;
-  }
+  activePreviewFetchIds.add(fileId);
 
   const fetchPromise = (async (): Promise<{
     blobUrl: string;
     textContent?: string;
   } | null> => {
     try {
-      let token = cachedDriveAccessToken;
+      let token = isCachedTokenValid() ? cachedDriveAccessToken : null;
       if (!token) {
-        token = await ensureGoogleDriveToken(false);
+        try {
+          token = await ensureGoogleDriveToken(false, {
+            silentOnly: !allowInteractiveAuth,
+          });
+        } catch {
+          if (!allowInteractiveAuth) {
+            failedSilentPreviewFileIds.add(fileId);
+          }
+          return null;
+        }
       }
 
       let res = await fetch(
@@ -152,20 +338,32 @@ export const fetchDriveFilePreview = async (
         }
       );
 
-      if (res.status === 401 && allowInteractiveAuth) {
-        token = await ensureGoogleDriveToken(true);
-        res = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-      } else if (res.status === 401) {
+      if (res.status === 401) {
         cachedDriveAccessToken = null;
-        return null;
+        cachedTokenExpiresAt = 0;
+        if (!allowInteractiveAuth) {
+          failedSilentPreviewFileIds.add(fileId);
+          return null;
+        }
+        try {
+          token = await ensureGoogleDriveToken(true, {
+            silentOnly: false,
+          });
+          res = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+        } catch {
+          return null;
+        }
       }
 
       if (!res.ok) {
+        if (!allowInteractiveAuth) {
+          failedSilentPreviewFileIds.add(fileId);
+        }
         return null;
       }
 
@@ -179,6 +377,7 @@ export const fetchDriveFilePreview = async (
 
       const blobUrl = URL.createObjectURL(typedBlob);
       driveBlobUrlCache.set(fileId, blobUrl);
+      failedSilentPreviewFileIds.delete(fileId);
 
       let textContent: string | undefined;
       if (effectiveMime.startsWith('text/')) {
@@ -190,16 +389,21 @@ export const fetchDriveFilePreview = async (
         }
       }
 
-      notifyDriveCacheListeners();
       return { blobUrl, textContent };
     } catch {
+      if (!allowInteractiveAuth) {
+        failedSilentPreviewFileIds.add(fileId);
+      }
       return null;
     } finally {
+      activePreviewFetchIds.delete(fileId);
       inFlightDriveFetches.delete(fileId);
+      notifyDriveCacheListeners();
     }
   })();
 
   inFlightDriveFetches.set(fileId, fetchPromise);
+  notifyDriveCacheListeners();
   return fetchPromise;
 };
 

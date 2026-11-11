@@ -66,6 +66,10 @@ import {
   ensureGoogleDriveToken,
   fetchDriveFilePreview,
   hasGoogleDriveToken,
+  isAnyDriveActivityInProgress,
+  isDriveTokenRefreshing,
+  restoreGoogleDriveSession,
+  subscribeToDriveCacheUpdates,
 } from '../../services/storage/googleDriveService';
 import {
   type ChatAttachmentInput,
@@ -342,7 +346,25 @@ function ChatWindow() {
     mergedMeasurements,
   ]);
 
-  // Refresh Google Drive token and fetch attachment previews when chat loads
+  const [isDriveRefreshing, setIsDriveRefreshing] = useState(() =>
+    isDriveTokenRefreshing()
+  );
+  const [isDriveSyncing, setIsDriveSyncing] = useState(() =>
+    isAnyDriveActivityInProgress()
+  );
+  const [hasDriveToken, setHasDriveToken] = useState(() =>
+    hasGoogleDriveToken()
+  );
+
+  useEffect(() => {
+    return subscribeToDriveCacheUpdates(() => {
+      setIsDriveRefreshing(isDriveTokenRefreshing());
+      setIsDriveSyncing(isAnyDriveActivityInProgress());
+      setHasDriveToken(hasGoogleDriveToken());
+    });
+  }, []);
+
+  // Silently restore Google Drive session and fetch attachment previews when chat loads (never opens a popup on load)
   useEffect(() => {
     if (!hasLoadedChats) return;
     const driveAttachments = allChatAttachments.filter(
@@ -352,13 +374,10 @@ function ChatWindow() {
 
     let cancelled = false;
     void (async () => {
-      try {
-        await ensureGoogleDriveToken(false);
-      } catch {
-        // Token refresh popup may be skipped or blocked until a user gesture;
-        // individual bubbles/modals will retry on interaction.
-      }
-      if (cancelled) return;
+      const token = hasDriveToken
+        ? 'valid'
+        : await restoreGoogleDriveSession(userId);
+      if (cancelled || !token) return;
       for (const att of driveAttachments) {
         if (att.url) {
           void fetchDriveFilePreview(att.url, att.mimeType, false);
@@ -369,15 +388,36 @@ function ChatWindow() {
     return () => {
       cancelled = true;
     };
-  }, [hasLoadedChats, allChatAttachments]);
+  }, [hasLoadedChats, allChatAttachments, userId, hasDriveToken]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const hasInitialScrollDoneRef = useRef(false);
+  const prevMessagesLengthRef = useRef(0);
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages.length, isSending]);
+    hasInitialScrollDoneRef.current = false;
+    prevMessagesLengthRef.current = 0;
+  }, [userId, id]);
+
+  useEffect(() => {
+    if (!hasLoadedChats) return;
+    if (chatRecords.length > 0 && messages.length === 0) return;
+
+    if (!hasInitialScrollDoneRef.current) {
+      hasInitialScrollDoneRef.current = true;
+      prevMessagesLengthRef.current = messages.length;
+      scrollToBottom('auto');
+      return;
+    }
+
+    if (messages.length > prevMessagesLengthRef.current || isSending) {
+      scrollToBottom('smooth');
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [hasLoadedChats, chatRecords.length, messages.length, isSending]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1016,20 +1056,7 @@ function ChatWindow() {
 
             <button
               type="button"
-              onClick={() => {
-                if (allChatAttachments.some((a) => Boolean(a.url)) && !hasGoogleDriveToken()) {
-                  void ensureGoogleDriveToken(false)
-                    .then(() => {
-                      for (const att of allChatAttachments) {
-                        if (att.url && !getAttachmentPreviewUrl(att)) {
-                          void fetchDriveFilePreview(att.url, att.mimeType, false);
-                        }
-                      }
-                    })
-                    .catch(() => undefined);
-                }
-                setIsMediaGalleryOpen(true);
-              }}
+              onClick={() => setIsMediaGalleryOpen(true)}
               title="Shared media & documents"
               aria-label="Open shared media and documents"
               className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] text-emerald-700 shadow-2xs ring-1 ring-emerald-200/80 transition hover:from-emerald-100/80 hover:to-emerald-100 active:scale-95"
@@ -1045,6 +1072,20 @@ function ChatWindow() {
         )}
       </div>
 
+      {/* Google Drive Session / Media Preview Syncing Indicator */}
+      {isDriveSyncing && (
+        <div className="flex justify-center pt-1">
+          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50/95 px-3.5 py-1.5 text-xs font-medium text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80">
+            <Loader2 size={13} className="animate-spin text-emerald-600" />
+            <span>
+              {isDriveRefreshing
+                ? 'Refreshing Google Drive session…'
+                : 'Loading media previews from Google Drive…'}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Chat Messages */}
       <div className="space-y-4 pt-1">
         {displayedMessages.map((message) => (
@@ -1054,14 +1095,8 @@ function ChatWindow() {
             message={message.message}
             attachments={message.attachments}
             onPreviewAttachment={(att) => {
-              if (att.url && !hasGoogleDriveToken()) {
-                void ensureGoogleDriveToken(false)
-                  .then(() => {
-                    if (att.url) {
-                      void fetchDriveFilePreview(att.url, att.mimeType, false);
-                    }
-                  })
-                  .catch(() => undefined);
+              if (att.url && !getAttachmentPreviewUrl(att)) {
+                void fetchDriveFilePreview(att.url, att.mimeType, true);
               }
               setPreviewAttachment(att);
             }}
@@ -1138,7 +1173,7 @@ function ChatWindow() {
         <div className="pointer-events-none fixed bottom-36 left-0 right-0 z-30 flex justify-center">
           <button
             type="button"
-            onClick={scrollToBottom}
+            onClick={() => scrollToBottom('smooth')}
             aria-label="Scroll to bottom"
             className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-2 text-xs font-semibold text-emerald-800 shadow-md ring-1 ring-emerald-200/80 backdrop-blur-sm transition hover:bg-emerald-50"
           >
