@@ -171,7 +171,6 @@ export const generateAndSaveDailyDigestForToday = async (
     const dailyDigest: DailyDigest = {
       category: resolveField('category'),
       header: resolveField('header'),
-      notification: resolveField('notification'),
       card: resolveField('card'),
       emoji: resolveField('emoji'),
       babyNames: resolveField('babyNames') ?? [],
