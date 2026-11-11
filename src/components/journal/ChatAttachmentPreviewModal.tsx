@@ -6,12 +6,12 @@ import {
   HardDrive,
   Image as ImageIcon,
 } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import type { ChatAttachmentMeta } from '../../models/chat';
 import {
-  convertDataUrlToBlobUrl,
   formatAttachmentSize,
   getGoogleDriveEmbedUrl,
+  getGoogleDriveThumbnailUrl,
   getSessionAttachmentUrl,
   isImageMimeType,
 } from '../../utils/chatAttachments';
@@ -25,23 +25,6 @@ function ChatAttachmentPreviewModal({
   attachment,
   onClose,
 }: ChatAttachmentPreviewModalProps) {
-  const derivedPdfBlobUrl = useMemo(() => {
-    if (!attachment || attachment.mimeType !== 'application/pdf') return null;
-    if (getSessionAttachmentUrl(attachment.id)) return null;
-    if (attachment.fileDataUrl) {
-      return convertDataUrlToBlobUrl(attachment.fileDataUrl);
-    }
-    return null;
-  }, [attachment]);
-
-  useEffect(() => {
-    return () => {
-      if (derivedPdfBlobUrl) {
-        URL.revokeObjectURL(derivedPdfBlobUrl);
-      }
-    };
-  }, [derivedPdfBlobUrl]);
-
   useEffect(() => {
     if (!attachment) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -57,18 +40,18 @@ function ChatAttachmentPreviewModal({
 
   const isImage = isImageMimeType(attachment.mimeType);
   const isPdf = attachment.mimeType === 'application/pdf';
-  const isText = attachment.mimeType.startsWith('text/');
 
   const sessionBlobUrl = getSessionAttachmentUrl(attachment.id);
   const driveEmbedUrl = getGoogleDriveEmbedUrl(attachment.url);
+  const driveThumbnailUrl = isImage
+    ? getGoogleDriveThumbnailUrl(attachment.url, 1200)
+    : null;
 
   const imageSrc = isImage
-    ? sessionBlobUrl || attachment.previewDataUrl || null
+    ? sessionBlobUrl || driveThumbnailUrl || null
     : null;
 
-  const pdfEmbedSrc = isPdf
-    ? sessionBlobUrl || derivedPdfBlobUrl || driveEmbedUrl
-    : null;
+  const embedSrc = sessionBlobUrl || driveEmbedUrl;
 
   const sourceLabel =
     attachment.source === 'camera'
@@ -152,27 +135,9 @@ function ChatAttachmentPreviewModal({
               alt={attachment.name}
               className="max-h-full w-auto max-w-full rounded-2xl object-contain shadow-sm ring-1 ring-gray-200/70"
             />
-          ) : isImage && driveEmbedUrl ? (
+          ) : embedSrc ? (
             <iframe
-              src={driveEmbedUrl}
-              title={attachment.name}
-              className="h-full w-full rounded-2xl border border-gray-200 bg-white shadow-2xs"
-            />
-          ) : isPdf && pdfEmbedSrc ? (
-            <iframe
-              src={pdfEmbedSrc}
-              title={attachment.name}
-              className="h-full w-full rounded-2xl border border-gray-200 bg-white shadow-2xs"
-            />
-          ) : isText && attachment.textPreview ? (
-            <div className="h-full w-full overflow-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xs">
-              <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-gray-800">
-                {attachment.textPreview}
-              </pre>
-            </div>
-          ) : driveEmbedUrl ? (
-            <iframe
-              src={driveEmbedUrl}
+              src={embedSrc}
               title={attachment.name}
               className="h-full w-full rounded-2xl border border-gray-200 bg-white shadow-2xs"
             />
@@ -187,7 +152,7 @@ function ChatAttachmentPreviewModal({
               <p className="mt-1 text-xs leading-relaxed text-gray-500">
                 {attachment.url
                   ? 'Open this file directly in your Google Drive folder (expectant-ai/mira-attachments).'
-                  : 'Full inline preview is available during the active session or via Google Drive once synced.'}
+                  : 'This file is being synced to your Google Drive folder (expectant-ai/mira-attachments).'}
               </p>
               {attachment.url && (
                 <a

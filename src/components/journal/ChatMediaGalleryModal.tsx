@@ -13,6 +13,7 @@ import type { ChatAttachmentMeta } from '../../models/chat';
 import { MIRA_CHAT_DRIVE_SUBFOLDER } from '../../services/storage/googleDriveService';
 import {
   formatAttachmentSize,
+  getGoogleDriveThumbnailUrl,
   getSessionAttachmentUrl,
   isImageMimeType,
 } from '../../utils/chatAttachments';
@@ -198,7 +199,8 @@ function ChatMediaGalleryModal({
                   <div className="grid grid-cols-3 gap-2">
                     {photos.map((item) => {
                       const thumbSrc =
-                        getSessionAttachmentUrl(item.id) || item.previewDataUrl;
+                        getSessionAttachmentUrl(item.id) ||
+                        getGoogleDriveThumbnailUrl(item.url, 400);
 
                       return (
                         <button
@@ -287,11 +289,6 @@ function ChatMediaGalleryModal({
                                   • {formatAttachmentSize(item.size)}
                                   {dateLabel ? ` • ${dateLabel}` : ''}
                                 </p>
-                                {item.textPreview && (
-                                  <p className="mt-1.5 line-clamp-2 rounded-xl bg-gray-50 px-2.5 py-1.5 font-mono text-[10px] text-gray-600 ring-1 ring-gray-200/60">
-                                    {item.textPreview}
-                                  </p>
-                                )}
                               </div>
                             </button>
 

@@ -33,6 +33,7 @@ import type {
 } from '../../services/ai/journalChatService';
 import {
   formatAttachmentSize,
+  getGoogleDriveThumbnailUrl,
   getSessionAttachmentUrl,
   isImageMimeType,
 } from '../../utils/chatAttachments';
@@ -704,7 +705,8 @@ function ChatBubble({
             {attachments!.map((att) => {
               const isImage = isImageMimeType(att.mimeType);
               const imagePreviewUrl = isImage
-                ? getSessionAttachmentUrl(att.id) || att.previewDataUrl
+                ? getSessionAttachmentUrl(att.id) ||
+                  getGoogleDriveThumbnailUrl(att.url, 600)
                 : undefined;
               const sourceLabel =
                 att.source === 'camera'
@@ -819,17 +821,6 @@ function ChatBubble({
                         </>
                       )}
                     </p>
-                    {att.textPreview && (
-                      <p
-                        className={`mt-1 line-clamp-2 rounded-md px-2 py-1 font-mono text-[10px] ${
-                          isUser
-                            ? 'bg-emerald-900/45 text-emerald-50'
-                            : 'bg-white text-gray-600 ring-1 ring-gray-200/70'
-                        }`}
-                      >
-                        {att.textPreview}
-                      </p>
-                    )}
                   </div>
                 </button>
               );

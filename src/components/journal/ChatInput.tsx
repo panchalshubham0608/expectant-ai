@@ -13,6 +13,7 @@ import type { ChatAttachmentSource } from '../../models/chat';
 import {
   type ChatAttachmentInput,
   formatAttachmentSize,
+  getSessionAttachmentUrl,
   isImageMimeType,
   MAX_CHAT_ATTACHMENTS_COUNT,
   prepareChatAttachment,
@@ -60,7 +61,9 @@ function ChatInput({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+    const maxHeight = 128;
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
   }, [value]);
 
   useEffect(() => {
@@ -268,6 +271,9 @@ function ChatInput({
             <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
               {attachments.map((att) => {
                 const isImage = isImageMimeType(att.mimeType);
+                const thumbSrc = isImage
+                  ? getSessionAttachmentUrl(att.id)
+                  : undefined;
                 const extLabel =
                   att.mimeType === 'application/pdf'
                     ? 'PDF'
@@ -278,9 +284,9 @@ function ChatInput({
                     key={att.id}
                     className="group relative flex max-w-[210px] shrink-0 items-center gap-2.5 rounded-2xl border border-emerald-200/90 bg-white p-2 pr-7 shadow-2xs"
                   >
-                    {isImage && att.previewDataUrl ? (
+                    {isImage && thumbSrc ? (
                       <img
-                        src={att.previewDataUrl}
+                        src={thumbSrc}
                         alt={att.name}
                         className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-emerald-100"
                       />
@@ -484,12 +490,8 @@ function ChatInput({
                   onSend();
                 }
               }}
-              placeholder={
-                attachments.length > 0
-                  ? 'Add a message about your file(s) or press send...'
-                  : 'Ask anything or tell me how today went...'
-              }
-              className="max-h-32 min-h-[46px] flex-1 resize-none overflow-y-auto rounded-3xl border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed text-gray-900 shadow-2xs outline-none transition placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+              placeholder="Ask anything"
+              className="max-h-32 min-h-[46px] flex-1 resize-none overflow-y-hidden rounded-3xl border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed text-gray-900 shadow-2xs outline-none transition placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
             />
 
             <button
