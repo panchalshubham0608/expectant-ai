@@ -9,7 +9,9 @@ import {
   Check,
   CheckCircle2,
   Droplets,
+  Eye,
   FileText,
+  HardDrive,
   HeartPulse,
   Image as ImageIcon,
   Loader2,
@@ -31,6 +33,7 @@ import type {
 } from '../../services/ai/journalChatService';
 import {
   formatAttachmentSize,
+  getSessionAttachmentUrl,
   isImageMimeType,
 } from '../../utils/chatAttachments';
 import ChatAppointmentFormCard from './ChatAppointmentFormCard';
@@ -40,6 +43,7 @@ interface ChatBubbleProps {
   role: 'user' | 'assistant';
   message: string;
   attachments?: ChatAttachmentMeta[];
+  onPreviewAttachment?: (attachment: ChatAttachmentMeta) => void;
   followUpQuestion?: string;
   timestamp?: string;
   isError?: boolean;
@@ -636,6 +640,7 @@ function ChatBubble({
   role,
   message,
   attachments,
+  onPreviewAttachment,
   followUpQuestion,
   timestamp,
   isError = false,
@@ -698,6 +703,9 @@ function ChatBubble({
           <div className={`space-y-2 ${message.trim() ? 'mb-2.5' : ''}`}>
             {attachments!.map((att) => {
               const isImage = isImageMimeType(att.mimeType);
+              const imagePreviewUrl = isImage
+                ? getSessionAttachmentUrl(att.id) || att.previewDataUrl
+                : undefined;
               const sourceLabel =
                 att.source === 'camera'
                   ? 'Camera Photo'
@@ -707,21 +715,29 @@ function ChatBubble({
                       ? 'PDF Document'
                       : 'Document';
 
-              if (isImage && att.previewDataUrl) {
+              if (isImage && imagePreviewUrl) {
                 return (
-                  <div
+                  <button
                     key={att.id}
-                    className={`overflow-hidden rounded-xl border ${
+                    type="button"
+                    onClick={() => onPreviewAttachment?.(att)}
+                    className={`group block w-full overflow-hidden rounded-xl border text-left transition ${
                       isUser
-                        ? 'border-emerald-500/60 bg-emerald-800/60'
-                        : 'border-gray-200 bg-gray-50'
+                        ? 'border-emerald-500/60 bg-emerald-800/60 hover:border-emerald-300/80'
+                        : 'border-gray-200 bg-gray-50 hover:border-emerald-300'
                     }`}
                   >
-                    <img
-                      src={att.previewDataUrl}
-                      alt={att.name}
-                      className="max-h-48 w-full object-cover"
-                    />
+                    <div className="relative">
+                      <img
+                        src={imagePreviewUrl}
+                        alt={att.name}
+                        className="max-h-48 w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+                      />
+                      <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-xs">
+                        <Eye size={10} />
+                        <span>Tap to preview</span>
+                      </span>
+                    </div>
                     <div
                       className={`flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] ${
                         isUser ? 'text-emerald-50' : 'text-gray-600'
@@ -735,21 +751,31 @@ function ChatBubble({
                         )}
                         <span className="truncate">{att.name}</span>
                       </span>
-                      <span className="shrink-0 text-[10px] opacity-80">
-                        {formatAttachmentSize(att.size)}
+                      <span className="inline-flex shrink-0 items-center gap-1.5 text-[10px] opacity-85">
+                        {att.url && (
+                          <span
+                            title="Backed up to Google Drive (expectant-ai/mira-attachments)"
+                            className="inline-flex items-center gap-0.5"
+                          >
+                            <HardDrive size={10} />
+                          </span>
+                        )}
+                        <span>{formatAttachmentSize(att.size)}</span>
                       </span>
                     </div>
-                  </div>
+                  </button>
                 );
               }
 
               return (
-                <div
+                <button
                   key={att.id}
-                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 ${
+                  type="button"
+                  onClick={() => onPreviewAttachment?.(att)}
+                  className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition ${
                     isUser
-                      ? 'border-emerald-500/50 bg-emerald-800/55 text-white'
-                      : 'border-gray-200 bg-gray-50 text-gray-800'
+                      ? 'border-emerald-500/50 bg-emerald-800/55 text-white hover:bg-emerald-800/75'
+                      : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-emerald-50/50'
                   }`}
                 >
                   <div
@@ -762,16 +788,50 @@ function ChatBubble({
                     {isImage ? <ImageIcon size={15} /> : <FileText size={15} />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold">{att.name}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-xs font-semibold">{att.name}</p>
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                          isUser
+                            ? 'bg-emerald-900/60 text-emerald-100'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        <Eye size={10} />
+                        <span>Preview</span>
+                      </span>
+                    </div>
                     <p
-                      className={`text-[10px] ${
+                      className={`mt-0.5 flex flex-wrap items-center gap-1 text-[10px] ${
                         isUser ? 'text-emerald-100/85' : 'text-gray-500'
                       }`}
                     >
-                      {sourceLabel} • {formatAttachmentSize(att.size)}
+                      <span>
+                        {sourceLabel} • {formatAttachmentSize(att.size)}
+                      </span>
+                      {att.url && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-0.5 font-medium">
+                            <HardDrive size={10} />
+                            <span>Drive</span>
+                          </span>
+                        </>
+                      )}
                     </p>
+                    {att.textPreview && (
+                      <p
+                        className={`mt-1 line-clamp-2 rounded-md px-2 py-1 font-mono text-[10px] ${
+                          isUser
+                            ? 'bg-emerald-900/45 text-emerald-50'
+                            : 'bg-white text-gray-600 ring-1 ring-gray-200/70'
+                        }`}
+                      >
+                        {att.textPreview}
+                      </p>
+                    )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

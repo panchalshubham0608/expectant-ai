@@ -12,6 +12,7 @@ import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase';
 import { AuthContext } from './AuthContext';
 import { registerForNotifications } from '../lib/messaging';
 import { clearGoogleHealthToken } from '../services/health/googleHealthService';
+import { clearGoogleDriveToken } from '../services/storage/googleDriveService';
 
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -60,6 +61,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, (nextUser) => {
       if (!nextUser) {
         clearGoogleHealthToken();
+        clearGoogleDriveToken();
       }
       setUser(nextUser);
       setIsLoading(false);
@@ -95,6 +97,8 @@ function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    clearGoogleHealthToken();
+    clearGoogleDriveToken();
     if (auth) await firebaseSignOut(auth);
   };
 

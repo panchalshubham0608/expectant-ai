@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowDown, Bot, Sparkles } from 'lucide-react';
+import { ArrowDown, Bot, FolderOpen, Sparkles } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -12,6 +12,7 @@ import { saveAppointment } from '../../services/appointments/appointmentService'
 import { updateMeasurements } from '../../services/measurements/measurementsService';
 import { saveReminder } from '../../services/reminders/reminderService';
 import { subscribeToMedicalReports } from '../../services/reports/medicalReportService';
+import { uploadChatAttachmentToGoogleDrive } from '../../services/reports/reportsService';
 import { subscribeToMedications } from '../../services/medication/medicationService';
 import { subscribeToLatestHealthActivityInsight } from '../../services/ai/healthInsightsService';
 import {
@@ -51,8 +52,12 @@ import {
   type ChatAttachmentInput,
   stripAttachmentBase64,
 } from '../../utils/chatAttachments';
+import ChatAttachmentPreviewModal from './ChatAttachmentPreviewModal';
 import ChatBubble from './ChatBubble';
 import ChatInput from './ChatInput';
+import ChatMediaGalleryModal, {
+  type ChatMediaGalleryItem,
+} from './ChatMediaGalleryModal';
 
 interface Message {
   id: string;
@@ -132,11 +137,31 @@ function ChatWindow() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<ChatAttachmentInput[]>([]);
+  const [previewAttachment, setPreviewAttachment] =
+    useState<ChatAttachmentMeta | null>(null);
+  const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [knownExtraction, setKnownExtraction] = useState<JournalMessageExtraction>(
     EMPTY_JOURNAL_EXTRACTION
   );
+
+  const allChatAttachments = useMemo<ChatMediaGalleryItem[]>(() => {
+    const items: ChatMediaGalleryItem[] = [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.isError || !msg.attachments || msg.attachments.length === 0) {
+        continue;
+      }
+      for (const att of msg.attachments) {
+        items.push({
+          ...att,
+          timestamp: msg.timestamp,
+        });
+      }
+    }
+    return items;
+  }, [messages]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const firstName = profile?.fullName?.trim().split(/\s+/)[0];
@@ -598,6 +623,35 @@ function ChatWindow() {
     setIsSending(true);
 
     try {
+      const uploadAttachmentsPromise = (async (): Promise<ChatAttachmentMeta[]> => {
+        if (!userId || !id || activeAttachments.length === 0) {
+          return attachmentMetas;
+        }
+
+        const uploadedMetas: ChatAttachmentMeta[] = [];
+        for (const att of activeAttachments) {
+          let driveUrl = att.url;
+          if (!driveUrl && att.file) {
+            try {
+              driveUrl = await uploadChatAttachmentToGoogleDrive(
+                userId,
+                id,
+                att.file
+              );
+            } catch {
+              // Non-fatal: continue chat turn even if Drive popup is closed or skipped
+            }
+          }
+          uploadedMetas.push(
+            stripAttachmentBase64({
+              ...att,
+              ...(driveUrl ? { url: driveUrl } : {}),
+            })
+          );
+        }
+        return uploadedMetas;
+      })();
+
       const apiKey =
         userId && id
           ? await getGeminiApiKey(userId, id).catch(() => undefined)
@@ -612,23 +666,26 @@ function ChatWindow() {
         ...(message.attachments ? { attachments: message.attachments } : {}),
       }));
 
-      const result = await generateJournalChatReply(
-        {
-          message: content,
-          attachments: activeAttachments,
-          profile: profile ?? null,
-          reports,
-          appointments: appointments ?? [],
-          measurements: mergedMeasurements,
-          medications,
-          reminders,
-          recentDailyLogs,
-          healthActivityInsight,
-          history: chatHistory,
-          knownState: knownExtraction,
-        },
-        apiKey ?? undefined
-      );
+      const [result, finalizedAttachmentMetas] = await Promise.all([
+        generateJournalChatReply(
+          {
+            message: content,
+            attachments: activeAttachments,
+            profile: profile ?? null,
+            reports,
+            appointments: appointments ?? [],
+            measurements: mergedMeasurements,
+            medications,
+            reminders,
+            recentDailyLogs,
+            healthActivityInsight,
+            history: chatHistory,
+            knownState: knownExtraction,
+          },
+          apiKey ?? undefined
+        ),
+        uploadAttachmentsPromise,
+      ]);
 
       const assistantTimestamp = new Date(Date.now() + 1).toISOString();
       const assistantMessageId = `assistant-${Date.now() + 1}`;
@@ -645,8 +702,17 @@ function ChatWindow() {
 
       setKnownExtraction(result.extracted);
       setMessages((prev) => {
-        if (prev.some((m) => m.id === assistantMessageId)) return prev;
-        return [...prev.filter((m) => !m.isError), assistantMessage];
+        const updatedPrev = prev
+          .filter((m) => !m.isError)
+          .map((m) =>
+            m.id === userMessageId && finalizedAttachmentMetas.length > 0
+              ? { ...m, attachments: finalizedAttachmentMetas }
+              : m
+          );
+        if (updatedPrev.some((m) => m.id === assistantMessageId)) {
+          return updatedPrev;
+        }
+        return [...updatedPrev, assistantMessage];
       });
 
       if (userId && id) {
@@ -660,8 +726,8 @@ function ChatWindow() {
               content,
               timestamp: nowIso,
               observationIds: [],
-              ...(attachmentMetas.length > 0
-                ? { attachments: attachmentMetas }
+              ...(finalizedAttachmentMetas.length > 0
+                ? { attachments: finalizedAttachmentMetas }
                 : {}),
             },
             result.extracted,
@@ -748,9 +814,20 @@ function ChatWindow() {
             </div>
           </div>
 
-          <div className="shrink-0 rounded-full bg-gradient-to-r from-[#f2fbf5] to-[#e4f7eb] px-2.5 py-1 text-[11px] font-semibold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80">
-            🌱 Daily Journal
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsMediaGalleryOpen(true)}
+            aria-label="Open shared media and documents"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-[#f2fbf5] to-[#e4f7eb] px-3 py-1.5 text-[11px] font-semibold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80 transition hover:from-emerald-100/80 hover:to-emerald-100"
+          >
+            <FolderOpen size={13} className="text-emerald-700" />
+            <span>Media</span>
+            {allChatAttachments.length > 0 && (
+              <span className="rounded-full bg-white/90 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-200/70">
+                {allChatAttachments.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -762,6 +839,7 @@ function ChatWindow() {
             role={message.role}
             message={message.message}
             attachments={message.attachments}
+            onPreviewAttachment={(att) => setPreviewAttachment(att)}
             followUpQuestion={message.followUpQuestion}
             userInitial={userInitial}
             suggestedAppointment={message.suggestedAppointment}
@@ -848,6 +926,18 @@ function ChatWindow() {
         onSend={() => sendPrompt(input)}
         disabled={!input.trim() && attachments.length === 0}
         isLoading={isSending}
+      />
+
+      <ChatMediaGalleryModal
+        isOpen={isMediaGalleryOpen}
+        onClose={() => setIsMediaGalleryOpen(false)}
+        attachments={allChatAttachments}
+        onSelectAttachment={(att) => setPreviewAttachment(att)}
+      />
+
+      <ChatAttachmentPreviewModal
+        attachment={previewAttachment}
+        onClose={() => setPreviewAttachment(null)}
       />
     </div>
   );

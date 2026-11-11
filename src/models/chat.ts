@@ -6,7 +6,10 @@ export interface ChatAttachmentMeta {
   mimeType: string;
   size: number;
   source: ChatAttachmentSource;
+  url?: string;
   previewDataUrl?: string;
+  fileDataUrl?: string;
+  textPreview?: string;
 }
 
 export interface ConversationMessage {

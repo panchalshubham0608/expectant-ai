@@ -1,11 +1,51 @@
 import type { ChatAttachmentMeta, ChatAttachmentSource } from '../models/chat';
 
 export interface ChatAttachmentInput extends ChatAttachmentMeta {
+  file: File;
   base64Data: string;
 }
 
 export const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per file
 export const MAX_CHAT_ATTACHMENTS_COUNT = 5;
+const MAX_INLINE_PDF_PERSIST_BYTES = 300 * 1024; // 300 KB raw (~400 KB base64) for Firestore fallback
+const MAX_TEXT_PREVIEW_CHARS = 12000;
+
+// In-memory Blob URLs for instant, zero-latency full preview during the active browser session
+const sessionAttachmentUrls = new Map<string, string>();
+
+export const getSessionAttachmentUrl = (id: string): string | undefined =>
+  sessionAttachmentUrls.get(id);
+
+export const convertDataUrlToBlobUrl = (dataUrl: string): string | null => {
+  try {
+    const commaIdx = dataUrl.indexOf(',');
+    if (commaIdx === -1) return null;
+    const header = dataUrl.slice(0, commaIdx);
+    const base64 = dataUrl.slice(commaIdx + 1);
+    const mimeMatch = header.match(/^data:([^;]+);base64$/i);
+    const mimeType = mimeMatch?.[1] || 'application/octet-stream';
+
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const blob = new Blob([bytes], { type: mimeType });
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+};
+
+export const getGoogleDriveEmbedUrl = (driveUrl?: string): string | null => {
+  if (!driveUrl) return null;
+  const match = driveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match?.[1]) {
+    return `https://drive.google.com/file/d/${match[1]}/preview`;
+  }
+  return null;
+};
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
@@ -181,7 +221,6 @@ const verifyFileSignature = async (
   }
 
   if (mimeType.startsWith('text/')) {
-    // Reject binary files masquerading as text (check for null bytes)
     for (let i = 0; i < bytes.length; i++) {
       if (bytes[i] === 0x00) return false;
     }
@@ -203,9 +242,9 @@ export const encodeFileToBase64 = async (file: File): Promise<string> => {
   return btoa(binary);
 };
 
-const createImageThumbnailDataUrl = (
+const createImagePreviewDataUrl = (
   file: File,
-  maxDimension = 180
+  maxDimension = 720
 ): Promise<string | undefined> =>
   new Promise((resolve) => {
     const objectUrl = URL.createObjectURL(file);
@@ -240,7 +279,7 @@ const createImageThumbnailDataUrl = (
         }
 
         ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.76);
         cleanup();
         resolve(dataUrl);
       } catch {
@@ -256,6 +295,15 @@ const createImageThumbnailDataUrl = (
 
     img.src = objectUrl;
   });
+
+const readTextFilePreview = async (file: File): Promise<string | undefined> => {
+  try {
+    const text = await file.slice(0, MAX_TEXT_PREVIEW_CHARS).text();
+    return text.trim() ? text : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export const prepareChatAttachment = async (
   file: File,
@@ -287,31 +335,56 @@ export const prepareChatAttachment = async (
     );
   }
 
-  const [base64Data, previewDataUrl] = await Promise.all([
+  const [base64Data, previewDataUrl, textPreview] = await Promise.all([
     encodeFileToBase64(file),
     isImageMimeType(mimeType)
-      ? createImageThumbnailDataUrl(file)
+      ? createImagePreviewDataUrl(file)
+      : Promise.resolve(undefined),
+    mimeType.startsWith('text/')
+      ? readTextFilePreview(file)
       : Promise.resolve(undefined),
   ]);
 
+  const id = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  try {
+    const sessionBlobUrl = URL.createObjectURL(file);
+    sessionAttachmentUrls.set(id, sessionBlobUrl);
+  } catch {
+    // Non-fatal if URL.createObjectURL is unavailable
+  }
+
+  const fileDataUrl =
+    mimeType === 'application/pdf' && file.size <= MAX_INLINE_PDF_PERSIST_BYTES
+      ? `data:application/pdf;base64,${base64Data}`
+      : undefined;
+
   return {
-    id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id,
     name: safeName,
     mimeType,
     size: file.size,
     source,
+    file,
     base64Data,
     ...(previewDataUrl ? { previewDataUrl } : {}),
+    ...(fileDataUrl ? { fileDataUrl } : {}),
+    ...(textPreview ? { textPreview } : {}),
   };
 };
 
 export const stripAttachmentBase64 = (
-  attachment: ChatAttachmentInput
+  attachment: ChatAttachmentInput | ChatAttachmentMeta
 ): ChatAttachmentMeta => ({
   id: attachment.id,
   name: attachment.name,
   mimeType: attachment.mimeType,
   size: attachment.size,
   source: attachment.source,
-  ...(attachment.previewDataUrl ? { previewDataUrl: attachment.previewDataUrl } : {}),
+  ...(attachment.url ? { url: attachment.url } : {}),
+  ...(attachment.previewDataUrl
+    ? { previewDataUrl: attachment.previewDataUrl }
+    : {}),
+  ...(attachment.fileDataUrl ? { fileDataUrl: attachment.fileDataUrl } : {}),
+  ...(attachment.textPreview ? { textPreview: attachment.textPreview } : {}),
 });
