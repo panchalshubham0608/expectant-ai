@@ -5,11 +5,15 @@ import {
   Baby,
   Bot,
   Calendar,
+  Camera,
   Check,
   CheckCircle2,
   Droplets,
+  Eye,
   FileText,
+  HardDrive,
   HeartPulse,
+  Image as ImageIcon,
   Loader2,
   MessageSquareText,
   RotateCcw,
@@ -18,7 +22,17 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
+import type { ChatAttachmentMeta } from '../../models/chat';
 import type { Measurement, VitalCategory } from '../../models/measurement';
 import type {
   ChatSuggestedAppointment,
@@ -26,17 +40,33 @@ import type {
   ChatSuggestedVitalItem,
   ChatSuggestedVitals,
 } from '../../services/ai/journalChatService';
+import {
+  fetchDriveFilePreview,
+  subscribeToDriveCacheUpdates,
+} from '../../services/storage/googleDriveService';
+import {
+  formatAttachmentSize,
+  getAttachmentPreviewUrl,
+  isImageMimeType,
+} from '../../utils/chatAttachments';
 import ChatAppointmentFormCard from './ChatAppointmentFormCard';
 import ChatReminderFormCard from './ChatReminderFormCard';
 
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
   message: string;
+  attachments?: ChatAttachmentMeta[];
+  onPreviewAttachment?: (attachment: ChatAttachmentMeta) => void;
   followUpQuestion?: string;
   timestamp?: string;
   isError?: boolean;
   onRetry?: () => void;
   userInitial?: string;
+  selectable?: boolean;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onLongPressSelect?: () => void;
+  onToggleSelect?: () => void;
   suggestedAppointment?: ChatSuggestedAppointment;
   onSaveAppointment?: (draft: ChatSuggestedAppointment) => Promise<string | void>;
   onDismissAppointment?: (draft: ChatSuggestedAppointment) => Promise<void> | void;
@@ -627,11 +657,18 @@ const formatTime = (iso?: string) => {
 function ChatBubble({
   role,
   message,
+  attachments,
+  onPreviewAttachment,
   followUpQuestion,
   timestamp,
   isError = false,
   onRetry,
   userInitial,
+  selectable = false,
+  isSelectionMode = false,
+  isSelected = false,
+  onLongPressSelect,
+  onToggleSelect,
   suggestedAppointment,
   onSaveAppointment,
   onDismissAppointment,
@@ -645,6 +682,7 @@ function ChatBubble({
 }: ChatBubbleProps) {
   const isUser = role === 'user';
   const timeLabel = formatTime(timestamp);
+  const hasAttachments = Boolean(attachments && attachments.length > 0);
   const hasInteractiveCard = Boolean(
     suggestedAppointment ||
       suggestedReminder ||
@@ -657,111 +695,377 @@ function ChatBubble({
     followUpQuestion.trim() &&
     !message.includes(followUpQuestion.trim());
 
+  const [, setDriveCacheTick] = useState(0);
+
+  useEffect(() => {
+    if (!hasAttachments || !attachments) return;
+
+    const unsubscribe = subscribeToDriveCacheUpdates(() => {
+      setDriveCacheTick((t) => t + 1);
+      attachments.forEach((att) => {
+        if (att.url && !getAttachmentPreviewUrl(att)) {
+          void fetchDriveFilePreview(att.url, att.mimeType, false);
+        }
+      });
+    });
+
+    attachments.forEach((att) => {
+      if (att.url && !getAttachmentPreviewUrl(att)) {
+        void fetchDriveFilePreview(att.url, att.mimeType, false);
+      }
+    });
+
+    return unsubscribe;
+  }, [hasAttachments, attachments]);
+
+  const longPressTimerRef = useRef<number | null>(null);
+  const startPosRef = useRef<{ x: number; y: number } | null>(null);
+  const didLongPressRef = useRef(false);
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    startPosRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+    };
+  }, [clearLongPressTimer]);
+
+  const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (!selectable || isSelectionMode) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, form')) return;
+
+    didLongPressRef.current = false;
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+
+    clearLongPressTimer();
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      didLongPressRef.current = true;
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(15);
+        } catch {
+          // Ignore vibration errors on unsupported browsers
+        }
+      }
+      onLongPressSelect?.();
+    }, 450);
+  };
+
+  const handlePointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (longPressTimerRef.current === null || !startPosRef.current) return;
+    const dx = Math.abs(e.clientX - startPosRef.current.x);
+    const dy = Math.abs(e.clientY - startPosRef.current.y);
+    if (dx > 10 || dy > 10) {
+      clearLongPressTimer();
+    }
+  };
+
+  const handleClickCapture = (e: MouseEvent<HTMLDivElement>) => {
+    if (!selectable) return;
+    if (didLongPressRef.current) {
+      didLongPressRef.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (isSelectionMode) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleSelect?.();
+    }
+  };
+
+  const handleContextMenu = (e: MouseEvent<HTMLDivElement>) => {
+    if (!selectable) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select')) return;
+    e.preventDefault();
+    if (!isSelectionMode) {
+      onLongPressSelect?.();
+    } else {
+      onToggleSelect?.();
+    }
+  };
+
   return (
-    <div className={`flex items-end gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}>
-      {!isUser && (
+    <div
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={clearLongPressTimer}
+      onPointerCancel={clearLongPressTimer}
+      onPointerLeave={clearLongPressTimer}
+      onClickCapture={handleClickCapture}
+      onContextMenu={handleContextMenu}
+      className={`flex items-center gap-2 transition ${
+        selectable && isSelectionMode ? 'cursor-pointer select-none' : ''
+      } ${
+        isSelected
+          ? '-mx-2 rounded-2xl bg-emerald-100/65 px-2 py-1.5 ring-1 ring-emerald-300/80'
+          : ''
+      }`}
+    >
+      {selectable && isSelectionMode && (
         <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-xs ${
-            isError
-              ? 'bg-red-100 text-red-600'
-              : 'bg-emerald-100 text-emerald-700'
+          aria-hidden="true"
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${
+            isSelected
+              ? 'border-emerald-600 bg-emerald-600 text-white shadow-2xs'
+              : 'border-gray-300 bg-white/90 text-transparent'
           }`}
         >
-          {isError ? <AlertCircle size={16} /> : <Bot size={17} />}
+          <Check size={12} strokeWidth={3} />
         </div>
       )}
 
       <div
-        className={`${
-          !isUser && hasInteractiveCard
-            ? 'w-full max-w-[90%] sm:max-w-xl'
-            : 'max-w-[80%]'
-        } rounded-2xl px-4 py-3 text-sm ${
-          isUser
-            ? 'rounded-br-sm bg-emerald-700 text-white shadow-xs'
-            : isError
-              ? 'rounded-bl-sm bg-red-50 text-red-800 ring-1 ring-red-200/80'
-              : 'rounded-bl-sm bg-white text-gray-800 shadow-xs ring-1 ring-gray-100'
+        className={`flex min-w-0 flex-1 items-end gap-2.5 ${
+          isUser ? 'justify-end' : 'justify-start'
         }`}
       >
-        {isUser ? (
-          <p className="whitespace-pre-wrap leading-relaxed">{message}</p>
-        ) : (
-          renderFormattedMessage(message)
+        {!isUser && (
+          <div
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-xs ${
+              isError
+                ? 'bg-red-100 text-red-600'
+                : 'bg-emerald-100 text-emerald-700'
+            }`}
+          >
+            {isError ? <AlertCircle size={16} /> : <Bot size={17} />}
+          </div>
         )}
 
-        {!isUser && !isError && suggestedAppointment && onSaveAppointment && (
-          <ChatAppointmentFormCard
-            initialDraft={suggestedAppointment}
-            onSave={onSaveAppointment}
-            onDismiss={onDismissAppointment}
-          />
-        )}
+        <div
+          className={`${
+            !isUser && hasInteractiveCard
+              ? 'w-full max-w-[90%] sm:max-w-xl'
+              : 'max-w-[80%]'
+          } rounded-2xl px-4 py-3 text-sm ${
+            isUser
+              ? 'rounded-br-sm bg-emerald-700 text-white shadow-xs'
+              : isError
+                ? 'rounded-bl-sm bg-red-50 text-red-800 ring-1 ring-red-200/80'
+                : 'rounded-bl-sm bg-white text-gray-800 shadow-xs ring-1 ring-gray-100'
+          }`}
+        >
+          {hasAttachments && (
+            <div className={`space-y-2 ${message.trim() ? 'mb-2.5' : ''}`}>
+              {attachments!.map((att) => {
+                const isImage = isImageMimeType(att.mimeType);
+                const imagePreviewUrl = isImage
+                  ? getAttachmentPreviewUrl(att)
+                  : undefined;
+                const sourceLabel =
+                  att.source === 'camera'
+                    ? 'Camera Photo'
+                    : att.source === 'gallery'
+                      ? 'Gallery Photo'
+                      : att.mimeType === 'application/pdf'
+                        ? 'PDF Document'
+                        : 'Document';
 
-        {!isUser && !isError && suggestedReminder && onSaveReminder && (
-          <ChatReminderFormCard
-            initialDraft={suggestedReminder}
-            onSave={onSaveReminder}
-            onDismiss={onDismissReminder}
-          />
-        )}
+                if (isImage && imagePreviewUrl) {
+                  return (
+                    <button
+                      key={att.id}
+                      type="button"
+                      onClick={() => onPreviewAttachment?.(att)}
+                      className={`group block w-full overflow-hidden rounded-xl border text-left transition ${
+                        isUser
+                          ? 'border-emerald-500/60 bg-emerald-800/60 hover:border-emerald-300/80'
+                          : 'border-gray-200 bg-gray-50 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="relative">
+                        <img
+                          src={imagePreviewUrl}
+                          alt={att.name}
+                          className="max-h-48 w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+                        />
+                        <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-xs">
+                          <Eye size={10} />
+                          <span>Tap to preview</span>
+                        </span>
+                      </div>
+                      <div
+                        className={`flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] ${
+                          isUser ? 'text-emerald-50' : 'text-gray-600'
+                        }`}
+                      >
+                        <span className="inline-flex min-w-0 items-center gap-1.5 truncate font-medium">
+                          {att.source === 'camera' ? (
+                            <Camera size={12} className="shrink-0" />
+                          ) : (
+                            <ImageIcon size={12} className="shrink-0" />
+                          )}
+                          <span className="truncate">{att.name}</span>
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1.5 text-[10px] opacity-85">
+                          {att.url && (
+                            <span
+                              title="Backed up to Google Drive (expectant-ai/mira-attachments)"
+                              className="inline-flex items-center gap-0.5"
+                            >
+                              <HardDrive size={10} />
+                            </span>
+                          )}
+                          <span>{formatAttachmentSize(att.size)}</span>
+                        </span>
+                      </div>
+                    </button>
+                  );
+                }
 
-        {!isUser &&
-          !isError &&
-          suggestedVitals &&
-          suggestedVitals.items.length > 0 &&
-          onSaveVitals && (
-            <ChatVitalsConfirmCard
-              initialDraft={suggestedVitals}
-              currentMeasurements={currentMeasurements}
-              onSave={onSaveVitals}
-              onDismiss={onDismissVitals}
+                return (
+                  <button
+                    key={att.id}
+                    type="button"
+                    onClick={() => onPreviewAttachment?.(att)}
+                    className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition ${
+                      isUser
+                        ? 'border-emerald-500/50 bg-emerald-800/55 text-white hover:bg-emerald-800/75'
+                        : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-emerald-50/50'
+                    }`}
+                  >
+                    <div
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                        isUser
+                          ? 'bg-emerald-600/70 text-emerald-50'
+                          : 'bg-emerald-100 text-emerald-700'
+                      }`}
+                    >
+                      {isImage ? <ImageIcon size={15} /> : <FileText size={15} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-xs font-semibold">{att.name}</p>
+                        <span
+                          className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                            isUser
+                              ? 'bg-emerald-900/60 text-emerald-100'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          <Eye size={10} />
+                          <span>Preview</span>
+                        </span>
+                      </div>
+                      <p
+                        className={`mt-0.5 flex flex-wrap items-center gap-1 text-[10px] ${
+                          isUser ? 'text-emerald-100/85' : 'text-gray-500'
+                        }`}
+                      >
+                        <span>
+                          {sourceLabel} • {formatAttachmentSize(att.size)}
+                        </span>
+                        {att.url && (
+                          <>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-0.5 font-medium">
+                              <HardDrive size={10} />
+                              <span>Drive</span>
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {message.trim() ? (
+            isUser ? (
+              <p className="whitespace-pre-wrap leading-relaxed">{message}</p>
+            ) : (
+              renderFormattedMessage(message)
+            )
+          ) : null}
+
+          {!isUser && !isError && suggestedAppointment && onSaveAppointment && (
+            <ChatAppointmentFormCard
+              initialDraft={suggestedAppointment}
+              onSave={onSaveAppointment}
+              onDismiss={onDismissAppointment}
             />
           )}
 
-        {showFollowUp && (
-          <div className="mt-2.5 flex items-start gap-1.5 border-t border-emerald-100 pt-2 text-xs font-medium text-emerald-800">
-            <Sparkles size={13} className="mt-0.5 shrink-0 text-emerald-600" />
-            <span>{followUpQuestion}</span>
-          </div>
-        )}
+          {!isUser && !isError && suggestedReminder && onSaveReminder && (
+            <ChatReminderFormCard
+              initialDraft={suggestedReminder}
+              onSave={onSaveReminder}
+              onDismiss={onDismissReminder}
+            />
+          )}
 
-        {isError && onRetry && (
-          <div className="mt-2.5 border-t border-red-200/70 pt-2">
-            <button
-              type="button"
-              onClick={onRetry}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-red-700 shadow-2xs ring-1 ring-red-200 transition hover:bg-red-100/60"
+          {!isUser &&
+            !isError &&
+            suggestedVitals &&
+            suggestedVitals.items.length > 0 &&
+            onSaveVitals && (
+              <ChatVitalsConfirmCard
+                initialDraft={suggestedVitals}
+                currentMeasurements={currentMeasurements}
+                onSave={onSaveVitals}
+                onDismiss={onDismissVitals}
+              />
+            )}
+
+          {showFollowUp && (
+            <div className="mt-2.5 flex items-start gap-1.5 border-t border-emerald-100 pt-2 text-xs font-medium text-emerald-800">
+              <Sparkles size={13} className="mt-0.5 shrink-0 text-emerald-600" />
+              <span>{followUpQuestion}</span>
+            </div>
+          )}
+
+          {isError && onRetry && (
+            <div className="mt-2.5 border-t border-red-200/70 pt-2">
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-red-700 shadow-2xs ring-1 ring-red-200 transition hover:bg-red-100/60"
+              >
+                <RotateCcw size={12} />
+                <span>Try again</span>
+              </button>
+            </div>
+          )}
+
+          {timeLabel && (
+            <div
+              className={`mt-1 text-right text-[10px] ${
+                isUser
+                  ? 'text-emerald-100/80'
+                  : isError
+                    ? 'text-red-400'
+                    : 'text-gray-400'
+              }`}
             >
-              <RotateCcw size={12} />
-              <span>Try again</span>
-            </button>
-          </div>
-        )}
+              {timeLabel}
+            </div>
+          )}
+        </div>
 
-        {timeLabel && (
+        {isUser && (
           <div
-            className={`mt-1 text-right text-[10px] ${
-              isUser
-                ? 'text-emerald-100/80'
-                : isError
-                  ? 'text-red-400'
-                  : 'text-gray-400'
-            }`}
+            className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80"
+            aria-label="Expectant profile"
           >
-            {timeLabel}
+            {userInitial ? userInitial : <User size={16} />}
           </div>
         )}
       </div>
-
-      {isUser && (
-        <div
-          className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80"
-          aria-label="Expectant profile"
-        >
-          {userInitial ? userInitial : <User size={16} />}
-        </div>
-      )}
     </div>
   );
 }

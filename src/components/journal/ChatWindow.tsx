@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowDown, Bot, Sparkles } from 'lucide-react';
+import {
+  ArrowDown,
+  Bot,
+  FolderOpen,
+  Loader2,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -12,12 +20,14 @@ import { saveAppointment } from '../../services/appointments/appointmentService'
 import { updateMeasurements } from '../../services/measurements/measurementsService';
 import { saveReminder } from '../../services/reminders/reminderService';
 import { subscribeToMedicalReports } from '../../services/reports/medicalReportService';
+import { uploadChatAttachmentToGoogleDrive } from '../../services/reports/reportsService';
 import { subscribeToMedications } from '../../services/medication/medicationService';
 import { subscribeToLatestHealthActivityInsight } from '../../services/ai/healthInsightsService';
 import {
   type ChatSuggestedAppointment,
   type ChatSuggestedReminder,
   type ChatSuggestedVitals,
+  deleteJournalChatMessages,
   EMPTY_JOURNAL_EXTRACTION,
   generateJournalChatReply,
   type JournalChatRecord,
@@ -33,7 +43,10 @@ import {
   updateJournalChatSuggestedVitals,
   upsertDailyLogFromExtraction,
 } from '../../services/ai/journalChatService';
-import type { ConversationMessage } from '../../models/chat';
+import type {
+  ChatAttachmentMeta,
+  ConversationMessage,
+} from '../../models/chat';
 import type { DailyLog } from '../../models/dailylLog';
 import type { AIHealthActivityInsight } from '../../models/health';
 import {
@@ -44,13 +57,28 @@ import {
 } from '../../models/measurement';
 import type { Medication } from '../../models/medication';
 import type { Report } from '../../models/report';
+import {
+  ensureGoogleDriveToken,
+  fetchDriveFilePreview,
+  hasGoogleDriveToken,
+} from '../../services/storage/googleDriveService';
+import {
+  type ChatAttachmentInput,
+  getAttachmentPreviewUrl,
+  stripAttachmentBase64,
+} from '../../utils/chatAttachments';
+import ChatAttachmentPreviewModal from './ChatAttachmentPreviewModal';
 import ChatBubble from './ChatBubble';
 import ChatInput from './ChatInput';
+import ChatMediaGalleryModal, {
+  type ChatMediaGalleryItem,
+} from './ChatMediaGalleryModal';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   message: string;
+  attachments?: ChatAttachmentMeta[];
   followUpQuestion?: string;
   suggestedAppointment?: ChatSuggestedAppointment;
   suggestedReminder?: ChatSuggestedReminder;
@@ -58,6 +86,7 @@ interface Message {
   timestamp?: string;
   isError?: boolean;
   retryPrompt?: string;
+  retryAttachments?: ChatAttachmentInput[];
 }
 
 const getTimeGreeting = () => {
@@ -122,11 +151,35 @@ function ChatWindow() {
   const [hasLoadedChats, setHasLoadedChats] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [attachments, setAttachments] = useState<ChatAttachmentInput[]>([]);
+  const [previewAttachment, setPreviewAttachment] =
+    useState<ChatAttachmentMeta | null>(null);
+  const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeletingMessages, setIsDeletingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [knownExtraction, setKnownExtraction] = useState<JournalMessageExtraction>(
     EMPTY_JOURNAL_EXTRACTION
   );
+
+  const allChatAttachments = useMemo<ChatMediaGalleryItem[]>(() => {
+    const items: ChatMediaGalleryItem[] = [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.isError || !msg.attachments || msg.attachments.length === 0) {
+        continue;
+      }
+      for (const att of msg.attachments) {
+        items.push({
+          ...att,
+          timestamp: msg.timestamp,
+        });
+      }
+    }
+    return items;
+  }, [messages]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const firstName = profile?.fullName?.trim().split(/\s+/)[0];
@@ -213,17 +266,18 @@ function ChatWindow() {
     );
 
     const history: Message[] = filteredRecords.map((record, index) => {
-      const prevUserMessage =
+      const prevUserRecord =
         record.role === 'assistant' &&
         index > 0 &&
         filteredRecords[index - 1]?.role === 'user'
-          ? filteredRecords[index - 1].content
+          ? filteredRecords[index - 1]
           : undefined;
 
       return {
         id: String(record.id),
         role: record.role as 'user' | 'assistant',
         message: record.content,
+        attachments: record.attachments,
         followUpQuestion:
           record.role === 'assistant' ? record.reply?.followUpQuestion : undefined,
         suggestedAppointment:
@@ -255,7 +309,7 @@ function ChatWindow() {
             ? normalizeSuggestedVitals(
                 record.reply?.suggestedVitals,
                 {
-                  message: prevUserMessage,
+                  message: prevUserRecord?.content,
                   reports,
                   measurements: mergedMeasurements,
                 },
@@ -281,6 +335,35 @@ function ChatWindow() {
     reminders,
     mergedMeasurements,
   ]);
+
+  // Refresh Google Drive token and fetch attachment previews when chat loads
+  useEffect(() => {
+    if (!hasLoadedChats) return;
+    const driveAttachments = allChatAttachments.filter(
+      (att) => Boolean(att.url) && !getAttachmentPreviewUrl(att)
+    );
+    if (driveAttachments.length === 0) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await ensureGoogleDriveToken(false);
+      } catch {
+        // Token refresh popup may be skipped or blocked until a user gesture;
+        // individual bubbles/modals will retry on interaction.
+      }
+      if (cancelled) return;
+      for (const att of driveAttachments) {
+        if (att.url) {
+          void fetchDriveFilePreview(att.url, att.mimeType, false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasLoadedChats, allChatAttachments]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -553,13 +636,19 @@ function ChatWindow() {
     }
   };
 
-  async function sendPrompt(rawContent: string, isRetry = false) {
+  async function sendPrompt(
+    rawContent: string,
+    isRetry = false,
+    overrideAttachments?: ChatAttachmentInput[]
+  ) {
     const content = rawContent.trim();
-    if (!content || isSending) return;
+    const activeAttachments = overrideAttachments ?? attachments;
+    if ((!content && activeAttachments.length === 0) || isSending) return;
 
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const userMessageId = `user-${now}`;
+    const attachmentMetas = activeAttachments.map(stripAttachmentBase64);
 
     const cleanHistory = messages.filter((m) => !m.isError);
 
@@ -568,10 +657,12 @@ function ChatWindow() {
         id: userMessageId,
         role: 'user',
         message: content,
+        ...(attachmentMetas.length > 0 ? { attachments: attachmentMetas } : {}),
         timestamp: nowIso,
       };
       setMessages([...cleanHistory, userMessage]);
       setInput('');
+      setAttachments([]);
     } else {
       setMessages(cleanHistory);
     }
@@ -579,35 +670,75 @@ function ChatWindow() {
     setIsSending(true);
 
     try {
+      if (activeAttachments.length > 0 && !hasGoogleDriveToken()) {
+        await ensureGoogleDriveToken(false).catch(() => undefined);
+      }
+
+      const uploadAttachmentsPromise = (async (): Promise<ChatAttachmentMeta[]> => {
+        if (!userId || !id || activeAttachments.length === 0) {
+          return attachmentMetas;
+        }
+
+        const uploadedMetas: ChatAttachmentMeta[] = [];
+        for (const att of activeAttachments) {
+          let driveUrl = att.url;
+          if (!driveUrl && att.file) {
+            try {
+              driveUrl = await uploadChatAttachmentToGoogleDrive(
+                userId,
+                id,
+                att.file
+              );
+            } catch {
+              // Non-fatal: continue chat turn even if Drive popup is closed or skipped
+            }
+          }
+          uploadedMetas.push(
+            stripAttachmentBase64({
+              ...att,
+              ...(driveUrl ? { url: driveUrl } : {}),
+            })
+          );
+        }
+        return uploadedMetas;
+      })();
+
       const apiKey =
         userId && id
           ? await getGeminiApiKey(userId, id).catch(() => undefined)
           : undefined;
 
-      const chatHistory: ConversationMessage[] = cleanHistory.map((message) => ({
-        id: String(message.id),
-        role: message.role,
-        content: message.message,
-        timestamp: message.timestamp ?? nowIso,
-        observationIds: [],
-      }));
+      // Only pass historical message text to Gemini to avoid redundant attachment tokens
+      const chatHistory: ConversationMessage[] = cleanHistory
+        .filter((message) => Boolean(message.message?.trim()))
+        .map((message) => ({
+          id: String(message.id),
+          role: message.role,
+          content: message.message,
+          timestamp: message.timestamp ?? nowIso,
+          observationIds: [],
+        }));
 
-      const result = await generateJournalChatReply(
-        {
-          message: content,
-          profile: profile ?? null,
-          reports,
-          appointments: appointments ?? [],
-          measurements: mergedMeasurements,
-          medications,
-          reminders,
-          recentDailyLogs,
-          healthActivityInsight,
-          history: chatHistory,
-          knownState: knownExtraction,
-        },
-        apiKey ?? undefined
-      );
+      const [result, finalizedAttachmentMetas] = await Promise.all([
+        generateJournalChatReply(
+          {
+            message: content,
+            attachments: activeAttachments,
+            profile: profile ?? null,
+            reports,
+            appointments: appointments ?? [],
+            measurements: mergedMeasurements,
+            medications,
+            reminders,
+            recentDailyLogs,
+            healthActivityInsight,
+            history: chatHistory,
+            knownState: knownExtraction,
+          },
+          apiKey ?? undefined
+        ),
+        uploadAttachmentsPromise,
+      ]);
 
       const assistantTimestamp = new Date(Date.now() + 1).toISOString();
       const assistantMessageId = `assistant-${Date.now() + 1}`;
@@ -624,8 +755,17 @@ function ChatWindow() {
 
       setKnownExtraction(result.extracted);
       setMessages((prev) => {
-        if (prev.some((m) => m.id === assistantMessageId)) return prev;
-        return [...prev.filter((m) => !m.isError), assistantMessage];
+        const updatedPrev = prev
+          .filter((m) => !m.isError)
+          .map((m) =>
+            m.id === userMessageId && finalizedAttachmentMetas.length > 0
+              ? { ...m, attachments: finalizedAttachmentMetas }
+              : m
+          );
+        if (updatedPrev.some((m) => m.id === assistantMessageId)) {
+          return updatedPrev;
+        }
+        return [...updatedPrev, assistantMessage];
       });
 
       if (userId && id) {
@@ -639,6 +779,9 @@ function ChatWindow() {
               content,
               timestamp: nowIso,
               observationIds: [],
+              ...(finalizedAttachmentMetas.length > 0
+                ? { attachments: finalizedAttachmentMetas }
+                : {}),
             },
             result.extracted,
             result.reply
@@ -673,6 +816,7 @@ function ChatWindow() {
           timestamp: new Date().toISOString(),
           isError: true,
           retryPrompt: content,
+          retryAttachments: activeAttachments,
         },
       ]);
     } finally {
@@ -681,52 +825,182 @@ function ChatWindow() {
   }
 
   const displayedMessages = messages.length > 0 ? messages : [welcomeMessage];
+  const selectableIds = useMemo(
+    () =>
+      displayedMessages
+        .filter((m) => m.id !== 'welcome-1')
+        .map((m) => m.id),
+    [displayedMessages]
+  );
+  const selectedSet = useMemo(
+    () => new Set(selectedMessageIds),
+    [selectedMessageIds]
+  );
+  const isSelectionMode = selectedMessageIds.length > 0;
+  const allSelectableSelected =
+    selectableIds.length > 0 &&
+    selectableIds.every((msgId) => selectedSet.has(msgId));
+
+  const handleLongPressMessage = (messageId: string) => {
+    if (messageId === 'welcome-1') return;
+    setSelectedMessageIds((prev) =>
+      prev.includes(messageId) ? prev : [...prev, messageId]
+    );
+  };
+
+  const handleToggleSelectMessage = (messageId: string) => {
+    if (messageId === 'welcome-1') return;
+    setSelectedMessageIds((prev) =>
+      prev.includes(messageId)
+        ? prev.filter((idItem) => idItem !== messageId)
+        : [...prev, messageId]
+    );
+  };
+
+  const handleClearSelection = () => {
+    if (isDeletingMessages) return;
+    setSelectedMessageIds([]);
+    setIsDeleteConfirmOpen(false);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (allSelectableSelected) {
+      setSelectedMessageIds([]);
+    } else {
+      setSelectedMessageIds(selectableIds);
+    }
+  };
+
+  const handleConfirmDeleteMessages = async () => {
+    if (selectedMessageIds.length === 0 || isDeletingMessages) return;
+    setIsDeletingMessages(true);
+    const idsToDelete = [...selectedMessageIds];
+    const deleteSet = new Set(idsToDelete);
+
+    try {
+      if (userId && id) {
+        await deleteJournalChatMessages(userId, id, idsToDelete);
+      }
+      setMessages((prev) => prev.filter((m) => !deleteSet.has(m.id)));
+      setChatRecords((prev) => prev.filter((r) => !deleteSet.has(String(r.id))));
+      setSelectedMessageIds([]);
+      setIsDeleteConfirmOpen(false);
+    } finally {
+      setIsDeletingMessages(false);
+    }
+  };
 
   return (
     <div className="space-y-4 pb-28">
       {/* Sticky Chat App Top Bar */}
       <div className="sticky top-0 z-20 -mx-4 -mt-6 border-b border-emerald-100/80 bg-white/95 px-4 py-3 shadow-2xs backdrop-blur-md">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="relative shrink-0">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-xs ring-2 ring-emerald-100">
-                <Bot size={20} />
-              </div>
-              <span
-                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
-                aria-hidden="true"
-              />
+        {isSelectionMode ? (
+          <div className="flex min-h-[48px] items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                aria-label="Cancel selection"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition hover:bg-gray-200 active:scale-95"
+              >
+                <X size={18} />
+              </button>
+              <span className="truncate text-sm font-bold text-gray-900">
+                {selectedMessageIds.length} selected
+              </span>
             </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <h1 className="truncate text-sm font-bold tracking-wide text-gray-900">
-                  MIRA
-                </h1>
-                <Sparkles
-                  size={13}
-                  className="shrink-0 text-emerald-600"
+            <div className="flex shrink-0 items-center gap-2">
+              {selectableIds.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAll}
+                  className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200/80 transition hover:bg-emerald-100"
+                >
+                  {allSelectableSelected ? 'Deselect all' : 'Select all'}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                aria-label={`Delete ${selectedMessageIds.length} selected ${
+                  selectedMessageIds.length === 1 ? 'message' : 'messages'
+                }`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-red-700 active:scale-95"
+              >
+                <Trash2 size={14} />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="relative shrink-0">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-xs ring-2 ring-emerald-100">
+                  <Bot size={20} />
+                </div>
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
                   aria-hidden="true"
                 />
               </div>
 
-              <p className="truncate text-[11px] font-medium text-gray-600">
-                <span className="font-semibold text-emerald-700">M</span>aternal{' '}
-                <span className="font-semibold text-emerald-700">I</span>ntelligence &{' '}
-                <span className="font-semibold text-emerald-700">R</span>ecord{' '}
-                <span className="font-semibold text-emerald-700">A</span>ssistant
-              </p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="truncate text-sm font-bold tracking-wide text-gray-900">
+                    MIRA
+                  </h1>
+                  <Sparkles
+                    size={13}
+                    className="shrink-0 text-emerald-600"
+                    aria-hidden="true"
+                  />
+                </div>
 
-              <p className="mt-0.5 truncate text-[11px] text-gray-400">
-                Online • Share your day or ask anything
-              </p>
+                <p className="truncate text-[11px] font-medium text-gray-600">
+                  <span className="font-semibold text-emerald-700">M</span>aternal{' '}
+                  <span className="font-semibold text-emerald-700">I</span>ntelligence &{' '}
+                  <span className="font-semibold text-emerald-700">R</span>ecord{' '}
+                  <span className="font-semibold text-emerald-700">A</span>ssistant
+                </p>
+
+                <p className="mt-0.5 truncate text-[11px] text-gray-400">
+                  Online • Share your day or ask anything
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="shrink-0 rounded-full bg-gradient-to-r from-[#f2fbf5] to-[#e4f7eb] px-2.5 py-1 text-[11px] font-semibold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80">
-            🌱 Daily Journal
+            <button
+              type="button"
+              onClick={() => {
+                if (allChatAttachments.some((a) => Boolean(a.url)) && !hasGoogleDriveToken()) {
+                  void ensureGoogleDriveToken(false)
+                    .then(() => {
+                      for (const att of allChatAttachments) {
+                        if (att.url && !getAttachmentPreviewUrl(att)) {
+                          void fetchDriveFilePreview(att.url, att.mimeType, false);
+                        }
+                      }
+                    })
+                    .catch(() => undefined);
+                }
+                setIsMediaGalleryOpen(true);
+              }}
+              title="Shared media & documents"
+              aria-label="Open shared media and documents"
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] text-emerald-700 shadow-2xs ring-1 ring-emerald-200/80 transition hover:from-emerald-100/80 hover:to-emerald-100 active:scale-95"
+            >
+              <FolderOpen size={16} />
+              {allChatAttachments.length > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 text-[9px] font-bold text-white shadow-2xs ring-2 ring-white">
+                  {allChatAttachments.length}
+                </span>
+              )}
+            </button>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Chat Messages */}
@@ -736,8 +1010,26 @@ function ChatWindow() {
             key={message.id}
             role={message.role}
             message={message.message}
+            attachments={message.attachments}
+            onPreviewAttachment={(att) => {
+              if (att.url && !hasGoogleDriveToken()) {
+                void ensureGoogleDriveToken(false)
+                  .then(() => {
+                    if (att.url) {
+                      void fetchDriveFilePreview(att.url, att.mimeType, false);
+                    }
+                  })
+                  .catch(() => undefined);
+              }
+              setPreviewAttachment(att);
+            }}
             followUpQuestion={message.followUpQuestion}
             userInitial={userInitial}
+            selectable={message.id !== 'welcome-1'}
+            isSelectionMode={isSelectionMode}
+            isSelected={selectedSet.has(message.id)}
+            onLongPressSelect={() => handleLongPressMessage(message.id)}
+            onToggleSelect={() => handleToggleSelectMessage(message.id)}
             suggestedAppointment={message.suggestedAppointment}
             onSaveAppointment={(draft) =>
               handleSaveSuggestedAppointment(message.id, draft)
@@ -763,8 +1055,15 @@ function ChatWindow() {
             timestamp={message.timestamp}
             isError={message.isError}
             onRetry={
-              message.isError && message.retryPrompt
-                ? () => sendPrompt(message.retryPrompt!, true)
+              message.isError &&
+              (message.retryPrompt !== undefined ||
+                (message.retryAttachments && message.retryAttachments.length > 0))
+                ? () =>
+                    sendPrompt(
+                      message.retryPrompt ?? '',
+                      true,
+                      message.retryAttachments
+                    )
                 : undefined
             }
           />
@@ -810,9 +1109,99 @@ function ChatWindow() {
       <ChatInput
         value={input}
         onChange={setInput}
+        attachments={attachments}
+        onAttachmentsChange={setAttachments}
         onSend={() => sendPrompt(input)}
-        disabled={!input.trim()}
+        disabled={!input.trim() && attachments.length === 0}
         isLoading={isSending}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteConfirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-messages-modal-title"
+          onClick={() => {
+            if (!isDeletingMessages) setIsDeleteConfirmOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl ring-1 ring-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-100">
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h2
+                  id="delete-messages-modal-title"
+                  className="text-sm font-bold text-gray-900"
+                >
+                  Delete{' '}
+                  {selectedMessageIds.length === 1
+                    ? 'message'
+                    : `${selectedMessageIds.length} messages`}
+                  ?
+                </h2>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs leading-relaxed text-gray-600">
+              Are you sure you want to permanently remove{' '}
+              {selectedMessageIds.length === 1
+                ? 'this selected message'
+                : `these ${selectedMessageIds.length} selected messages`}{' '}
+              from your MIRA chat history?
+            </p>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isDeletingMessages}
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="rounded-full px-4 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingMessages}
+                onClick={handleConfirmDeleteMessages}
+                className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {isDeletingMessages ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    <span>Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ChatMediaGalleryModal
+        isOpen={isMediaGalleryOpen}
+        onClose={() => setIsMediaGalleryOpen(false)}
+        attachments={allChatAttachments}
+        onSelectAttachment={(att) => setPreviewAttachment(att)}
+      />
+
+      <ChatAttachmentPreviewModal
+        attachment={previewAttachment}
+        onClose={() => setPreviewAttachment(null)}
       />
     </div>
   );

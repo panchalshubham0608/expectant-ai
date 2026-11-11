@@ -8,6 +8,7 @@ import type { ExpectantProfile } from '../../models/profile';
 import type { Reminder } from '../../models/reminder';
 import type { Report } from '../../models/report';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
+import type { ChatAttachmentInput } from '../../utils/chatAttachments';
 import type { JournalMessageExtraction } from './journalChatService';
 
 const calculateAgeYears = (dateOfBirth?: string): number | undefined => {
@@ -25,6 +26,7 @@ const calculateAgeYears = (dateOfBirth?: string): number | undefined => {
 
 export interface JournalChatContextInput {
   message: string;
+  attachments?: ChatAttachmentInput[];
   profile?: Partial<ExpectantProfile> | null;
   reports?: Report[] | null;
   appointments?: Appointment[] | null;
@@ -207,6 +209,12 @@ export interface JournalChatContext {
     };
   };
   currentMessage: string;
+  attachedFiles: Array<{
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+    source: string;
+  }>;
   knownState: JournalMessageExtraction;
   recentConversation: string;
   instructions: string;
@@ -214,6 +222,7 @@ export interface JournalChatContext {
 
 export const buildJournalChatContext = ({
   message,
+  attachments,
   profile,
   reports,
   appointments,
@@ -240,8 +249,12 @@ export const buildJournalChatContext = ({
           : 'Third trimester';
 
   const recentHistory = (history ?? [])
+    .filter((entry) => Boolean(entry.content?.trim()))
     .slice(-20)
-    .map((entry) => `${entry.role === 'user' ? 'Expectant' : 'Assistant'}: ${entry.content}`)
+    .map((entry) => {
+      const speaker = entry.role === 'user' ? 'Expectant' : 'Assistant';
+      return `${speaker}: ${entry.content}`.trim();
+    })
     .join('\n');
 
   const sortedReports = [...(reports ?? [])]
@@ -519,7 +532,17 @@ export const buildJournalChatContext = ({
         dailyBreakdown: sevenDayBreakdown,
       },
     },
-    currentMessage: message,
+    currentMessage:
+      message.trim() ||
+      (attachments && attachments.length > 0
+        ? 'The expectant shared the attached file(s). Please inspect them carefully, explain or summarize the key details in warm plain English, and extract any relevant daily journal logs, vitals, reminders, or appointment suggestions.'
+        : ''),
+    attachedFiles: (attachments ?? []).map((att) => ({
+      name: att.name,
+      mimeType: att.mimeType,
+      sizeBytes: att.size,
+      source: att.source,
+    })),
     knownState:
       knownState ?? {
         meals: [],
@@ -532,6 +555,6 @@ export const buildJournalChatContext = ({
       },
     recentConversation: recentHistory,
     instructions:
-      'Use the expectant profile, medical reports, appointments, health measurements, medications, reminders, AI health & activity insight card, physical activity overview (Google Health + manual logs), and recent daily logs faithfully to answer questions with warmth, clarity, and personalization. Never diagnose conditions or prescribe/change treatments.',
+      'Use the expectant profile, medical reports, appointments, health measurements, medications, reminders, AI health & activity insight card, physical activity overview (Google Health + manual logs), recent daily logs, and any attached images/documents faithfully to answer questions with warmth, clarity, and personalization. Never diagnose conditions or prescribe/change treatments.',
   };
 };

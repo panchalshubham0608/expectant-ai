@@ -24,7 +24,8 @@ export const saveUploadedFileMetadata = async (
   profileId: string,
   fileHash: string,
   file: File,
-  url: string
+  url: string,
+  subfolder?: string
 ): Promise<void> => {
   const fileRef = doc(getUploadedFilesCollection(userId, profileId), fileHash);
   await setDoc(fileRef, {
@@ -33,6 +34,7 @@ export const saveUploadedFileMetadata = async (
     name: file.name,
     type: file.type || 'application/pdf',
     size: file.size,
+    ...(subfolder ? { subfolder } : {}),
     uploadedAt: new Date().toISOString(),
   });
 };
