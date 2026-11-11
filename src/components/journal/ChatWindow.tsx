@@ -390,13 +390,34 @@ function ChatWindow() {
     };
   }, [hasLoadedChats, allChatAttachments, userId, hasDriveToken]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const hasInitialScrollDoneRef = useRef(false);
+  const prevMessagesLengthRef = useRef(0);
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages.length, isSending]);
+    hasInitialScrollDoneRef.current = false;
+    prevMessagesLengthRef.current = 0;
+  }, [userId, id]);
+
+  useEffect(() => {
+    if (!hasLoadedChats) return;
+    if (chatRecords.length > 0 && messages.length === 0) return;
+
+    if (!hasInitialScrollDoneRef.current) {
+      hasInitialScrollDoneRef.current = true;
+      prevMessagesLengthRef.current = messages.length;
+      scrollToBottom('auto');
+      return;
+    }
+
+    if (messages.length > prevMessagesLengthRef.current || isSending) {
+      scrollToBottom('smooth');
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [hasLoadedChats, chatRecords.length, messages.length, isSending]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1152,7 +1173,7 @@ function ChatWindow() {
         <div className="pointer-events-none fixed bottom-36 left-0 right-0 z-30 flex justify-center">
           <button
             type="button"
-            onClick={scrollToBottom}
+            onClick={() => scrollToBottom('smooth')}
             aria-label="Scroll to bottom"
             className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-2 text-xs font-semibold text-emerald-800 shadow-md ring-1 ring-emerald-200/80 backdrop-blur-sm transition hover:bg-emerald-50"
           >
