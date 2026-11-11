@@ -777,7 +777,7 @@ function ChatWindow() {
     <div className="space-y-4 pb-28">
       {/* Sticky Chat App Top Bar */}
       <div className="sticky top-0 z-20 -mx-4 -mt-6 border-b border-emerald-100/80 bg-white/95 px-4 py-3 shadow-2xs backdrop-blur-md">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2.5">
           <div className="flex min-w-0 items-center gap-3">
             <div className="relative shrink-0">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-xs ring-2 ring-emerald-100">
@@ -817,13 +817,13 @@ function ChatWindow() {
           <button
             type="button"
             onClick={() => setIsMediaGalleryOpen(true)}
+            title="Shared media & documents"
             aria-label="Open shared media and documents"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-[#f2fbf5] to-[#e4f7eb] px-3 py-1.5 text-[11px] font-semibold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80 transition hover:from-emerald-100/80 hover:to-emerald-100"
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] text-emerald-700 shadow-2xs ring-1 ring-emerald-200/80 transition hover:from-emerald-100/80 hover:to-emerald-100 active:scale-95"
           >
-            <FolderOpen size={13} className="text-emerald-700" />
-            <span>Media</span>
+            <FolderOpen size={16} />
             {allChatAttachments.length > 0 && (
-              <span className="rounded-full bg-white/90 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-200/70">
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 text-[9px] font-bold text-white shadow-2xs ring-2 ring-white">
                 {allChatAttachments.length}
               </span>
             )}
