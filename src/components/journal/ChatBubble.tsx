@@ -42,6 +42,8 @@ import type {
 } from '../../services/ai/journalChatService';
 import {
   fetchDriveFilePreview,
+  isDriveFilePreviewLoading,
+  isDriveTokenRefreshing,
   subscribeToDriveCacheUpdates,
 } from '../../services/storage/googleDriveService';
 import {
@@ -702,11 +704,6 @@ function ChatBubble({
 
     const unsubscribe = subscribeToDriveCacheUpdates(() => {
       setDriveCacheTick((t) => t + 1);
-      attachments.forEach((att) => {
-        if (att.url && !getAttachmentPreviewUrl(att)) {
-          void fetchDriveFilePreview(att.url, att.mimeType, false);
-        }
-      });
     });
 
     attachments.forEach((att) => {
@@ -865,6 +862,11 @@ function ChatBubble({
                 const imagePreviewUrl = isImage
                   ? getAttachmentPreviewUrl(att)
                   : undefined;
+                const isRefreshingToken = isDriveTokenRefreshing();
+                const isPreviewLoading =
+                  Boolean(att.url) &&
+                  !getAttachmentPreviewUrl(att) &&
+                  (isRefreshingToken || isDriveFilePreviewLoading(att.url));
                 const sourceLabel =
                   att.source === 'camera'
                     ? 'Camera Photo'
@@ -944,7 +946,13 @@ function ChatBubble({
                           : 'bg-emerald-100 text-emerald-700'
                       }`}
                     >
-                      {isImage ? <ImageIcon size={15} /> : <FileText size={15} />}
+                      {isPreviewLoading ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : isImage ? (
+                        <ImageIcon size={15} />
+                      ) : (
+                        <FileText size={15} />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
@@ -956,8 +964,19 @@ function ChatBubble({
                               : 'bg-emerald-100 text-emerald-800'
                           }`}
                         >
-                          <Eye size={10} />
-                          <span>Preview</span>
+                          {isPreviewLoading ? (
+                            <>
+                              <Loader2 size={10} className="animate-spin" />
+                              <span>
+                                {isRefreshingToken ? 'Refreshing…' : 'Loading…'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye size={10} />
+                              <span>Preview</span>
+                            </>
+                          )}
                         </span>
                       </div>
                       <p
@@ -966,9 +985,13 @@ function ChatBubble({
                         }`}
                       >
                         <span>
-                          {sourceLabel} • {formatAttachmentSize(att.size)}
+                          {isPreviewLoading
+                            ? isRefreshingToken
+                              ? 'Refreshing Google Drive session…'
+                              : 'Loading preview from Drive…'
+                            : `${sourceLabel} • ${formatAttachmentSize(att.size)}`}
                         </span>
-                        {att.url && (
+                        {att.url && !isPreviewLoading && (
                           <>
                             <span>•</span>
                             <span className="inline-flex items-center gap-0.5 font-medium">
