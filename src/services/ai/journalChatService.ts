@@ -5,7 +5,11 @@ import type { Activity } from '../../models/activity';
 import type { HydrationLog } from '../../models/hydration';
 import type { Meal } from '../../models/meal';
 import type { MedicationLog } from '../../models/medication';
-import type { ReminderFrequency } from '../../models/reminder';
+import type {
+  CustomIntervalUnit,
+  DayOfWeek,
+  ReminderFrequency,
+} from '../../models/reminder';
 import type { Symptom } from '../../models/symptom';
 import type { VitalCategory } from '../../models/measurement';
 
@@ -65,6 +69,11 @@ export interface ChatSuggestedReminder {
   intervalUnit?: 'hours' | 'minutes';
   startTime?: string;
   endTime?: string;
+  daysOfWeek?: DayOfWeek[];
+  customInterval?: number;
+  customIntervalUnit?: CustomIntervalUnit;
+  startDate?: string;
+  endDate?: string;
   savedReminderId?: string;
   dismissed?: boolean;
 }

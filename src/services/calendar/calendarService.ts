@@ -1,4 +1,7 @@
-import type { Reminder } from '../../models/reminder';
+import {
+  getDayOfWeekCodeFromDate,
+  type Reminder,
+} from '../../models/reminder';
 import type { Appointment } from '../../models/appointment';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
@@ -60,14 +63,46 @@ export const getOrCreateExpectantAiCalendar = async (accessToken: string): Promi
   return createData.id;
 };
 
+const parseLocalDateYmd = (dateStr?: string): Date | null => {
+  if (!dateStr) return null;
+  const match = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+export function getBaseDateForReminder(reminder: Reminder): Date {
+  const baseDate = parseLocalDateYmd(reminder.startDate) ?? new Date();
+  baseDate.setHours(0, 0, 0, 0);
+
+  const usesWeeklyDays =
+    (reminder.frequency === 'weekly' ||
+      (reminder.frequency === 'custom' && reminder.customIntervalUnit === 'weeks')) &&
+    Array.isArray(reminder.daysOfWeek) &&
+    reminder.daysOfWeek.length > 0;
+
+  if (usesWeeklyDays && reminder.daysOfWeek) {
+    for (let offset = 0; offset < 7; offset++) {
+      const candidate = new Date(baseDate);
+      candidate.setDate(baseDate.getDate() + offset);
+      const dayCode = getDayOfWeekCodeFromDate(candidate);
+      if (reminder.daysOfWeek.includes(dayCode)) {
+        return candidate;
+      }
+    }
+  }
+
+  return baseDate;
+}
+
 export function getBaseTimesForDailyReminder(reminder: Reminder): Date[] {
   const timestamps: Date[] = [];
-  const currentDay = new Date();
-  currentDay.setHours(0, 0, 0, 0);
+  const currentDay = getBaseDateForReminder(reminder);
 
   if (reminder.times && reminder.times.length > 0) {
     for (const time of reminder.times) {
       const [hours, minutes] = time.split(':').map(Number);
+      if (Number.isNaN(hours) || Number.isNaN(minutes)) continue;
       const eventTime = new Date(currentDay);
       eventTime.setHours(hours, minutes, 0, 0);
       timestamps.push(eventTime);
@@ -95,24 +130,75 @@ export function getBaseTimesForDailyReminder(reminder: Reminder): Date[] {
   return timestamps;
 }
 
-export async function syncReminderToCalendar(reminder: Reminder, accessToken: string): Promise<Reminder> {
-  if (reminder.frequency !== 'daily') {
-    return reminder;
+const formatRruleUntilUtc = (endDateYmd?: string): string | undefined => {
+  const parsed = parseLocalDateYmd(endDateYmd);
+  if (!parsed) return undefined;
+  parsed.setHours(23, 59, 59, 0);
+  return parsed
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
+};
+
+export function buildReminderRecurrence(
+  reminder: Reminder,
+  baseDate: Date
+): string[] | undefined {
+  const freq = reminder.frequency ?? 'daily';
+  if (freq === 'once') {
+    return undefined;
   }
 
+  const untilUtc = formatRruleUntilUtc(reminder.endDate);
+
+  if (freq === 'weekly') {
+    const days =
+      reminder.daysOfWeek && reminder.daysOfWeek.length > 0
+        ? reminder.daysOfWeek
+        : [getDayOfWeekCodeFromDate(baseDate)];
+    let rrule = `RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')}`;
+    if (untilUtc) rrule += `;UNTIL=${untilUtc}`;
+    return [rrule];
+  }
+
+  if (freq === 'custom') {
+    const intervalNum = Math.max(1, Math.round(reminder.customInterval || 1));
+    const unit = reminder.customIntervalUnit || 'days';
+    const rruleFreq =
+      unit === 'weeks' ? 'WEEKLY' : unit === 'months' ? 'MONTHLY' : 'DAILY';
+    let rrule = `RRULE:FREQ=${rruleFreq};INTERVAL=${intervalNum}`;
+    if (
+      unit === 'weeks' &&
+      reminder.daysOfWeek &&
+      reminder.daysOfWeek.length > 0
+    ) {
+      rrule += `;BYDAY=${reminder.daysOfWeek.join(',')}`;
+    }
+    if (untilUtc) rrule += `;UNTIL=${untilUtc}`;
+    return [rrule];
+  }
+
+  let rrule = 'RRULE:FREQ=DAILY';
+  if (untilUtc) rrule += `;UNTIL=${untilUtc}`;
+  return [rrule];
+}
+
+export async function syncReminderToCalendar(reminder: Reminder, accessToken: string): Promise<Reminder> {
   const calendarId = await getOrCreateExpectantAiCalendar(accessToken);
+  const baseDate = getBaseDateForReminder(reminder);
   const timestamps = getBaseTimesForDailyReminder(reminder);
+  const recurrence = buildReminderRecurrence(reminder, baseDate);
   const eventIds: string[] = [];
 
   for (const timestamp of timestamps) {
     const endDate = new Date(timestamp.getTime() + 15 * 60000); // Default 15 minute duration
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const event = {
+    const event: Record<string, unknown> = {
       summary: reminder.title,
       description: reminder.description || '',
       start: { dateTime: timestamp.toISOString(), timeZone },
       end: { dateTime: endDate.toISOString(), timeZone },
-      recurrence: ['RRULE:FREQ=DAILY'],
+      ...(recurrence ? { recurrence } : {}),
       reminders: {
         useDefault: false,
         overrides: [

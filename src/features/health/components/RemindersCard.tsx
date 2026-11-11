@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { Bell, Clock, Plus, Trash2, Edit2, Calendar, Loader2 } from 'lucide-react';
+import { Bell, Clock, Plus, Trash2, Edit2, Calendar, Loader2, Repeat } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import type { Reminder } from '../../../models/reminder';
+import {
+  getReminderDateRangeSummary,
+  getReminderFrequencyBadgeLabel,
+  getReminderTimeSummary,
+  type Reminder,
+} from '../../../models/reminder';
 import { useAuth } from '../../../hooks/useAuth';
 import { saveReminder, deleteReminder } from '../../../services/reminders/reminderService';
 import { toggleSyncRemindersToCalendar } from '../../../services/profiles/profileService';
@@ -33,22 +38,28 @@ export default function RemindersCard() {
     setSavingReminderId(reminderData.id || 'new');
     let dataToSave = { ...(editingReminder || {}), ...reminderData };
 
-    const needsCalendarAction = (dataToSave.googleCalendarEventIds && dataToSave.googleCalendarEventIds.length > 0) ||
-      (profile?.syncRemindersToCalendar && dataToSave.frequency === 'daily' && dataToSave.isActive !== false);
+    const needsCalendarAction =
+      (dataToSave.googleCalendarEventIds &&
+        dataToSave.googleCalendarEventIds.length > 0) ||
+      (profile?.syncRemindersToCalendar && dataToSave.isActive !== false);
 
     if (needsCalendarAction) {
       try {
         const accessToken = await getCalendarAccessToken();
-        dataToSave = await resyncReminderToCalendar(dataToSave as Reminder, accessToken, !!profile?.syncRemindersToCalendar);
-      } catch (error) {
-        console.error('Failed to manage calendar events for reminder:', error);
+        dataToSave = await resyncReminderToCalendar(
+          dataToSave as Reminder,
+          accessToken,
+          !!profile?.syncRemindersToCalendar
+        );
+      } catch {
+        console.error('Failed to manage calendar events for reminder');
       }
     }
 
     try {
       await saveReminder(user.uid, profileId, dataToSave);
-    } catch (error) {
-      console.error('Failed to save reminder:', error);
+    } catch {
+      console.error('Failed to save reminder');
     } finally {
       setIsFormOpen(false);
       setEditingReminder(undefined);
@@ -65,8 +76,8 @@ export default function RemindersCard() {
         try {
           const accessToken = await getCalendarAccessToken();
           await deleteAllCalendarEventsForReminder(reminder, accessToken);
-        } catch (error) {
-          console.error('Failed to delete calendar events for reminder:', error);
+        } catch {
+          console.error('Failed to delete calendar events for reminder');
         }
       }
       await deleteReminder(user.uid, profileId, reminderToDelete);
@@ -94,14 +105,17 @@ export default function RemindersCard() {
       let accessToken: string;
       try {
         accessToken = await getCalendarAccessToken();
-      } catch (error) {
-        console.error('Failed to authenticate with Google Calendar:', error);
+      } catch {
+        console.error('Failed to authenticate with Google Calendar');
         setIsSyncingCalendar(false);
         return;
       }
 
       const pendingReminders = reminders.filter(
-        (r) => r.frequency === 'daily' && r.isActive !== false && (!r.googleCalendarEventIds || r.googleCalendarEventIds.length === 0)
+        (r) =>
+          r.id !== 'daily-moment' &&
+          r.isActive !== false &&
+          (!r.googleCalendarEventIds || r.googleCalendarEventIds.length === 0)
       );
 
       setSyncProgress(0);
@@ -112,16 +126,16 @@ export default function RemindersCard() {
           if (updatedReminder.googleCalendarEventIds && updatedReminder.googleCalendarEventIds.length > 0) {
             await saveReminder(user.uid, profileId, updatedReminder);
           }
-        } catch (error) {
-          console.error('Failed to sync reminder to calendar:', error);
+        } catch {
+          console.error('Failed to sync reminder to calendar');
         }
         processed++;
         setSyncProgress(pendingReminders.length > 0 ? Math.round((processed / pendingReminders.length) * 100) : 100);
       }
 
       await toggleSyncRemindersToCalendar(profile.id, true);
-    } catch (error) {
-      console.error('Failed to toggle calendar sync:', error);
+    } catch {
+      console.error('Failed to toggle calendar sync');
     } finally {
       setIsSyncingCalendar(false);
       setSyncProgress(null);
@@ -144,36 +158,17 @@ export default function RemindersCard() {
           processed++;
           setSyncProgress(remindersToDisconnect.length > 0 ? Math.round((processed / remindersToDisconnect.length) * 100) : 100);
         }
-      } catch (error) {
-        console.error('Failed to clear calendar events during disconnect:', error);
+      } catch {
+        console.error('Failed to clear calendar events during disconnect');
       }
       await toggleSyncRemindersToCalendar(profile.id, false);
-    } catch (error) {
-      console.error('Failed to disconnect calendar sync:', error);
+    } catch {
+      console.error('Failed to disconnect calendar sync');
     } finally {
       setIsSyncingCalendar(false);
       setSyncProgress(null);
       setShowDisconnectConfirm(false);
     }
-  };
-
-  const formatTime = (time24?: string) => {
-    if (!time24) return '';
-    const [hours, minutes] = time24.split(':');
-    const h = parseInt(hours, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    return `${h12}:${minutes} ${ampm}`;
-  };
-
-  const getFrequencyText = (reminder: Reminder) => {
-    if (reminder.interval) {
-      return `Every ${reminder.interval} ${reminder.intervalUnit} between ${formatTime(reminder.startTime)} and ${formatTime(reminder.endTime)}`;
-    }
-    if (reminder.times && reminder.times.length > 0) {
-      return `At ${[...reminder.times].sort().map(formatTime).join(' and ')}`;
-    }
-    return reminder.frequency;
   };
 
   // Filter out the daily moment preference so it doesn't render twice!
@@ -228,25 +223,42 @@ export default function RemindersCard() {
         ) : displayReminders.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">No reminders scheduled yet.</p>
         ) : (
-          displayReminders.map((reminder) => (
-            <div
-              key={reminder.id}
-              className="relative flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-white hover:shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h4 className="font-semibold text-slate-900">{reminder.title}</h4>
-                  {reminder.description && (
-                    <p className="mt-1 text-sm text-slate-500">{reminder.description}</p>
-                  )}
+          displayReminders.map((reminder) => {
+            const frequencyBadge = getReminderFrequencyBadgeLabel(reminder);
+            const timeSummary = getReminderTimeSummary(reminder);
+            const dateRangeSummary = getReminderDateRangeSummary(reminder);
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50/50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100/50">
-                      <Clock size={12} className="text-blue-500" />
-                      {getFrequencyText(reminder)}
-                    </span>
+            return (
+              <div
+                key={reminder.id}
+                className="relative flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-white hover:shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-slate-900">{reminder.title}</h4>
+                    {reminder.description && (
+                      <p className="mt-1 text-sm text-slate-500">{reminder.description}</p>
+                    )}
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50/70 px-2.5 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100">
+                        <Repeat size={12} className="text-indigo-500" />
+                        {frequencyBadge}
+                      </span>
+                      {timeSummary && (
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50/50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100/50">
+                          <Clock size={12} className="text-blue-500" />
+                          {timeSummary}
+                        </span>
+                      )}
+                      {dateRangeSummary && (
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200/60">
+                          <Calendar size={12} className="text-slate-500" />
+                          {dateRangeSummary}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
 
                 <div className="flex shrink-0 items-center gap-3">
                   <div className="flex items-center gap-1 mr-2">
@@ -288,7 +300,8 @@ export default function RemindersCard() {
                 </div>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

@@ -19,6 +19,11 @@ import { getGeminiApiKey } from '../../services/profiles/profileService';
 import { saveAppointment } from '../../services/appointments/appointmentService';
 import { updateMeasurements } from '../../services/measurements/measurementsService';
 import { saveReminder } from '../../services/reminders/reminderService';
+import {
+  getCalendarAccessToken,
+  syncReminderToCalendar,
+} from '../../services/calendar/calendarService';
+import type { Reminder } from '../../models/reminder';
 import { subscribeToMedicalReports } from '../../services/reports/medicalReportService';
 import { uploadChatAttachmentToGoogleDrive } from '../../services/reports/reportsService';
 import { subscribeToMedications } from '../../services/medication/medicationService';
@@ -297,6 +302,7 @@ function ChatWindow() {
             ? normalizeSuggestedReminder(
                 record.reply?.suggestedReminder,
                 {
+                  message: prevUserRecord?.content,
                   medications,
                   reports,
                   reminders: reminders ?? [],
@@ -454,11 +460,12 @@ function ChatWindow() {
 
     const isIntervalMode =
       typeof draft.interval === 'number' && draft.interval > 0;
+    const frequency = draft.frequency ?? 'daily';
 
-    const createdId = await saveReminder(userId, id, {
+    const reminderToSave: Partial<Reminder> = {
       title: draft.title,
       ...(draft.description ? { description: draft.description } : {}),
-      frequency: 'daily',
+      frequency,
       isActive: true,
       ...(isIntervalMode
         ? {
@@ -471,7 +478,42 @@ function ChatWindow() {
             times:
               draft.times && draft.times.length > 0 ? draft.times : ['09:00'],
           }),
-    });
+      ...(frequency === 'weekly' ||
+      (frequency === 'custom' && draft.customIntervalUnit === 'weeks')
+        ? draft.daysOfWeek && draft.daysOfWeek.length > 0
+          ? { daysOfWeek: draft.daysOfWeek }
+          : {}
+        : {}),
+      ...(frequency === 'custom'
+        ? {
+            customInterval:
+              draft.customInterval && draft.customInterval > 0
+                ? draft.customInterval
+                : 2,
+            customIntervalUnit: draft.customIntervalUnit ?? 'days',
+          }
+        : {}),
+      ...(draft.startDate ? { startDate: draft.startDate } : {}),
+      ...(frequency !== 'once' && draft.endDate
+        ? { endDate: draft.endDate }
+        : {}),
+    };
+
+    let finalReminderToSave: Partial<Reminder> = reminderToSave;
+
+    if (profile?.syncRemindersToCalendar) {
+      try {
+        const token = await getCalendarAccessToken();
+        finalReminderToSave = await syncReminderToCalendar(
+          reminderToSave as Reminder,
+          token
+        );
+      } catch {
+        // Calendar sync is best-effort during chat save; still save the reminder locally.
+      }
+    }
+
+    const createdId = await saveReminder(userId, id, finalReminderToSave);
 
     const savedDraft: ChatSuggestedReminder = {
       ...draft,

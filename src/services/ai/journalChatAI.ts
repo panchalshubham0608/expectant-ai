@@ -3,6 +3,13 @@ import {
   type Measurement,
   type VitalCategory,
 } from '../../models/measurement';
+import {
+  DAYS_OF_WEEK,
+  getDayOfWeekCodeFromDate,
+  type CustomIntervalUnit,
+  type DayOfWeek,
+  type ReminderFrequency,
+} from '../../models/reminder';
 import { DEFAULT_GEMINI_MODEL, getGeminiClient } from './geminiCore';
 import {
   buildJournalChatContext,
@@ -300,6 +307,99 @@ const extractTimesFromText = (text?: string): string[] => {
   return results;
 };
 
+const VALID_DAY_CODES = new Set<DayOfWeek>([
+  'MO',
+  'TU',
+  'WE',
+  'TH',
+  'FR',
+  'SA',
+  'SU',
+]);
+
+const normalizeDayOfWeekToken = (token?: string): DayOfWeek | undefined => {
+  if (!token) return undefined;
+  const upper = token.trim().toUpperCase();
+  if (VALID_DAY_CODES.has(upper as DayOfWeek)) {
+    return upper as DayOfWeek;
+  }
+  const lower = token.trim().toLowerCase();
+  if (lower.startsWith('mon')) return 'MO';
+  if (lower.startsWith('tue')) return 'TU';
+  if (lower.startsWith('wed')) return 'WE';
+  if (lower.startsWith('thu')) return 'TH';
+  if (lower.startsWith('fri')) return 'FR';
+  if (lower.startsWith('sat')) return 'SA';
+  if (lower.startsWith('sun')) return 'SU';
+  return undefined;
+};
+
+const extractDaysOfWeekFromText = (text?: string): DayOfWeek[] => {
+  if (!text) return [];
+  const lower = text.toLowerCase();
+  if (/\bweekdays?\b/.test(lower)) {
+    return ['MO', 'TU', 'WE', 'TH', 'FR'];
+  }
+  if (/\bweekends?\b/.test(lower)) {
+    return ['SA', 'SU'];
+  }
+  const found: DayOfWeek[] = [];
+  const dayPatterns: Array<{ regex: RegExp; code: DayOfWeek }> = [
+    { regex: /\b(monday|mon)\b/i, code: 'MO' },
+    { regex: /\b(tuesday|tues|tue)\b/i, code: 'TU' },
+    { regex: /\b(wednesday|wed)\b/i, code: 'WE' },
+    { regex: /\b(thursday|thurs|thu)\b/i, code: 'TH' },
+    { regex: /\b(friday|fri)\b/i, code: 'FR' },
+    { regex: /\b(saturday|sat)\b/i, code: 'SA' },
+    { regex: /\b(sunday|sun)\b/i, code: 'SU' },
+  ];
+  for (const { regex, code } of dayPatterns) {
+    if (regex.test(text) && !found.includes(code)) {
+      found.push(code);
+    }
+  }
+  return found;
+};
+
+const normalizeOptionalDateYmd = (value?: string): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return undefined;
+};
+
+const getLocalTodayYmd = (): string => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const addDaysToYmd = (baseYmd: string, daysToAdd: number): string => {
+  const match = baseYmd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const d = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date();
+  d.setDate(d.getDate() + daysToAdd);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const normalizeSuggestedReminder = (
   raw: Partial<ChatSuggestedReminder> | undefined,
   contextInput: Partial<JournalChatContextInput>,
@@ -321,6 +421,8 @@ export const normalizeSuggestedReminder = (
       (raw.title?.trim() ||
         (Array.isArray(raw.times) && raw.times.length > 0) ||
         (typeof raw.interval === 'number' && raw.interval > 0) ||
+        (Array.isArray(raw.daysOfWeek) && raw.daysOfWeek.length > 0) ||
+        (typeof raw.customInterval === 'number' && raw.customInterval > 0) ||
         raw.savedReminderId)
   );
 
@@ -328,9 +430,10 @@ export const normalizeSuggestedReminder = (
     return undefined;
   }
 
+  const userMessage = contextInput.message ?? '';
   const activeMeds = (contextInput.medications ?? []).filter((m) => !m.discontinued);
   const titleCandidate = raw?.title?.trim() || '';
-  const searchSource = `${titleCandidate} ${answerText ?? ''}`.toLowerCase();
+  const searchSource = `${titleCandidate} ${userMessage} ${answerText ?? ''}`.toLowerCase();
 
   const matchedMed = activeMeds.find(
     (med) => med.name && searchSource.includes(med.name.toLowerCase())
@@ -338,7 +441,7 @@ export const normalizeSuggestedReminder = (
 
   const inferredTitle =
     titleCandidate ||
-    (matchedMed ? `Take ${matchedMed.name}` : 'Daily Reminder');
+    (matchedMed ? `Take ${matchedMed.name}` : 'Reminder');
 
   const medDetails = matchedMed
     ? [matchedMed.dose, matchedMed.frequency, matchedMed.instructions]
@@ -350,20 +453,169 @@ export const normalizeSuggestedReminder = (
   const inferredDescription =
     raw?.description?.trim() || medDetails || undefined;
 
+  // Normalize daysOfWeek
+  const rawDays = Array.isArray(raw?.daysOfWeek)
+    ? raw.daysOfWeek
+        .map((d) => normalizeDayOfWeekToken(String(d)))
+        .filter((d): d is DayOfWeek => Boolean(d))
+    : [];
+  const extractedDays =
+    rawDays.length > 0
+      ? Array.from(new Set(rawDays))
+      : extractDaysOfWeekFromText(`${userMessage} ${answerText ?? ''}`);
+
+  const orderMap = new Map(DAYS_OF_WEEK.map((d, idx) => [d.code, idx]));
+  const sortedDays = [...extractedDays].sort(
+    (a, b) => (orderMap.get(a) ?? 0) - (orderMap.get(b) ?? 0)
+  );
+
+  // Check for custom multi-day/week/month recurrence in text
+  const customMatch = `${userMessage} ${answerText ?? ''}`.match(
+    /\bevery\s+(\d+)\s+(days?|weeks?|months?)\b/i
+  );
+  const isAlternateDays = /\b(?:every\s+other\s+day|alternate\s+days?)\b/i.test(
+    `${userMessage} ${answerText ?? ''}`
+  );
+
+  // Resolve frequency
+  const validFrequencies = new Set<ReminderFrequency>([
+    'daily',
+    'weekly',
+    'once',
+    'custom',
+  ]);
+  let frequency: ReminderFrequency =
+    raw?.frequency && validFrequencies.has(raw.frequency)
+      ? raw.frequency
+      : 'daily';
+
+  if (!raw?.frequency || raw.frequency === 'daily') {
+    if (
+      (typeof raw?.customInterval === 'number' && raw.customInterval > 1) ||
+      customMatch ||
+      isAlternateDays
+    ) {
+      frequency = 'custom';
+    } else if (
+      rawDays.length > 0 ||
+      /\b(weekly|every\s+week|weekdays?|weekends?)\b/i.test(
+        `${userMessage} ${answerText ?? ''}`
+      ) ||
+      (sortedDays.length > 0 &&
+        /\b(?:on|every)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/i.test(
+          `${userMessage} ${answerText ?? ''}`
+        ))
+    ) {
+      frequency = 'weekly';
+    } else if (
+      /\b(once|one[- ]time|just\s+once|only\s+once|only\s+today|only\s+tomorrow)\b/i.test(
+        `${userMessage} ${answerText ?? ''}`
+      )
+    ) {
+      frequency = 'once';
+    }
+  }
+
+  let customInterval: number | undefined;
+  let customIntervalUnit: CustomIntervalUnit | undefined;
+  if (frequency === 'custom') {
+    const rawCount =
+      typeof raw?.customInterval === 'number' && raw.customInterval > 0
+        ? Math.round(raw.customInterval)
+        : customMatch
+          ? Math.max(1, Number(customMatch[1]))
+          : isAlternateDays
+            ? 2
+            : 2;
+    const rawUnitStr = (
+      raw?.customIntervalUnit ||
+      (customMatch ? customMatch[2] : 'days')
+    ).toLowerCase();
+    customInterval = Math.max(1, rawCount);
+    customIntervalUnit = rawUnitStr.startsWith('week')
+      ? 'weeks'
+      : rawUnitStr.startsWith('month')
+        ? 'months'
+        : 'days';
+  }
+
+  const todayYmd = getLocalTodayYmd();
+  let startDate = normalizeOptionalDateYmd(raw?.startDate);
+  let endDate = normalizeOptionalDateYmd(raw?.endDate);
+
+  if (frequency === 'once' && !startDate) {
+    startDate = /\btomorrow\b/i.test(userMessage)
+      ? addDaysToYmd(todayYmd, 1)
+      : todayYmd;
+  }
+
+  // Infer duration e.g. "for 5 days" or "for 2 weeks" if endDate not explicitly set
+  if (frequency !== 'once' && !endDate) {
+    const durationMatch = userMessage.match(
+      /\bfor\s+(\d+)\s+(days?|weeks?)\b/i
+    );
+    if (durationMatch) {
+      const count = Number(durationMatch[1]);
+      const isWeeks = durationMatch[2].toLowerCase().startsWith('week');
+      const totalDays = isWeeks ? count * 7 : count;
+      if (totalDays >= 1 && totalDays <= 365) {
+        const baseStart = startDate || todayYmd;
+        startDate = baseStart;
+        endDate = addDaysToYmd(baseStart, Math.max(0, totalDays - 1));
+      }
+    }
+  }
+
+  const daysOfWeek =
+    frequency === 'weekly'
+      ? sortedDays.length > 0
+        ? sortedDays
+        : [getDayOfWeekCodeFromDate()]
+      : frequency === 'custom' &&
+          customIntervalUnit === 'weeks' &&
+          sortedDays.length > 0
+        ? sortedDays
+        : undefined;
+
+  // Check intraday interval mode (e.g., every 2 hours or every 30 minutes)
+  const textIntradayMatch = `${userMessage} ${answerText ?? ''}`.match(
+    /\bevery\s+(\d+)\s*(hours?|hrs?|hr|minutes?|mins?|min)\b/i
+  );
+
   const isIntervalMode =
-    typeof raw?.interval === 'number' &&
-    raw.interval > 0 &&
-    (!raw.times || raw.times.length === 0);
+    (typeof raw?.interval === 'number' &&
+      raw.interval > 0 &&
+      (!raw.times || raw.times.length === 0)) ||
+    (Boolean(textIntradayMatch) && (!raw?.times || raw.times.length === 0));
 
   if (isIntervalMode) {
+    const inferredIntradayVal =
+      typeof raw?.interval === 'number' && raw.interval > 0
+        ? Math.max(1, Math.round(raw.interval))
+        : textIntradayMatch
+          ? Math.max(1, Number(textIntradayMatch[1]))
+          : 2;
+    const inferredIntradayUnit: 'hours' | 'minutes' =
+      raw?.intervalUnit === 'minutes' ||
+      (textIntradayMatch &&
+        textIntradayMatch[2].toLowerCase().startsWith('min'))
+        ? 'minutes'
+        : 'hours';
+
     return {
       title: inferredTitle,
       description: inferredDescription,
-      frequency: 'daily',
-      interval: Math.max(1, Math.round(raw.interval!)),
-      intervalUnit: raw?.intervalUnit === 'minutes' ? 'minutes' : 'hours',
+      frequency,
+      interval: inferredIntradayVal,
+      intervalUnit: inferredIntradayUnit,
       startTime: normalizeTimeString(raw?.startTime) || '08:00',
       endTime: normalizeTimeString(raw?.endTime) || '20:00',
+      ...(daysOfWeek ? { daysOfWeek } : {}),
+      ...(frequency === 'custom'
+        ? { customInterval, customIntervalUnit }
+        : {}),
+      ...(startDate ? { startDate } : {}),
+      ...(endDate && frequency !== 'once' ? { endDate } : {}),
       savedReminderId: raw?.savedReminderId,
       dismissed: raw?.dismissed,
     };
@@ -378,13 +630,19 @@ export const normalizeSuggestedReminder = (
   const extractedTimes =
     normalizedRawTimes.length > 0
       ? normalizedRawTimes
-      : extractTimesFromText(answerText);
+      : extractTimesFromText(`${userMessage} ${answerText ?? ''}`);
 
   return {
     title: inferredTitle,
     description: inferredDescription,
-    frequency: 'daily',
+    frequency,
     times: extractedTimes.length > 0 ? extractedTimes : ['09:00'],
+    ...(daysOfWeek ? { daysOfWeek } : {}),
+    ...(frequency === 'custom'
+      ? { customInterval, customIntervalUnit }
+      : {}),
+    ...(startDate ? { startDate } : {}),
+    ...(endDate && frequency !== 'once' ? { endDate } : {}),
     savedReminderId: raw?.savedReminderId,
     dismissed: raw?.dismissed,
   };
@@ -1059,12 +1317,18 @@ YOUR RESPONSIBILITIES:
      a) The expectant asks to create, set, add, or schedule a reminder or alarm (e.g., for taking a medication, drinking water/hydration, walking, kick counts, or checking vitals), OR
      b) The expectant mentions forgetting a medication or routine habit and asks for help remembering it.
    - Leave "suggestedReminder" omitted/null for general conversation where setting a reminder is not requested or relevant.
-   - When populating "suggestedReminder", infer accurate details from the user's request, attached prescriptions, "medications.active", "medicalReports", and "activeReminders":
-     - "title": Clear, concise reminder title (e.g., "Take Iron Supplement", "Hydration Check", "Evening Walk").
+   - When populating "suggestedReminder", infer accurate details from the user's request, attached prescriptions, "medications.active", "medicalReports", and "activeReminders" using the full Reminder schema:
+     - "title": Clear, concise reminder title (e.g., "Take Iron Supplement", "Hydration Check", "Evening Walk", "Weekly Weight Log").
      - "description": Helpful instructions or dose details (e.g., "Take 1 tablet after lunch" inferred from "medications.active" or reports, or "Drink a full glass of water").
-     - Choose EITHER specific times OR a repeating interval:
-       - For specific daily times (e.g., once, twice, or three times a day): populate "times" with 24-hour "HH:mm" strings (e.g., ["09:00", "21:00"]). Infer appropriate times from the user's message or medication instructions (e.g., "after breakfast" -> "09:00", "after lunch" -> "13:30", "at bedtime/after dinner" -> "21:00").
-       - For repeating interval reminders (e.g., "every 2 hours" for hydration): populate "interval" (number, e.g., 2), "intervalUnit" ("hours" or "minutes"), "startTime" ("HH:mm", default "08:00"), and "endTime" ("HH:mm", default "20:00"), and leave "times" empty.
+     - "frequency": Choose the appropriate frequency ("daily", "weekly", "once", or "custom"):
+       - "daily": For reminders that repeat every day (including intraday intervals like "every 2 hours" daily, or courses like "daily for 7 days").
+       - "weekly": For reminders on specific days of the week (e.g., "every Monday, Wednesday, and Friday", "on weekends", "every Sunday"). Populate "daysOfWeek" with 2-letter day codes ("MO", "TU", "WE", "TH", "FR", "SA", "SU").
+       - "once": For a one-time reminder on a specific date (e.g., "remind me tomorrow at 5 PM", "remind me on Nov 20 at 10 AM"). Populate "startDate" with the target "YYYY-MM-DD" date resolved relative to "currentDate".
+       - "custom": For reminders repeating every N days, weeks, or months (e.g., "every 3 days", "every other day" -> customInterval: 2, customIntervalUnit: "days", "every 2 weeks" -> customInterval: 2, customIntervalUnit: "weeks"). Populate "customInterval" (number >= 1) and "customIntervalUnit" ("days", "weeks", or "months"), plus "daysOfWeek" if "customIntervalUnit" is "weeks" and specific weekdays are mentioned.
+     - "startDate" & "endDate" (optional for "daily", "weekly", "custom"; "startDate" required for "once"): "YYYY-MM-DD" strings resolved relative to "currentDate" when a start date, end date, or duration (e.g., "for 5 days", "from tomorrow until next Friday") is mentioned.
+     - Intraday time schedule — choose EITHER specific times OR a repeating intraday interval:
+       - For specific time(s) of day (e.g., once, twice, or three times a day): populate "times" with 24-hour "HH:mm" strings (e.g., ["09:00", "21:00"]). Infer appropriate times from the user's message or medication instructions (e.g., "after breakfast" -> "09:00", "after lunch" -> "13:30", "at bedtime/after dinner" -> "21:00").
+       - For repeating intraday interval reminders (e.g., "every 2 hours" or "every 45 minutes"): populate "interval" (number, e.g., 2), "intervalUnit" ("hours" or "minutes"), "startTime" ("HH:mm", default "08:00"), and "endTime" ("HH:mm", default "20:00"), and leave "times" empty.
    - When you include "suggestedReminder", mention in "answer" that you've prepared a pre-filled reminder form right below so they can review or adjust the schedule and save it.
 
 7. Chat-Integrated Vital Signs Discovery & Auto-Update ("suggestedVitals"):
@@ -1308,6 +1572,10 @@ export const generateJournalChatReply = async (
             properties: {
               title: { type: 'STRING' },
               description: { type: 'STRING' },
+              frequency: {
+                type: 'STRING',
+                enum: ['daily', 'weekly', 'once', 'custom'],
+              },
               times: {
                 type: 'ARRAY',
                 items: { type: 'STRING' },
@@ -1319,8 +1587,22 @@ export const generateJournalChatReply = async (
               },
               startTime: { type: 'STRING' },
               endTime: { type: 'STRING' },
+              daysOfWeek: {
+                type: 'ARRAY',
+                items: {
+                  type: 'STRING',
+                  enum: ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'],
+                },
+              },
+              customInterval: { type: 'NUMBER' },
+              customIntervalUnit: {
+                type: 'STRING',
+                enum: ['days', 'weeks', 'months'],
+              },
+              startDate: { type: 'STRING' },
+              endDate: { type: 'STRING' },
             },
-            required: ['title'],
+            required: ['title', 'frequency'],
           },
           suggestedVitals: {
             type: 'OBJECT',
