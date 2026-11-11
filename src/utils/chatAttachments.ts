@@ -1,4 +1,9 @@
 import type { ChatAttachmentMeta, ChatAttachmentSource } from '../models/chat';
+import {
+  extractGoogleDriveFileId,
+  getCachedDriveBlobUrl,
+  getCachedDriveTextContent,
+} from '../services/storage/googleDriveService';
 
 export interface ChatAttachmentInput extends ChatAttachmentMeta {
   file: File;
@@ -14,10 +19,21 @@ const sessionAttachmentUrls = new Map<string, string>();
 export const getSessionAttachmentUrl = (id: string): string | undefined =>
   sessionAttachmentUrls.get(id);
 
-const extractGoogleDriveFileId = (driveUrl?: string): string | null => {
-  if (!driveUrl) return null;
-  const match = driveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  return match?.[1] ?? null;
+export const getAttachmentPreviewUrl = (
+  attachment?: ChatAttachmentMeta | null
+): string | undefined => {
+  if (!attachment) return undefined;
+  return (
+    sessionAttachmentUrls.get(attachment.id) ||
+    getCachedDriveBlobUrl(attachment.url)
+  );
+};
+
+export const getAttachmentPreviewText = (
+  attachment?: ChatAttachmentMeta | null
+): string | undefined => {
+  if (!attachment) return undefined;
+  return getCachedDriveTextContent(attachment.url);
 };
 
 export const getGoogleDriveEmbedUrl = (driveUrl?: string): string | null => {

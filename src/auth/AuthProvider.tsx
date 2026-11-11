@@ -12,7 +12,10 @@ import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase';
 import { AuthContext } from './AuthContext';
 import { registerForNotifications } from '../lib/messaging';
 import { clearGoogleHealthToken } from '../services/health/googleHealthService';
-import { clearGoogleDriveToken } from '../services/storage/googleDriveService';
+import {
+  clearGoogleDriveToken,
+  setGoogleDriveToken,
+} from '../services/storage/googleDriveService';
 
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -89,7 +92,11 @@ function AuthProvider({ children }: { children: ReactNode }) {
       // signInWithPopup slides up perfectly over iOS PWAs and avoids the redirect data wipe.
       // Note: We do not `await` anything prior to this call, otherwise Safari's popup blocker will kill it.
       try {
-        await signInWithPopup(auth, googleProvider);
+        const result = await signInWithPopup(auth, googleProvider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+          setGoogleDriveToken(credential.accessToken);
+        }
       } catch (error) {
         console.error("Web login failed:", error);
       }

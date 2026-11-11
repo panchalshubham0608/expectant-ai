@@ -5,14 +5,20 @@ import {
   FileText,
   HardDrive,
   Image as ImageIcon,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { ChatAttachmentMeta } from '../../models/chat';
 import {
+  fetchDriveFilePreview,
+  subscribeToDriveCacheUpdates,
+} from '../../services/storage/googleDriveService';
+import {
   formatAttachmentSize,
+  getAttachmentPreviewText,
+  getAttachmentPreviewUrl,
   getGoogleDriveEmbedUrl,
-  getGoogleDriveThumbnailUrl,
-  getSessionAttachmentUrl,
   isImageMimeType,
 } from '../../utils/chatAttachments';
 
@@ -25,6 +31,9 @@ function ChatAttachmentPreviewModal({
   attachment,
   onClose,
 }: ChatAttachmentPreviewModalProps) {
+  const [, setDriveCacheTick] = useState(0);
+  const [isFetchingDrive, setIsFetchingDrive] = useState(false);
+
   useEffect(() => {
     if (!attachment) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -36,22 +45,49 @@ function ChatAttachmentPreviewModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [attachment, onClose]);
 
+  useEffect(() => {
+    if (!attachment) return;
+
+    const unsubscribe = subscribeToDriveCacheUpdates(() => {
+      setDriveCacheTick((t) => t + 1);
+    });
+
+    if (attachment.url && !getAttachmentPreviewUrl(attachment)) {
+      setIsFetchingDrive(true);
+      void fetchDriveFilePreview(
+        attachment.url,
+        attachment.mimeType,
+        false
+      ).finally(() => {
+        setIsFetchingDrive(false);
+      });
+    }
+
+    return unsubscribe;
+  }, [attachment]);
+
   if (!attachment) return null;
 
   const isImage = isImageMimeType(attachment.mimeType);
   const isPdf = attachment.mimeType === 'application/pdf';
+  const isText = attachment.mimeType.startsWith('text/');
 
-  const sessionBlobUrl = getSessionAttachmentUrl(attachment.id);
+  const previewBlobUrl = getAttachmentPreviewUrl(attachment);
+  const previewTextContent = getAttachmentPreviewText(attachment);
   const driveEmbedUrl = getGoogleDriveEmbedUrl(attachment.url);
-  const driveThumbnailUrl = isImage
-    ? getGoogleDriveThumbnailUrl(attachment.url, 1200)
-    : null;
 
-  const imageSrc = isImage
-    ? sessionBlobUrl || driveThumbnailUrl || null
-    : null;
+  const imageSrc = isImage ? previewBlobUrl || null : null;
+  const embedSrc = !isImage && !isText ? previewBlobUrl || driveEmbedUrl : null;
 
-  const embedSrc = sessionBlobUrl || driveEmbedUrl;
+  const handleManualRefreshPreview = async () => {
+    if (!attachment.url || isFetchingDrive) return;
+    setIsFetchingDrive(true);
+    try {
+      await fetchDriveFilePreview(attachment.url, attachment.mimeType, true);
+    } finally {
+      setIsFetchingDrive(false);
+    }
+  };
 
   const sourceLabel =
     attachment.source === 'camera'
@@ -135,12 +171,25 @@ function ChatAttachmentPreviewModal({
               alt={attachment.name}
               className="max-h-full w-auto max-w-full rounded-2xl object-contain shadow-sm ring-1 ring-gray-200/70"
             />
+          ) : isText && previewTextContent ? (
+            <div className="h-full w-full overflow-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xs">
+              <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-gray-800">
+                {previewTextContent}
+              </pre>
+            </div>
           ) : embedSrc ? (
             <iframe
               src={embedSrc}
               title={attachment.name}
               className="h-full w-full rounded-2xl border border-gray-200 bg-white shadow-2xs"
             />
+          ) : isFetchingDrive ? (
+            <div className="flex flex-col items-center gap-2.5 text-center">
+              <Loader2 size={24} className="animate-spin text-emerald-700" />
+              <p className="text-xs font-medium text-gray-600">
+                Loading preview from Google Drive...
+              </p>
+            </div>
           ) : (
             <div className="flex max-w-xs flex-col items-center rounded-3xl border border-gray-200/80 bg-white p-6 text-center shadow-2xs">
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/70">
@@ -151,19 +200,29 @@ function ChatAttachmentPreviewModal({
               </p>
               <p className="mt-1 text-xs leading-relaxed text-gray-500">
                 {attachment.url
-                  ? 'Open this file directly in your Google Drive folder (expectant-ai/mira-attachments).'
+                  ? 'Refresh your Google Drive connection to load the preview directly, or open the file in Google Drive.'
                   : 'This file is being synced to your Google Drive folder (expectant-ai/mira-attachments).'}
               </p>
               {attachment.url && (
-                <a
-                  href={attachment.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-800"
-                >
-                  <ExternalLink size={13} />
-                  <span>Open in Google Drive</span>
-                </a>
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleManualRefreshPreview}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-800"
+                  >
+                    <RefreshCw size={13} />
+                    <span>Load Preview from Drive</span>
+                  </button>
+                  <a
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline"
+                  >
+                    <ExternalLink size={12} />
+                    <span>Open in Google Drive</span>
+                  </a>
+                </div>
               )}
             </div>
           )}

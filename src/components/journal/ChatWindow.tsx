@@ -58,7 +58,13 @@ import {
 import type { Medication } from '../../models/medication';
 import type { Report } from '../../models/report';
 import {
+  ensureGoogleDriveToken,
+  fetchDriveFilePreview,
+  hasGoogleDriveToken,
+} from '../../services/storage/googleDriveService';
+import {
   type ChatAttachmentInput,
+  getAttachmentPreviewUrl,
   stripAttachmentBase64,
 } from '../../utils/chatAttachments';
 import ChatAttachmentPreviewModal from './ChatAttachmentPreviewModal';
@@ -329,6 +335,35 @@ function ChatWindow() {
     reminders,
     mergedMeasurements,
   ]);
+
+  // Refresh Google Drive token and fetch attachment previews when chat loads
+  useEffect(() => {
+    if (!hasLoadedChats) return;
+    const driveAttachments = allChatAttachments.filter(
+      (att) => Boolean(att.url) && !getAttachmentPreviewUrl(att)
+    );
+    if (driveAttachments.length === 0) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await ensureGoogleDriveToken(false);
+      } catch {
+        // Token refresh popup may be skipped or blocked until a user gesture;
+        // individual bubbles/modals will retry on interaction.
+      }
+      if (cancelled) return;
+      for (const att of driveAttachments) {
+        if (att.url) {
+          void fetchDriveFilePreview(att.url, att.mimeType, false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasLoadedChats, allChatAttachments]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -635,6 +670,10 @@ function ChatWindow() {
     setIsSending(true);
 
     try {
+      if (activeAttachments.length > 0 && !hasGoogleDriveToken()) {
+        await ensureGoogleDriveToken(false).catch(() => undefined);
+      }
+
       const uploadAttachmentsPromise = (async (): Promise<ChatAttachmentMeta[]> => {
         if (!userId || !id || activeAttachments.length === 0) {
           return attachmentMetas;
@@ -669,14 +708,16 @@ function ChatWindow() {
           ? await getGeminiApiKey(userId, id).catch(() => undefined)
           : undefined;
 
-      const chatHistory: ConversationMessage[] = cleanHistory.map((message) => ({
-        id: String(message.id),
-        role: message.role,
-        content: message.message,
-        timestamp: message.timestamp ?? nowIso,
-        observationIds: [],
-        ...(message.attachments ? { attachments: message.attachments } : {}),
-      }));
+      // Only pass historical message text to Gemini to avoid redundant attachment tokens
+      const chatHistory: ConversationMessage[] = cleanHistory
+        .filter((message) => Boolean(message.message?.trim()))
+        .map((message) => ({
+          id: String(message.id),
+          role: message.role,
+          content: message.message,
+          timestamp: message.timestamp ?? nowIso,
+          observationIds: [],
+        }));
 
       const [result, finalizedAttachmentMetas] = await Promise.all([
         generateJournalChatReply(
@@ -933,7 +974,20 @@ function ChatWindow() {
 
             <button
               type="button"
-              onClick={() => setIsMediaGalleryOpen(true)}
+              onClick={() => {
+                if (allChatAttachments.some((a) => Boolean(a.url)) && !hasGoogleDriveToken()) {
+                  void ensureGoogleDriveToken(false)
+                    .then(() => {
+                      for (const att of allChatAttachments) {
+                        if (att.url && !getAttachmentPreviewUrl(att)) {
+                          void fetchDriveFilePreview(att.url, att.mimeType, false);
+                        }
+                      }
+                    })
+                    .catch(() => undefined);
+                }
+                setIsMediaGalleryOpen(true);
+              }}
               title="Shared media & documents"
               aria-label="Open shared media and documents"
               className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f2fbf5] to-[#e4f7eb] text-emerald-700 shadow-2xs ring-1 ring-emerald-200/80 transition hover:from-emerald-100/80 hover:to-emerald-100 active:scale-95"
@@ -957,7 +1011,18 @@ function ChatWindow() {
             role={message.role}
             message={message.message}
             attachments={message.attachments}
-            onPreviewAttachment={(att) => setPreviewAttachment(att)}
+            onPreviewAttachment={(att) => {
+              if (att.url && !hasGoogleDriveToken()) {
+                void ensureGoogleDriveToken(false)
+                  .then(() => {
+                    if (att.url) {
+                      void fetchDriveFilePreview(att.url, att.mimeType, false);
+                    }
+                  })
+                  .catch(() => undefined);
+              }
+              setPreviewAttachment(att);
+            }}
             followUpQuestion={message.followUpQuestion}
             userInitial={userInitial}
             selectable={message.id !== 'welcome-1'}

@@ -41,9 +41,12 @@ import type {
   ChatSuggestedVitals,
 } from '../../services/ai/journalChatService';
 import {
+  fetchDriveFilePreview,
+  subscribeToDriveCacheUpdates,
+} from '../../services/storage/googleDriveService';
+import {
   formatAttachmentSize,
-  getGoogleDriveThumbnailUrl,
-  getSessionAttachmentUrl,
+  getAttachmentPreviewUrl,
   isImageMimeType,
 } from '../../utils/chatAttachments';
 import ChatAppointmentFormCard from './ChatAppointmentFormCard';
@@ -692,6 +695,29 @@ function ChatBubble({
     followUpQuestion.trim() &&
     !message.includes(followUpQuestion.trim());
 
+  const [, setDriveCacheTick] = useState(0);
+
+  useEffect(() => {
+    if (!hasAttachments || !attachments) return;
+
+    const unsubscribe = subscribeToDriveCacheUpdates(() => {
+      setDriveCacheTick((t) => t + 1);
+      attachments.forEach((att) => {
+        if (att.url && !getAttachmentPreviewUrl(att)) {
+          void fetchDriveFilePreview(att.url, att.mimeType, false);
+        }
+      });
+    });
+
+    attachments.forEach((att) => {
+      if (att.url && !getAttachmentPreviewUrl(att)) {
+        void fetchDriveFilePreview(att.url, att.mimeType, false);
+      }
+    });
+
+    return unsubscribe;
+  }, [hasAttachments, attachments]);
+
   const longPressTimerRef = useRef<number | null>(null);
   const startPosRef = useRef<{ x: number; y: number } | null>(null);
   const didLongPressRef = useRef(false);
@@ -837,8 +863,7 @@ function ChatBubble({
               {attachments!.map((att) => {
                 const isImage = isImageMimeType(att.mimeType);
                 const imagePreviewUrl = isImage
-                  ? getSessionAttachmentUrl(att.id) ||
-                    getGoogleDriveThumbnailUrl(att.url, 600)
+                  ? getAttachmentPreviewUrl(att)
                   : undefined;
                 const sourceLabel =
                   att.source === 'camera'

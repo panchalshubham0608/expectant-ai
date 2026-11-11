@@ -10,11 +10,14 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ChatAttachmentMeta } from '../../models/chat';
-import { MIRA_CHAT_DRIVE_SUBFOLDER } from '../../services/storage/googleDriveService';
+import {
+  fetchDriveFilePreview,
+  MIRA_CHAT_DRIVE_SUBFOLDER,
+  subscribeToDriveCacheUpdates,
+} from '../../services/storage/googleDriveService';
 import {
   formatAttachmentSize,
-  getGoogleDriveThumbnailUrl,
-  getSessionAttachmentUrl,
+  getAttachmentPreviewUrl,
   isImageMimeType,
 } from '../../utils/chatAttachments';
 
@@ -50,6 +53,7 @@ function ChatMediaGalleryModal({
   onSelectAttachment,
 }: ChatMediaGalleryModalProps) {
   const [activeTab, setActiveTab] = useState<MediaFilterTab>('all');
+  const [, setDriveCacheTick] = useState(0);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -61,6 +65,27 @@ function ChatMediaGalleryModal({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen || attachments.length === 0) return;
+
+    const unsubscribe = subscribeToDriveCacheUpdates(() => {
+      setDriveCacheTick((t) => t + 1);
+      attachments.forEach((att) => {
+        if (att.url && !getAttachmentPreviewUrl(att)) {
+          void fetchDriveFilePreview(att.url, att.mimeType, false);
+        }
+      });
+    });
+
+    attachments.forEach((att) => {
+      if (att.url && !getAttachmentPreviewUrl(att)) {
+        void fetchDriveFilePreview(att.url, att.mimeType, false);
+      }
+    });
+
+    return unsubscribe;
+  }, [isOpen, attachments]);
 
   const { photos, documents } = useMemo(() => {
     const photoList: ChatMediaGalleryItem[] = [];
@@ -198,9 +223,7 @@ function ChatMediaGalleryModal({
 
                   <div className="grid grid-cols-3 gap-2">
                     {photos.map((item) => {
-                      const thumbSrc =
-                        getSessionAttachmentUrl(item.id) ||
-                        getGoogleDriveThumbnailUrl(item.url, 400);
+                      const thumbSrc = getAttachmentPreviewUrl(item);
 
                       return (
                         <button

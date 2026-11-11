@@ -249,14 +249,11 @@ export const buildJournalChatContext = ({
           : 'Third trimester';
 
   const recentHistory = (history ?? [])
+    .filter((entry) => Boolean(entry.content?.trim()))
     .slice(-20)
     .map((entry) => {
       const speaker = entry.role === 'user' ? 'Expectant' : 'Assistant';
-      const attNote =
-        entry.attachments && entry.attachments.length > 0
-          ? ` [Attached: ${entry.attachments.map((a) => a.name).join(', ')}]`
-          : '';
-      return `${speaker}:${attNote} ${entry.content}`.trim();
+      return `${speaker}: ${entry.content}`.trim();
     })
     .join('\n');
 
