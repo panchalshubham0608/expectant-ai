@@ -151,6 +151,15 @@ export interface JournalChatContext {
     description?: string;
     frequency: string;
     times: string[];
+    interval?: number;
+    intervalUnit?: 'hours' | 'minutes';
+    startTime?: string;
+    endTime?: string;
+    daysOfWeek?: string[];
+    customInterval?: number;
+    customIntervalUnit?: string;
+    startDate?: string;
+    endDate?: string;
   }>;
   recentDailyLogs: Array<{
     date: string;
@@ -358,6 +367,15 @@ export const buildJournalChatContext = ({
       description: r.description,
       frequency: r.frequency,
       times: r.times ?? [],
+      interval: r.interval,
+      intervalUnit: r.intervalUnit,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      daysOfWeek: r.daysOfWeek,
+      customInterval: r.customInterval,
+      customIntervalUnit: r.customIntervalUnit,
+      startDate: r.startDate,
+      endDate: r.endDate,
     }));
 
   const formattedDailyLogs = [...(recentDailyLogs ?? [])]

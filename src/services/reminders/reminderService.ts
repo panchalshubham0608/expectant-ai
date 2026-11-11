@@ -1,4 +1,10 @@
-import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  deleteDoc,
+  deleteField,
+  onSnapshot,
+} from 'firebase/firestore';
 import type { Reminder } from '../../models/reminder';
 import { getRemindersCollection } from '../../lib/collections';
 
@@ -23,21 +29,40 @@ export const subscribeToReminders = (
   );
 };
 
-export const saveReminder = async (userId: string, profileId: string, reminder: Partial<Reminder>): Promise<string> => {
+export const saveReminder = async (
+  userId: string,
+  profileId: string,
+  reminder: Partial<Reminder>
+): Promise<string> => {
   const colRef = getRemindersCollection(userId, profileId);
+  const isExisting = Boolean(reminder.id);
   const docRef = reminder.id ? doc(colRef, reminder.id) : doc(colRef);
 
-  const finalReminder = {
-    ...reminder,
+  const sanitized: Record<string, unknown> = {
     id: docRef.id,
     updatedAt: Date.now(),
   };
 
-  await setDoc(docRef, finalReminder, { merge: true });
+  for (const [key, value] of Object.entries(reminder)) {
+    if (key === 'id') continue;
+    if (value === undefined) {
+      if (isExisting) {
+        sanitized[key] = deleteField();
+      }
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  await setDoc(docRef, sanitized, { merge: true });
   return docRef.id;
 };
 
-export const deleteReminder = async (userId: string, profileId: string, reminderId: string): Promise<void> => {
+export const deleteReminder = async (
+  userId: string,
+  profileId: string,
+  reminderId: string
+): Promise<void> => {
   const colRef = getRemindersCollection(userId, profileId);
   const docRef = doc(colRef, reminderId);
   await deleteDoc(docRef);
