@@ -13,6 +13,7 @@ interface DailyMomentCardProps {
 export default function DailyMomentCard({ userId, profileId }: DailyMomentCardProps) {
   const [moment, setMoment] = useState<DailyDigest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
     const unsubscribe = subscribeToDailyDigest(userId, profileId, dateId, (nextDigest) => {
       if (nextDigest) {
         setMoment(nextDigest);
+        setIsLoading(false);
       }
     });
     return () => unsubscribe();
@@ -57,7 +59,7 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
 
 
   const handleRefresh = async () => {
-    setIsLoading(true);
+    setIsRefreshing(true);
     setError(null);
     try {
       const apiKey = await getGeminiApiKey(userId, profileId).catch(() => undefined);
@@ -72,20 +74,22 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
     } catch (err: any) {
       setError(err.message || 'Failed to refresh daily moment');
     } finally {
-      setIsLoading(false);
+      setIsRefreshing(false);
     }
-  }
+  };
 
-  if (isLoading) {
+  const hasMoment = Boolean(moment?.card?.title && moment?.card?.content);
+
+  if ((isLoading || isRefreshing) && !hasMoment) {
     return (
       <div className="flex items-center gap-3 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
         <Loader2 className="h-5 w-5 animate-spin text-green-600" />
-        <span className="text-sm font-medium text-gray-500">Discovering today's moment...</span>
+        <span className="text-sm font-medium text-gray-500">Discovering today&apos;s moment...</span>
       </div>
     );
   }
 
-  if (error || !moment) {
+  if ((error && !hasMoment) || !moment || !hasMoment) {
     // Fail silently so we don't break the user's dashboard view if AI fails
     return null;
   }
@@ -99,10 +103,12 @@ export default function DailyMomentCard({ userId, profileId }: DailyMomentCardPr
         </div>
         <div>
           <button
-            className="text-sm font-medium text-green-600 hover:text-green-700"
+            type="button"
+            disabled={isRefreshing}
+            className="text-sm font-medium text-green-600 hover:text-green-700 disabled:opacity-50"
             onClick={handleRefresh}
           >
-            <RefreshCw size={18} />
+            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
