@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "dev:https": "DEV_HTTPS=true vite --host",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && cp dist/index.html dist/404.html",
     "build:android": "vite build --mode android && rm -rf android/app/src/main/assets/web && mkdir -p android/app/src/main/assets/web && cp -R dist/. android/app/src/main/assets/web",
     "lint": "eslint .",
     "preview": "vite preview",
