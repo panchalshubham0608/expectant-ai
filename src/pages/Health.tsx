@@ -16,12 +16,24 @@ import ActiveMedicationsCard from '../components/health/medication/ActiveMedicat
 import PhysicalActivityCard from '../components/health/activity/PhysicalActivityCard';
 import AIHealthActivityCard from '../components/health/insights/AIHealthActivityCard';
 
+const HEALTH_ACTIVITY_FEATURE_FLAG_KEY = 'expectant_ai_enable_health_activity';
+
+function isHealthActivityFeatureEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(HEALTH_ACTIVITY_FEATURE_FLAG_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 function Health() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { error, isLoading, profile } = useProfile(user?.uid, id);
   const { error: measurementsError, isLoading: isLoadingMeasurements, measurements } = useMeasurements(user?.uid, id);
   const [today] = useState(() => new Date());
+  const [showHealthActivityFeature] = useState(isHealthActivityFeatureEnabled);
 
   useEffect(() => {
     if (!user?.uid || !id) {
@@ -87,14 +99,16 @@ function Health() {
           </div>
         ) : (
           <div className="flex flex-col gap-5">
-            {id && (
-              <AIHealthActivityCard
-                profileId={id}
-                profile={profile}
-                measurements={mergedMeasurements}
-              />
+            {showHealthActivityFeature && id && (
+              <>
+                <AIHealthActivityCard
+                  profileId={id}
+                  profile={profile}
+                  measurements={mergedMeasurements}
+                />
+                <PhysicalActivityCard profileId={id} profile={profile} />
+              </>
             )}
-            {id && <PhysicalActivityCard profileId={id} profile={profile} />}
             <ActiveMedicationsCard />
             <MeasurementsCard
               measurements={mergedMeasurements}
