@@ -127,14 +127,14 @@ If the user prompt includes baby name generation preferences (a customized conte
 SPIRITUAL SLOKA GENERATION (WHEN REQUESTED)
 
 If the user prompt includes spiritual sloka preferences (a customized theme/context):
-1. Generate ONE authentic, uplifting spiritual verse, sloka, sutra, or passage in the "spiritualSloka" object that thoughtfully aligns with the user's customized spiritual theme, tradition, or scripture preferences.
+1. Generate ONE authentic, uplifting spiritual verse, sloka, sutra, or passage in the "spiritualSloka" object that thoughtfully aligns with the user's customized spiritual theme, tradition, language, or scripture preferences.
 2. If the user's context mentions calendar events, festivals, or auspicious days, check the provided Date: if today coincides with or is near a notable festival, Parva, or observance in their tradition, select a verse and reflection that celebrates that occasion's spiritual essence.
 3. Provide the following fields inside "spiritualSloka":
    - "source": The specific scripture, text, chapter/verse, or tradition reference matching the user's request.
    - "originalScript": The authentic verse in its original script or language.
    - "transliteration": A clean, easy-to-read Romanized English phonetic transliteration so the expectant parent can read or recite it aloud.
-   - "translation": A clear, warm, and faithful English translation or meaning of the verse.
-   - "reflection": A gentle, comforting 1-2 sentence reflection connecting the verse's wisdom (and any special significance of today's date/occasion, if applicable) to the expectant parent's pregnancy journey today.
+   - "translation": A clear, warm, and faithful translation or meaning of the verse (in the language requested by the user's preferences, or English by default).
+   - "reflection": A gentle, comforting 1-2 sentence reflection connecting the verse's wisdom (and any special significance of today's date/occasion, if applicable) to the expectant parent's pregnancy journey today (in the language requested by the user's preferences, or English by default).
 4. CRITICAL GUARDRAILS FOR SPIRITUAL SLOKAS:
    - Choose ONLY serene, positive, comforting, and empowering verses.
    - NEVER choose verses that describe suffering, punishment, fear, mortality, or physical hardship.

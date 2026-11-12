@@ -14,6 +14,7 @@ import { registerForNotifications } from '../lib/messaging';
 import { clearGoogleHealthToken } from '../services/health/googleHealthService';
 import {
   clearGoogleDriveToken,
+  restoreGoogleDriveSession,
   setGoogleDriveToken,
 } from '../services/storage/googleDriveService';
 
@@ -65,6 +66,8 @@ function AuthProvider({ children }: { children: ReactNode }) {
       if (!nextUser) {
         clearGoogleHealthToken();
         clearGoogleDriveToken();
+      } else {
+        void restoreGoogleDriveSession(nextUser.uid);
       }
       setUser(nextUser);
       setIsLoading(false);
@@ -95,7 +98,15 @@ function AuthProvider({ children }: { children: ReactNode }) {
         const result = await signInWithPopup(auth, googleProvider);
         const credential = GoogleAuthProvider.credentialFromResult(result);
         if (credential?.accessToken) {
-          setGoogleDriveToken(credential.accessToken);
+          const tokenResponse = (
+            result as unknown as {
+              _tokenResponse?: { oauthExpireIn?: number };
+            }
+          )._tokenResponse;
+          setGoogleDriveToken(
+            credential.accessToken,
+            tokenResponse?.oauthExpireIn
+          );
         }
       } catch (error) {
         console.error("Web login failed:", error);
