@@ -39,6 +39,18 @@ const getTodayYmd = (): string => {
   return `${y}-${m}-${d}`;
 };
 
+const addDaysToYmd = (baseYmd: string, daysToAdd: number): string => {
+  const match = baseYmd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date();
+  date.setDate(date.getDate() + daysToAdd);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 const getInitialMode = (draft: ChatSuggestedReminder): ScheduleMode =>
   typeof draft.interval === 'number' && draft.interval > 0 ? 'interval' : 'times';
 
@@ -71,7 +83,9 @@ function ChatReminderFormCard({
   );
   const [startDate, setStartDate] = useState<string>(
     initialDraft.startDate ||
-      (initialDraft.frequency === 'once' ? getTodayYmd() : '')
+      (initialDraft.frequency === 'once' || initialDraft.frequency === 'custom'
+        ? getTodayYmd()
+        : '')
   );
   const [endDate, setEndDate] = useState<string>(initialDraft.endDate || '');
 
@@ -125,7 +139,10 @@ function ChatReminderFormCard({
       }
       if (initialDraft.startDate) {
         setStartDate(initialDraft.startDate);
-      } else if (initialDraft.frequency === 'once') {
+      } else if (
+        initialDraft.frequency === 'once' ||
+        initialDraft.frequency === 'custom'
+      ) {
         setStartDate(getTodayYmd());
       }
       if (initialDraft.endDate) {
@@ -174,7 +191,7 @@ function ChatReminderFormCard({
   const handleFrequencyChange = (nextFreq: ReminderFrequency) => {
     setHasUserEdited(true);
     setFrequency(nextFreq);
-    if (nextFreq === 'once' && !startDate) {
+    if ((nextFreq === 'once' || nextFreq === 'custom') && !startDate) {
       setStartDate(getTodayYmd());
     }
     if (
@@ -222,7 +239,7 @@ function ChatReminderFormCard({
       if (customIntervalUnit === 'weeks' && daysOfWeek.length > 0) {
         base.daysOfWeek = daysOfWeek;
       }
-      if (startDate) base.startDate = startDate;
+      base.startDate = startDate || getTodayYmd();
       if (endDate) base.endDate = endDate;
     } else {
       if (startDate) base.startDate = startDate;
@@ -308,6 +325,25 @@ function ChatReminderFormCard({
 
     if (frequency === 'once' && !startDate) {
       setErrorMessage('Please choose a date for the one-time reminder.');
+      return;
+    }
+
+    if (frequency === 'custom') {
+      const effectiveStart = startDate || getTodayYmd();
+      if (!endDate) {
+        setErrorMessage('Please choose an end date for the custom reminder.');
+        return;
+      }
+      if (endDate < effectiveStart) {
+        setErrorMessage('End date must be on or after the start date.');
+        return;
+      }
+      if (customIntervalUnit === 'weeks' && daysOfWeek.length === 0) {
+        setErrorMessage('Please select at least one day of the week.');
+        return;
+      }
+    } else if (startDate && endDate && endDate < startDate) {
+      setErrorMessage('End date must be on or after the start date.');
       return;
     }
 
@@ -614,13 +650,22 @@ function ChatReminderFormCard({
                 htmlFor={`${fieldId}-start-date`}
                 className="block text-[11px] font-semibold text-gray-700"
               >
-                Start Date (Optional)
+                {frequency === 'custom' ? (
+                  <>
+                    Start Date <span className="text-red-500">*</span>
+                  </>
+                ) : (
+                  'Start Date (Optional)'
+                )}
               </label>
               <input
                 id={`${fieldId}-start-date`}
                 type="date"
+                required={frequency === 'custom'}
                 disabled={isSubmitting}
-                value={startDate}
+                value={
+                  frequency === 'custom' ? startDate || getTodayYmd() : startDate
+                }
                 onChange={(e) => {
                   setHasUserEdited(true);
                   setStartDate(e.target.value);
@@ -630,16 +675,63 @@ function ChatReminderFormCard({
             </div>
 
             <div>
-              <label
-                htmlFor={`${fieldId}-end-date`}
-                className="block text-[11px] font-semibold text-gray-700"
-              >
-                End Date (Optional)
-              </label>
+              <div className="flex items-center justify-between gap-1">
+                <label
+                  htmlFor={`${fieldId}-end-date`}
+                  className="block text-[11px] font-semibold text-gray-700"
+                >
+                  {frequency === 'custom' ? (
+                    <>
+                      End Date <span className="text-red-500">*</span>
+                    </>
+                  ) : (
+                    'End Date (Optional)'
+                  )}
+                </label>
+                {frequency === 'custom' && (
+                  <div className="flex items-center gap-1">
+                    {(
+                      [
+                        { label: '+7d', days: 6 },
+                        { label: '+14d', days: 13 },
+                        { label: '+30d', days: 29 },
+                      ] as const
+                    ).map((preset) => {
+                      const base = startDate || getTodayYmd();
+                      const target = addDaysToYmd(base, preset.days);
+                      const isActive = endDate === target;
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => {
+                            setHasUserEdited(true);
+                            if (!startDate) setStartDate(base);
+                            setEndDate(target);
+                          }}
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition ${
+                            isActive
+                              ? 'bg-emerald-700 text-white'
+                              : 'bg-emerald-100/80 text-emerald-800 hover:bg-emerald-200/80'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               <input
                 id={`${fieldId}-end-date`}
                 type="date"
-                min={startDate || undefined}
+                required={frequency === 'custom'}
+                min={
+                  (frequency === 'custom'
+                    ? startDate || getTodayYmd()
+                    : startDate) || undefined
+                }
                 disabled={isSubmitting}
                 value={endDate}
                 onChange={(e) => {
