@@ -83,13 +83,18 @@ export default function ReminderFormDialog({
 
   const [startDate, setStartDate] = useState<string>(
     initialValues?.startDate ||
-      (initialValues?.frequency === 'once' ? getTodayYmd() : '')
+      (initialValues?.frequency === 'once' ||
+      initialValues?.frequency === 'custom'
+        ? getTodayYmd()
+        : '')
   );
   const [endDate, setEndDate] = useState<string>(initialValues?.endDate || '');
   const [showDateRange, setShowDateRange] = useState<boolean>(
     Boolean(
       initialValues?.frequency !== 'once' &&
-        (initialValues?.startDate || initialValues?.endDate)
+        (initialValues?.frequency === 'custom' ||
+          initialValues?.startDate ||
+          initialValues?.endDate)
     )
   );
 
@@ -114,11 +119,16 @@ export default function ReminderFormDialog({
     initialValues?.startTime || '09:00'
   );
   const [endTime, setEndTime] = useState(initialValues?.endTime || '21:00');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleFrequencyChange = (nextFreq: ReminderFrequency) => {
     setFrequency(nextFreq);
-    if (nextFreq === 'once' && !startDate) {
+    setErrorMessage(null);
+    if ((nextFreq === 'once' || nextFreq === 'custom') && !startDate) {
       setStartDate(getTodayYmd());
+    }
+    if (nextFreq === 'custom') {
+      setShowDateRange(true);
     }
     if (
       (nextFreq === 'weekly' ||
@@ -185,10 +195,15 @@ export default function ReminderFormDialog({
         : {}),
       ...(frequency === 'once'
         ? { startDate: startDate || getTodayYmd() }
-        : {
-            ...(startDate ? { startDate } : {}),
-            ...(endDate ? { endDate } : {}),
-          }),
+        : frequency === 'custom'
+          ? {
+              startDate: startDate || getTodayYmd(),
+              ...(endDate ? { endDate } : {}),
+            }
+          : {
+              ...(startDate ? { startDate } : {}),
+              ...(endDate ? { endDate } : {}),
+            }),
     };
   }, [
     title,
@@ -212,6 +227,23 @@ export default function ReminderFormDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (frequency === 'custom') {
+      const effectiveStart = startDate || getTodayYmd();
+      if (!endDate) {
+        setErrorMessage('Please choose an end date for the custom reminder.');
+        return;
+      }
+      if (endDate < effectiveStart) {
+        setErrorMessage('End date must be on or after the start date.');
+        return;
+      }
+    } else if (startDate && endDate && endDate < startDate) {
+      setErrorMessage('End date must be on or after the start date.');
+      return;
+    }
+
+    setErrorMessage(null);
 
     const cleanTimes = Array.from(
       new Set(times.map((t) => t.trim()).filter(Boolean))
@@ -259,7 +291,7 @@ export default function ReminderFormDialog({
       if (customIntervalUnit === 'weeks' && daysOfWeek.length > 0) {
         reminder.daysOfWeek = daysOfWeek;
       }
-      if (startDate) reminder.startDate = startDate;
+      reminder.startDate = startDate || getTodayYmd();
       if (endDate) reminder.endDate = endDate;
     } else {
       if (startDate) reminder.startDate = startDate;
@@ -314,6 +346,12 @@ export default function ReminderFormDialog({
           className="flex flex-1 flex-col overflow-y-auto"
         >
           <div className="space-y-3 p-4 sm:p-5">
+            {errorMessage && (
+              <div className="rounded-xl bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 ring-1 ring-red-200">
+                {errorMessage}
+              </div>
+            )}
+
             {/* Card 1: Title & Description */}
             <div className="space-y-2.5 rounded-2xl bg-white p-3.5 shadow-2xs ring-1 ring-slate-200/70">
               <div>
@@ -529,34 +567,41 @@ export default function ReminderFormDialog({
 
               {frequency !== 'once' && (
                 <div className="border-t border-slate-100 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDateRange((prev) => !prev)}
-                    className="flex w-full items-center justify-between text-left text-xs font-medium text-slate-500 transition hover:text-blue-600"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Calendar size={13} className="text-blue-500" />
-                      <span>
-                        {startDate || endDate
-                          ? dateRangeSummary || 'Custom date range'
-                          : 'Set start or end date (optional)'}
+                  {frequency !== 'custom' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDateRange((prev) => !prev)}
+                      className="flex w-full items-center justify-between text-left text-xs font-medium text-slate-500 transition hover:text-blue-600"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Calendar size={13} className="text-blue-500" />
+                        <span>
+                          {startDate || endDate
+                            ? dateRangeSummary || 'Custom date range'
+                            : 'Set start or end date (optional)'}
+                        </span>
                       </span>
-                    </span>
-                    {showDateRange ? (
-                      <ChevronUp size={14} className="text-slate-400" />
-                    ) : (
-                      <ChevronDown size={14} className="text-slate-400" />
-                    )}
-                  </button>
+                      {showDateRange ? (
+                        <ChevronUp size={14} className="text-slate-400" />
+                      ) : (
+                        <ChevronDown size={14} className="text-slate-400" />
+                      )}
+                    </button>
+                  )}
 
-                  {showDateRange && (
-                    <div className="mt-2 grid grid-cols-2 gap-2.5">
+                  {(showDateRange || frequency === 'custom') && (
+                    <div
+                      className={`${frequency === 'custom' ? '' : 'mt-2'} grid grid-cols-2 gap-2.5`}
+                    >
                       <div>
                         <div className="mb-1 flex items-center justify-between">
                           <label className="text-[11px] font-medium text-slate-500">
-                            Start Date
+                            Start Date{' '}
+                            {frequency === 'custom' && (
+                              <span className="text-red-500">*</span>
+                            )}
                           </label>
-                          {startDate && (
+                          {startDate && frequency !== 'custom' && (
                             <button
                               type="button"
                               onClick={() => setStartDate('')}
@@ -568,17 +613,28 @@ export default function ReminderFormDialog({
                         </div>
                         <input
                           type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
+                          required={frequency === 'custom'}
+                          value={
+                            frequency === 'custom'
+                              ? startDate || todayYmd
+                              : startDate
+                          }
+                          onChange={(e) => {
+                            setErrorMessage(null);
+                            setStartDate(e.target.value);
+                          }}
                           className={inputClass}
                         />
                       </div>
                       <div>
                         <div className="mb-1 flex items-center justify-between">
                           <label className="text-[11px] font-medium text-slate-500">
-                            End Date
+                            End Date{' '}
+                            {frequency === 'custom' && (
+                              <span className="text-red-500">*</span>
+                            )}
                           </label>
-                          {endDate && (
+                          {endDate && frequency !== 'custom' && (
                             <button
                               type="button"
                               onClick={() => setEndDate('')}
@@ -590,9 +646,17 @@ export default function ReminderFormDialog({
                         </div>
                         <input
                           type="date"
-                          min={startDate || undefined}
+                          required={frequency === 'custom'}
+                          min={
+                            (frequency === 'custom'
+                              ? startDate || todayYmd
+                              : startDate) || undefined
+                          }
                           value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
+                          onChange={(e) => {
+                            setErrorMessage(null);
+                            setEndDate(e.target.value);
+                          }}
                           className={inputClass}
                         />
                       </div>

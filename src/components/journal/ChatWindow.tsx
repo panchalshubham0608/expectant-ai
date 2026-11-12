@@ -533,7 +533,19 @@ function ChatWindow() {
             customIntervalUnit: draft.customIntervalUnit ?? 'days',
           }
         : {}),
-      ...(draft.startDate ? { startDate: draft.startDate } : {}),
+      ...(draft.startDate
+        ? { startDate: draft.startDate }
+        : frequency === 'custom' || frequency === 'once'
+          ? {
+              startDate: (() => {
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+              })(),
+            }
+          : {}),
       ...(frequency !== 'once' && draft.endDate
         ? { endDate: draft.endDate }
         : {}),

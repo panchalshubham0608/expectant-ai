@@ -400,6 +400,134 @@ const addDaysToYmd = (baseYmd: string, daysToAdd: number): string => {
   return `${y}-${m}-${day}`;
 };
 
+const addMonthsToYmd = (baseYmd: string, monthsToAdd: number): string => {
+  const match = baseYmd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const d = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date();
+  d.setMonth(d.getMonth() + monthsToAdd);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const MONTH_NAME_TO_INDEX: Record<string, number> = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
+};
+
+const parseNaturalDateFragmentToYmd = (
+  fragment: string,
+  referenceYmd: string
+): string | undefined => {
+  const cleaned = fragment
+    .trim()
+    .replace(/(\d+)(?:st|nd|rd|th)\b/gi, '$1');
+
+  const isoMatch = cleaned.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+  if (isoMatch) {
+    return isoMatch[1];
+  }
+
+  const refYear = Number(referenceYmd.slice(0, 4)) || new Date().getFullYear();
+
+  // Match "Nov 30, 2026" or "November 30"
+  const monthFirstMatch = cleaned.match(
+    /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:,?\s*(\d{4}))?\b/i
+  );
+  if (monthFirstMatch) {
+    const monthIdx = MONTH_NAME_TO_INDEX[monthFirstMatch[1].toLowerCase()];
+    const dayNum = Number(monthFirstMatch[2]);
+    const explicitYear = monthFirstMatch[3] ? Number(monthFirstMatch[3]) : undefined;
+    if (monthIdx !== undefined && dayNum >= 1 && dayNum <= 31) {
+      let year = explicitYear ?? refYear;
+      const candidate = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+      if (!explicitYear && candidate < referenceYmd) {
+        year += 1;
+      }
+      return `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    }
+  }
+
+  // Match "30 Nov 2026" or "30 November"
+  const dayFirstMatch = cleaned.match(
+    /\b(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?(?:,?\s*(\d{4}))?\b/i
+  );
+  if (dayFirstMatch) {
+    const dayNum = Number(dayFirstMatch[1]);
+    const monthIdx = MONTH_NAME_TO_INDEX[dayFirstMatch[2].toLowerCase()];
+    const explicitYear = dayFirstMatch[3] ? Number(dayFirstMatch[3]) : undefined;
+    if (monthIdx !== undefined && dayNum >= 1 && dayNum <= 31) {
+      let year = explicitYear ?? refYear;
+      const candidate = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+      if (!explicitYear && candidate < referenceYmd) {
+        year += 1;
+      }
+      return `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    }
+  }
+
+  return undefined;
+};
+
+const extractStartDateFromText = (
+  text?: string,
+  todayYmd: string = getLocalTodayYmd()
+): string | undefined => {
+  if (!text) return undefined;
+  if (/\b(?:starting|starts?|from)\s+(?:from\s+)?tomorrow\b/i.test(text)) {
+    return addDaysToYmd(todayYmd, 1);
+  }
+  if (/\b(?:starting|starts?|from)\s+(?:from\s+)?today\b/i.test(text)) {
+    return todayYmd;
+  }
+  const startClauseMatch = text.match(
+    /\b(?:starting(?:\s+from|\s+on)?|starts?(?:\s+from|\s+on)?|from)\s+([A-Za-z0-9,\s-]{3,25})/i
+  );
+  if (startClauseMatch) {
+    return parseNaturalDateFragmentToYmd(startClauseMatch[1], todayYmd);
+  }
+  return undefined;
+};
+
+const extractEndDateFromText = (
+  text?: string,
+  referenceYmd: string = getLocalTodayYmd()
+): string | undefined => {
+  if (!text) return undefined;
+  const endClauseRegex =
+    /\b(?:until|till|through|up\s+to|ending(?:\s+on)?|ends?\s+on|end\s+date(?:\s+is|\s*:)?)\s+([A-Za-z0-9,\s-]{3,25})/gi;
+  let match: RegExpExecArray | null;
+  while ((match = endClauseRegex.exec(text)) !== null) {
+    const parsed = parseNaturalDateFragmentToYmd(match[1], referenceYmd);
+    if (parsed) return parsed;
+  }
+  return undefined;
+};
+
 export const normalizeSuggestedReminder = (
   raw: Partial<ChatSuggestedReminder> | undefined,
   contextInput: Partial<JournalChatContextInput>,
@@ -431,9 +559,10 @@ export const normalizeSuggestedReminder = (
   }
 
   const userMessage = contextInput.message ?? '';
+  const combinedText = `${userMessage} ${answerText ?? ''}`;
   const activeMeds = (contextInput.medications ?? []).filter((m) => !m.discontinued);
   const titleCandidate = raw?.title?.trim() || '';
-  const searchSource = `${titleCandidate} ${userMessage} ${answerText ?? ''}`.toLowerCase();
+  const searchSource = `${titleCandidate} ${combinedText}`.toLowerCase();
 
   const matchedMed = activeMeds.find(
     (med) => med.name && searchSource.includes(med.name.toLowerCase())
@@ -462,20 +591,25 @@ export const normalizeSuggestedReminder = (
   const extractedDays =
     rawDays.length > 0
       ? Array.from(new Set(rawDays))
-      : extractDaysOfWeekFromText(`${userMessage} ${answerText ?? ''}`);
+      : extractDaysOfWeekFromText(combinedText);
 
   const orderMap = new Map(DAYS_OF_WEEK.map((d, idx) => [d.code, idx]));
   const sortedDays = [...extractedDays].sort(
     (a, b) => (orderMap.get(a) ?? 0) - (orderMap.get(b) ?? 0)
   );
 
-  // Check for custom multi-day/week/month recurrence in text
-  const customMatch = `${userMessage} ${answerText ?? ''}`.match(
+  // Check for custom multi-day/week/month recurrence in text (including "every alternative day" / "every alternate day")
+  const customMatch = combinedText.match(
     /\bevery\s+(\d+)\s+(days?|weeks?|months?)\b/i
   );
-  const isAlternateDays = /\b(?:every\s+other\s+day|alternate\s+days?)\b/i.test(
-    `${userMessage} ${answerText ?? ''}`
-  );
+  const isAlternateDays =
+    /\b(?:every\s+(?:other|alternate|alternative)\s+days?|every\s+(?:2nd|second)\s+day|(?:on\s+)?(?:alternate|alternative)\s+days?)\b/i.test(
+      combinedText
+    );
+  const isAlternateWeeks =
+    /\b(?:every\s+(?:other|alternate|alternative)\s+weeks?|(?:on\s+)?(?:alternate|alternative)\s+weeks?|bi[- ]?weekly|fortnightly)\b/i.test(
+      combinedText
+    );
 
   // Resolve frequency
   const validFrequencies = new Set<ReminderFrequency>([
@@ -489,27 +623,28 @@ export const normalizeSuggestedReminder = (
       ? raw.frequency
       : 'daily';
 
-  if (!raw?.frequency || raw.frequency === 'daily') {
-    if (
-      (typeof raw?.customInterval === 'number' && raw.customInterval > 1) ||
+  const hasExplicitCustomPattern = Boolean(
+    (typeof raw?.customInterval === 'number' && raw.customInterval > 1) ||
       customMatch ||
-      isAlternateDays
-    ) {
-      frequency = 'custom';
-    } else if (
+      isAlternateDays ||
+      isAlternateWeeks
+  );
+
+  if (hasExplicitCustomPattern) {
+    frequency = 'custom';
+  } else if (!raw?.frequency || raw.frequency === 'daily') {
+    if (
       rawDays.length > 0 ||
-      /\b(weekly|every\s+week|weekdays?|weekends?)\b/i.test(
-        `${userMessage} ${answerText ?? ''}`
-      ) ||
+      /\b(weekly|every\s+week|weekdays?|weekends?)\b/i.test(combinedText) ||
       (sortedDays.length > 0 &&
         /\b(?:on|every)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/i.test(
-          `${userMessage} ${answerText ?? ''}`
+          combinedText
         ))
     ) {
       frequency = 'weekly';
     } else if (
       /\b(once|one[- ]time|just\s+once|only\s+once|only\s+today|only\s+tomorrow)\b/i.test(
-        `${userMessage} ${answerText ?? ''}`
+        combinedText
       )
     ) {
       frequency = 'once';
@@ -524,12 +659,16 @@ export const normalizeSuggestedReminder = (
         ? Math.round(raw.customInterval)
         : customMatch
           ? Math.max(1, Number(customMatch[1]))
-          : isAlternateDays
+          : isAlternateDays || isAlternateWeeks
             ? 2
             : 2;
     const rawUnitStr = (
       raw?.customIntervalUnit ||
-      (customMatch ? customMatch[2] : 'days')
+      (customMatch
+        ? customMatch[2]
+        : isAlternateWeeks
+          ? 'weeks'
+          : 'days')
     ).toLowerCase();
     customInterval = Math.max(1, rawCount);
     customIntervalUnit = rawUnitStr.startsWith('week')
@@ -540,30 +679,57 @@ export const normalizeSuggestedReminder = (
   }
 
   const todayYmd = getLocalTodayYmd();
-  let startDate = normalizeOptionalDateYmd(raw?.startDate);
-  let endDate = normalizeOptionalDateYmd(raw?.endDate);
+  let startDate =
+    normalizeOptionalDateYmd(raw?.startDate) ||
+    extractStartDateFromText(userMessage, todayYmd);
+  let endDate =
+    normalizeOptionalDateYmd(raw?.endDate) ||
+    extractEndDateFromText(userMessage, startDate || todayYmd) ||
+    extractEndDateFromText(answerText, startDate || todayYmd);
 
   if (frequency === 'once' && !startDate) {
     startDate = /\btomorrow\b/i.test(userMessage)
       ? addDaysToYmd(todayYmd, 1)
       : todayYmd;
+  } else if (frequency === 'custom' && !startDate) {
+    // Custom reminders always anchor to a start date (defaulting to today)
+    startDate = todayYmd;
   }
 
-  // Infer duration e.g. "for 5 days" or "for 2 weeks" if endDate not explicitly set
+  // Infer duration e.g. "for 5 days", "for 2 weeks", or "for 1 month" if endDate not explicitly set
   if (frequency !== 'once' && !endDate) {
-    const durationMatch = userMessage.match(
-      /\bfor\s+(\d+)\s+(days?|weeks?)\b/i
+    const durationSource = `${userMessage} ${matchedMed?.duration ?? ''}`;
+    const durationMatch = durationSource.match(
+      /\b(?:for\s+)?(\d+)\s+(days?|weeks?|months?)\b/i
     );
-    if (durationMatch) {
-      const count = Number(durationMatch[1]);
-      const isWeeks = durationMatch[2].toLowerCase().startsWith('week');
-      const totalDays = isWeeks ? count * 7 : count;
-      if (totalDays >= 1 && totalDays <= 365) {
-        const baseStart = startDate || todayYmd;
+    // Only use matchedMed.duration if userMessage didn't specify a duration, or match explicit "for X ..." in userMessage
+    const explicitUserDurationMatch = userMessage.match(
+      /\bfor\s+(\d+)\s+(days?|weeks?|months?)\b/i
+    );
+    const activeDurationMatch =
+      explicitUserDurationMatch ||
+      (matchedMed?.duration ? durationMatch : null);
+
+    if (activeDurationMatch) {
+      const count = Number(activeDurationMatch[1]);
+      const unitLower = activeDurationMatch[2].toLowerCase();
+      const baseStart = startDate || todayYmd;
+      if (unitLower.startsWith('month') && count >= 1 && count <= 12) {
         startDate = baseStart;
-        endDate = addDaysToYmd(baseStart, Math.max(0, totalDays - 1));
+        endDate = addDaysToYmd(addMonthsToYmd(baseStart, count), -1);
+      } else {
+        const isWeeks = unitLower.startsWith('week');
+        const totalDays = isWeeks ? count * 7 : count;
+        if (totalDays >= 1 && totalDays <= 365) {
+          startDate = baseStart;
+          endDate = addDaysToYmd(baseStart, Math.max(0, totalDays - 1));
+        }
       }
     }
+  }
+
+  if (startDate && endDate && endDate < startDate) {
+    endDate = undefined;
   }
 
   const daysOfWeek =
@@ -578,7 +744,7 @@ export const normalizeSuggestedReminder = (
         : undefined;
 
   // Check intraday interval mode (e.g., every 2 hours or every 30 minutes)
-  const textIntradayMatch = `${userMessage} ${answerText ?? ''}`.match(
+  const textIntradayMatch = combinedText.match(
     /\bevery\s+(\d+)\s*(hours?|hrs?|hr|minutes?|mins?|min)\b/i
   );
 
@@ -630,7 +796,7 @@ export const normalizeSuggestedReminder = (
   const extractedTimes =
     normalizedRawTimes.length > 0
       ? normalizedRawTimes
-      : extractTimesFromText(`${userMessage} ${answerText ?? ''}`);
+      : extractTimesFromText(combinedText);
 
   return {
     title: inferredTitle,
@@ -1324,8 +1490,11 @@ YOUR RESPONSIBILITIES:
        - "daily": For reminders that repeat every day (including intraday intervals like "every 2 hours" daily, or courses like "daily for 7 days").
        - "weekly": For reminders on specific days of the week (e.g., "every Monday, Wednesday, and Friday", "on weekends", "every Sunday"). Populate "daysOfWeek" with 2-letter day codes ("MO", "TU", "WE", "TH", "FR", "SA", "SU").
        - "once": For a one-time reminder on a specific date (e.g., "remind me tomorrow at 5 PM", "remind me on Nov 20 at 10 AM"). Populate "startDate" with the target "YYYY-MM-DD" date resolved relative to "currentDate".
-       - "custom": For reminders repeating every N days, weeks, or months (e.g., "every 3 days", "every other day" -> customInterval: 2, customIntervalUnit: "days", "every 2 weeks" -> customInterval: 2, customIntervalUnit: "weeks"). Populate "customInterval" (number >= 1) and "customIntervalUnit" ("days", "weeks", or "months"), plus "daysOfWeek" if "customIntervalUnit" is "weeks" and specific weekdays are mentioned.
-     - "startDate" & "endDate" (optional for "daily", "weekly", "custom"; "startDate" required for "once"): "YYYY-MM-DD" strings resolved relative to "currentDate" when a start date, end date, or duration (e.g., "for 5 days", "from tomorrow until next Friday") is mentioned.
+       - "custom": For reminders repeating every N days, weeks, or months (e.g., "every alternative day" / "every alternate day" / "every other day" -> customInterval: 2, customIntervalUnit: "days"; "every 3 days" -> customInterval: 3, customIntervalUnit: "days"; "every 2 weeks" -> customInterval: 2, customIntervalUnit: "weeks"). Populate "customInterval" (number >= 1) and "customIntervalUnit" ("days", "weeks", or "months"), plus "daysOfWeek" if "customIntervalUnit" is "weeks" and specific weekdays are mentioned.
+     - "startDate" & "endDate":
+       - For "custom": "startDate" MUST always be populated in "YYYY-MM-DD" format (defaulting to "currentDate" / today unless another start date is specified). Custom reminders require an "endDate" ("YYYY-MM-DD") to be saved — populate "endDate" resolved relative to "startDate"/"currentDate" whenever an end date or duration (e.g., "for 10 days", "for 2 weeks", "until Nov 30", or from prescribed medication duration) is mentioned; if no end date or duration was mentioned, leave "endDate" omitted and remind the expectant in "answer" to choose an end date in the form below before saving.
+       - For "once": "startDate" is required ("YYYY-MM-DD").
+       - For "daily" & "weekly": "startDate" and "endDate" are optional ("YYYY-MM-DD"), populated when a start date, end date, or duration is mentioned.
      - Intraday time schedule — choose EITHER specific times OR a repeating intraday interval:
        - For specific time(s) of day (e.g., once, twice, or three times a day): populate "times" with 24-hour "HH:mm" strings (e.g., ["09:00", "21:00"]). Infer appropriate times from the user's message or medication instructions (e.g., "after breakfast" -> "09:00", "after lunch" -> "13:30", "at bedtime/after dinner" -> "21:00").
        - For repeating intraday interval reminders (e.g., "every 2 hours" or "every 45 minutes"): populate "interval" (number, e.g., 2), "intervalUnit" ("hours" or "minutes"), "startTime" ("HH:mm", default "08:00"), and "endTime" ("HH:mm", default "20:00"), and leave "times" empty.
