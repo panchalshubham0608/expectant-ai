@@ -48,7 +48,9 @@ export async function registerForNotifications(
         serviceWorkerUrl
     );
 
-    const registration = await navigator.serviceWorker.register(serviceWorkerUrl);
+    const registration = await navigator.serviceWorker.register(serviceWorkerUrl, {
+        scope: "/expectant-ai/firebase-cloud-messaging-push-scope",
+    });
 
     const messaging = getMessaging(app);
 
