@@ -43,6 +43,7 @@ const toProfile = (
   primaryHospital: data.primaryHospital ?? "",
   primaryHospitalLocation: data.primaryHospitalLocation ?? "",
   emergencyContact: data.emergencyContact ?? "",
+  googleCalendarId: data.googleCalendarId ?? "",
   syncRemindersToCalendar: data.syncRemindersToCalendar ?? false,
   syncAppointmentsToCalendar: data.syncAppointmentsToCalendar ?? false,
   babyNameContext: data.babyNameContext ?? "",
@@ -152,6 +153,23 @@ export const toggleSyncAppointmentsToCalendar = async (profileId: string, enable
   const docSnap = await getUpdatableProfileDocSnap(profileId);
   return updateDoc(docSnap.ref, {
     syncAppointmentsToCalendar: enabled,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const getProfileGoogleCalendarId = async (profileId: string): Promise<string | null> => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId);
+  const calendarId = docSnap.data()?.googleCalendarId;
+  return typeof calendarId === 'string' && calendarId.trim() ? calendarId.trim() : null;
+};
+
+export const updateProfileGoogleCalendarId = async (
+  profileId: string,
+  googleCalendarId: string,
+) => {
+  const docSnap = await getUpdatableProfileDocSnap(profileId);
+  return updateDoc(docSnap.ref, {
+    googleCalendarId,
     updatedAt: serverTimestamp(),
   });
 };

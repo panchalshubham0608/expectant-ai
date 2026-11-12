@@ -23,6 +23,7 @@ import { toggleSyncAppointmentsToCalendar } from "../services/profiles/profileSe
 import { useProfile } from "../hooks/useProfile";
 import {
   getCalendarAccessToken,
+  getOrCreateExpectantAiCalendar,
   syncAppointmentToCalendar,
   resyncAppointmentToCalendar,
   deleteCalendarEventForAppointment
@@ -87,6 +88,9 @@ export default function AppointmentsPage() {
         return;
       }
 
+      // Ensure the profile's single "Expectant AI" calendar exists (or recreate & override ID if deleted)
+      await getOrCreateExpectantAiCalendar(accessToken, profileId);
+
       const pendingAppointments = appointments.filter(
         (a) => a.status !== 'cancelled' && !a.googleCalendarEventId
       );
@@ -95,7 +99,7 @@ export default function AppointmentsPage() {
       let processed = 0;
       for (const appt of pendingAppointments) {
         try {
-          const updatedAppt = await syncAppointmentToCalendar(appt, accessToken);
+          const updatedAppt = await syncAppointmentToCalendar(appt, accessToken, profileId);
           if (updatedAppt.googleCalendarEventId) {
             await updateAppointment(user.uid, profileId, appt.id, {
               googleCalendarEventId: updatedAppt.googleCalendarEventId,
@@ -129,7 +133,7 @@ export default function AppointmentsPage() {
         let processed = 0;
         for (const appt of apptsToDisconnect) {
           try {
-            const updatedAppt = await deleteCalendarEventForAppointment(appt, accessToken);
+            const updatedAppt = await deleteCalendarEventForAppointment(appt, accessToken, profileId);
             await updateAppointment(user.uid, profileId, appt.id, {
               googleCalendarEventId: updatedAppt.googleCalendarEventId ?? '',
             });
@@ -185,7 +189,8 @@ export default function AppointmentsPage() {
           dataToSave = await resyncAppointmentToCalendar(
             dataToSave,
             accessToken,
-            !!profile?.syncAppointmentsToCalendar
+            !!profile?.syncAppointmentsToCalendar,
+            profileId
           );
         } catch (error) {
           console.error('Failed to manage calendar events for appointment:', error);
@@ -261,7 +266,7 @@ export default function AppointmentsPage() {
         if (appointmentToDelete.googleCalendarEventId) {
           try {
             const accessToken = await getCalendarAccessToken();
-            await deleteCalendarEventForAppointment(appointmentToDelete, accessToken);
+            await deleteCalendarEventForAppointment(appointmentToDelete, accessToken, profileId);
           } catch (error) {
             console.error("Failed to delete calendar events for appointment:", error);
           }

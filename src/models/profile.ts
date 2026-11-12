@@ -23,6 +23,7 @@ export interface ExpectantProfile {
   emergencyContact?: string;
 
   // Integrations
+  googleCalendarId?: string;
   syncRemindersToCalendar?: boolean;
   syncAppointmentsToCalendar?: boolean;
 
