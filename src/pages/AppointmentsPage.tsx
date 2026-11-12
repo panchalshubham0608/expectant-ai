@@ -97,7 +97,9 @@ export default function AppointmentsPage() {
         try {
           const updatedAppt = await syncAppointmentToCalendar(appt, accessToken);
           if (updatedAppt.googleCalendarEventId) {
-            await updateAppointment(user.uid, profileId, appt.id, updatedAppt);
+            await updateAppointment(user.uid, profileId, appt.id, {
+              googleCalendarEventId: updatedAppt.googleCalendarEventId,
+            });
           }
         } catch (error) {
           console.error('Failed to sync appointment to calendar:', error);
@@ -126,8 +128,14 @@ export default function AppointmentsPage() {
         const apptsToDisconnect = appointments.filter(a => a.googleCalendarEventId);
         let processed = 0;
         for (const appt of apptsToDisconnect) {
-          const updatedAppt = await deleteCalendarEventForAppointment(appt, accessToken);
-          await updateAppointment(user.uid, profileId, appt.id, updatedAppt);
+          try {
+            const updatedAppt = await deleteCalendarEventForAppointment(appt, accessToken);
+            await updateAppointment(user.uid, profileId, appt.id, {
+              googleCalendarEventId: updatedAppt.googleCalendarEventId ?? '',
+            });
+          } catch (itemError) {
+            console.error('Failed to disconnect appointment calendar event:', itemError);
+          }
           processed++;
           setSyncProgress(apptsToDisconnect.length > 0 ? Math.round((processed / apptsToDisconnect.length) * 100) : 100);
         }

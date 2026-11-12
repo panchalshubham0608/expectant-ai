@@ -4,17 +4,28 @@ import {
 } from '../../models/reminder';
 import type { Appointment } from '../../models/appointment';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { getUsersCollection } from '../../lib/collections';
+import { isFirebaseConfigured } from '../../lib/firebase';
 
+export const GOOGLE_CALENDAR_APP_CREATED_SCOPE =
+  'https://www.googleapis.com/auth/calendar.app.created';
+
+// Keep OAuth access token strictly in memory (never in localStorage/sessionStorage per security rules)
 let cachedAccessToken: string | null = null;
 let cachedCalendarId: string | null = null;
+let cachedCalendarUserId: string | null = null;
 
 export const getCalendarAccessToken = async (): Promise<string> => {
   if (cachedAccessToken) return cachedAccessToken;
 
   const auth = getAuth();
   const provider = new GoogleAuthProvider();
-  // The full calendar scope allows creating new calendars and managing events
-  provider.addScope('https://www.googleapis.com/auth/calendar');
+  // Non-sensitive scope: allows creating secondary calendars and managing events inside them
+  provider.addScope(GOOGLE_CALENDAR_APP_CREATED_SCOPE);
+  if (auth.currentUser?.email) {
+    provider.setCustomParameters({ login_hint: auth.currentUser.email });
+  }
 
   // 1. Authenticate & get the Google Calendar access token
   const result = await signInWithPopup(auth, provider);
@@ -29,22 +40,113 @@ export const getCalendarAccessToken = async (): Promise<string> => {
   return token;
 };
 
-export const getOrCreateExpectantAiCalendar = async (accessToken: string): Promise<string> => {
-  if (cachedCalendarId) return cachedCalendarId;
+const getLocalCalendarIdKey = (uid: string) => `expectant_ai_calendar_id_${uid}`;
 
-  // 1. Check if the calendar already exists
-  const listRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const listData = await listRes.json();
-  const existing = listData.items?.find((c: any) => c.summary === 'Expectant AI');
-  
-  if (existing) {
-    cachedCalendarId = existing.id;
-    return existing.id;
+const saveCalendarIdForUser = async (uid: string, calendarId: string): Promise<void> => {
+  if (!uid) return;
+  try {
+    localStorage.setItem(getLocalCalendarIdKey(uid), calendarId);
+  } catch {
+    // Ignore storage errors
+  }
+  if (!isFirebaseConfigured) return;
+  try {
+    const userRef = doc(getUsersCollection(), uid);
+    await setDoc(
+      userRef,
+      {
+        expectantAiCalendarId: calendarId,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  } catch {
+    // Non-fatal if Firestore persistence fails; localStorage + in-memory cache still work
+  }
+};
+
+const verifyCalendarIdExists = async (
+  calendarId: string,
+  accessToken: string,
+): Promise<string | null> => {
+  try {
+    const verifyRes = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (verifyRes.ok) {
+      const verifyData = await verifyRes.json();
+      if (!verifyData.deleted && typeof verifyData.id === 'string') {
+        return verifyData.id;
+      }
+    }
+  } catch {
+    // Ignore network/lookup errors
+  }
+  return null;
+};
+
+export const getExistingExpectantAiCalendarId = async (
+  accessToken: string,
+): Promise<string | null> => {
+  const auth = getAuth();
+  const currentUid = auth.currentUser?.uid ?? null;
+
+  if (cachedCalendarId && cachedCalendarUserId === currentUid) {
+    return cachedCalendarId;
   }
 
-  // 2. Create the calendar if it doesn't exist
+  // 1. Check localStorage & Firestore for a stored app-created calendar ID for this user
+  if (currentUid) {
+    const candidateIds = new Set<string>();
+    try {
+      const localId = localStorage.getItem(getLocalCalendarIdKey(currentUid));
+      if (localId?.trim()) candidateIds.add(localId.trim());
+    } catch {
+      // Ignore localStorage read errors
+    }
+
+    if (isFirebaseConfigured) {
+      try {
+        const userRef = doc(getUsersCollection(), currentUid);
+        const userSnap = await getDoc(userRef);
+        const storedCalendarId = userSnap.exists()
+          ? userSnap.data()?.expectantAiCalendarId
+          : undefined;
+        if (typeof storedCalendarId === 'string' && storedCalendarId.trim()) {
+          candidateIds.add(storedCalendarId.trim());
+        }
+      } catch {
+        // Ignore Firestore read errors
+      }
+    }
+
+    for (const candidateId of candidateIds) {
+      const validId = await verifyCalendarIdExists(candidateId, accessToken);
+      if (validId) {
+        cachedCalendarId = validId;
+        cachedCalendarUserId = currentUid;
+        await saveCalendarIdForUser(currentUid, validId);
+        return validId;
+      }
+    }
+  }
+
+  return null;
+};
+
+export const getOrCreateExpectantAiCalendar = async (accessToken: string): Promise<string> => {
+  const existingId = await getExistingExpectantAiCalendarId(accessToken);
+  if (existingId) {
+    return existingId;
+  }
+
+  const auth = getAuth();
+  const currentUid = auth.currentUser?.uid ?? null;
+
+  // Create the dedicated secondary calendar
   const createRes = await fetch('https://www.googleapis.com/calendar/v3/calendars', {
     method: 'POST',
     headers: {
@@ -59,7 +161,12 @@ export const getOrCreateExpectantAiCalendar = async (accessToken: string): Promi
     throw new Error('Failed to create Expectant AI calendar');
   }
 
+  if (currentUid) {
+    await saveCalendarIdForUser(currentUid, createData.id);
+  }
+
   cachedCalendarId = createData.id;
+  cachedCalendarUserId = currentUid;
   return createData.id;
 };
 
@@ -226,32 +333,30 @@ export async function syncReminderToCalendar(reminder: Reminder, accessToken: st
 }
 
 export async function deleteCalendarEvent(eventId: string, accessToken: string): Promise<void> {
-  const calendarId = await getOrCreateExpectantAiCalendar(accessToken);
+  const calendarId = await getExistingExpectantAiCalendarId(accessToken);
+  if (!calendarId) return;
 
-  let response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
-
-  // Fallback: Check if the event was created in the primary calendar before this update
-  if (!response.ok && response.status === 404) {
-    response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+  const response = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
       },
-    });
-  }
+    },
+  );
 
-  if (!response.ok) {
-    console.error(`Failed to delete calendar event ${eventId}: ${response.statusText}`);
+  // 404 / 410 means the event is already gone from the calendar
+  if (!response.ok && response.status !== 404 && response.status !== 410) {
+    console.error(`Failed to delete calendar event: ${response.statusText}`);
   }
 }
 
 export async function clearAllCalendarEvents(accessToken: string): Promise<{ successCount: number; failureCount: number }> {
-  const calendarId = await getOrCreateExpectantAiCalendar(accessToken);
+  const calendarId = await getExistingExpectantAiCalendarId(accessToken);
+  if (!calendarId) {
+    return { successCount: 0, failureCount: 0 };
+  }
   let pageToken: string | undefined = undefined;
   let successCount = 0;
   let failureCount = 0;
@@ -268,10 +373,13 @@ export async function clearAllCalendarEvents(accessToken: string): Promise<{ suc
     if (!data.items || data.items.length === 0) break;
 
     for (const event of data.items) {
-      const delRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${event.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
+      const delRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(event.id)}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
       if (delRes.ok) successCount++;
       else failureCount++;
     }
