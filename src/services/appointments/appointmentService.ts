@@ -2,13 +2,22 @@ import { addDoc, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, up
 import type { Appointment } from '../../models/appointment';
 import { getAppointmentsCollection } from '../../lib/collections';
 
+const stripUndefinedFields = <T extends Record<string, unknown>>(obj: T): Record<string, unknown> => {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'id' || value === undefined) continue;
+    cleaned[key] = value;
+  }
+  return cleaned;
+};
+
 export const saveAppointment = async (
   userId: string,
   profileId: string,
   appointmentInput: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt'>,
 ) => {
   const docRef = await addDoc(getAppointmentsCollection(userId, profileId), {
-    ...appointmentInput,
+    ...stripUndefinedFields(appointmentInput as Record<string, unknown>),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -23,7 +32,7 @@ export const updateAppointment = async (
   data: Partial<Appointment>,
 ) => {
   await updateDoc(doc(getAppointmentsCollection(userId, profileId), appointmentId), {
-    ...data,
+    ...stripUndefinedFields(data as Record<string, unknown>),
     updatedAt: serverTimestamp(),
   });
 };

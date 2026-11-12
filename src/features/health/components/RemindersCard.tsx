@@ -13,7 +13,13 @@ import { toggleSyncRemindersToCalendar } from '../../../services/profiles/profil
 import ReminderFormDialog from '../../../components/reminders/ReminderFormDialog';
 import ConfirmDialog from './ConfirmDialog';
 import FullScreenProgressLoader from '../../../components/common/FullScreenProgressLoader';
-import { syncReminderToCalendar, getCalendarAccessToken, resyncReminderToCalendar, deleteAllCalendarEventsForReminder } from '../../../services/calendar/calendarService';
+import {
+  syncReminderToCalendar,
+  getCalendarAccessToken,
+  getOrCreateExpectantAiCalendar,
+  resyncReminderToCalendar,
+  deleteAllCalendarEventsForReminder,
+} from '../../../services/calendar/calendarService';
 import { useReminders } from '../../../hooks/useReminders';
 import { useProfile } from '../../../hooks/useProfile';
 
@@ -49,7 +55,8 @@ export default function RemindersCard() {
         dataToSave = await resyncReminderToCalendar(
           dataToSave as Reminder,
           accessToken,
-          !!profile?.syncRemindersToCalendar
+          !!profile?.syncRemindersToCalendar,
+          profileId,
         );
       } catch {
         console.error('Failed to manage calendar events for reminder');
@@ -75,7 +82,7 @@ export default function RemindersCard() {
       if (reminder?.googleCalendarEventIds && reminder.googleCalendarEventIds.length > 0) {
         try {
           const accessToken = await getCalendarAccessToken();
-          await deleteAllCalendarEventsForReminder(reminder, accessToken);
+          await deleteAllCalendarEventsForReminder(reminder, accessToken, profileId);
         } catch {
           console.error('Failed to delete calendar events for reminder');
         }
@@ -111,6 +118,9 @@ export default function RemindersCard() {
         return;
       }
 
+      // Ensure the profile's single "Expectant AI" calendar exists (or recreate & override ID if deleted)
+      await getOrCreateExpectantAiCalendar(accessToken, profileId);
+
       const pendingReminders = reminders.filter(
         (r) =>
           r.id !== 'daily-moment' &&
@@ -122,7 +132,7 @@ export default function RemindersCard() {
       let processed = 0;
       for (const reminder of pendingReminders) {
         try {
-          const updatedReminder = await syncReminderToCalendar(reminder, accessToken);
+          const updatedReminder = await syncReminderToCalendar(reminder, accessToken, profileId);
           if (updatedReminder.googleCalendarEventIds && updatedReminder.googleCalendarEventIds.length > 0) {
             await saveReminder(user.uid, profileId, updatedReminder);
           }
@@ -153,7 +163,7 @@ export default function RemindersCard() {
         const remindersToDisconnect = reminders.filter(r => r.googleCalendarEventIds && r.googleCalendarEventIds.length > 0);
         let processed = 0;
         for (const reminder of remindersToDisconnect) {
-          const updatedReminder = await deleteAllCalendarEventsForReminder(reminder, accessToken);
+          const updatedReminder = await deleteAllCalendarEventsForReminder(reminder, accessToken, profileId);
           await saveReminder(user.uid, profileId, updatedReminder);
           processed++;
           setSyncProgress(remindersToDisconnect.length > 0 ? Math.round((processed / remindersToDisconnect.length) * 100) : 100);

@@ -546,7 +546,8 @@ function ChatWindow() {
         const token = await getCalendarAccessToken();
         finalReminderToSave = await syncReminderToCalendar(
           reminderToSave as Reminder,
-          token
+          token,
+          id
         );
       } catch {
         // Calendar sync is best-effort during chat save; still save the reminder locally.
