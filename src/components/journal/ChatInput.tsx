@@ -7,6 +7,7 @@ import {
   Paperclip,
   Plus,
   Send,
+  Square,
   X,
 } from 'lucide-react';
 import type { ChatAttachmentSource } from '../../models/chat';
@@ -25,6 +26,7 @@ interface ChatInputProps {
   attachments: ChatAttachmentInput[];
   onAttachmentsChange: (attachments: ChatAttachmentInput[]) => void;
   onSend: () => void;
+  onStop?: () => void;
   disabled?: boolean;
   isLoading?: boolean;
 }
@@ -40,6 +42,7 @@ function ChatInput({
   attachments,
   onAttachmentsChange,
   onSend,
+  onStop,
   disabled = false,
   isLoading = false,
 }: ChatInputProps) {
@@ -494,22 +497,33 @@ function ChatInput({
               className="max-h-32 min-h-[46px] flex-1 resize-none overflow-y-hidden rounded-3xl border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed text-gray-900 shadow-2xs outline-none transition placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
             />
 
-            <button
-              type="button"
-              onClick={() => {
-                setIsMenuOpen(false);
-                onSend();
-              }}
-              disabled={disabled || isLoading || isProcessingFiles}
-              aria-label="Send message"
-              className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white shadow-xs transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-gray-300"
-            >
-              {isLoading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
+            {isLoading ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onStop?.();
+                }}
+                aria-label="Stop generating"
+                title="Stop generating"
+                className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white shadow-xs transition hover:bg-emerald-800 active:scale-95"
+              >
+                <Square size={15} className="fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onSend();
+                }}
+                disabled={disabled || isProcessingFiles}
+                aria-label="Send message"
+                className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white shadow-xs transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
                 <Send size={17} />
-              )}
-            </button>
+              </button>
+            )}
           </div>
         </div>
       </div>

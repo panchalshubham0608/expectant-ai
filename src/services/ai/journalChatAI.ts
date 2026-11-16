@@ -1527,7 +1527,8 @@ Return valid JSON matching the schema exactly.`;
 
 export const generateJournalChatReply = async (
   contextInput: JournalChatContextInput,
-  userApiKey?: string
+  userApiKey?: string,
+  abortSignal?: AbortSignal
 ): Promise<JournalChatTurnResult> => {
   const ai = getGeminiClient(userApiKey);
   const env =
@@ -1559,6 +1560,7 @@ export const generateJournalChatReply = async (
     model,
     contents,
     config: {
+      ...(abortSignal ? { abortSignal } : {}),
       systemInstruction: JOURNAL_CHAT_SYSTEM_INSTRUCTION,
       responseMimeType: 'application/json',
       responseSchema: {
