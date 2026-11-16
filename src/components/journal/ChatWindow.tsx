@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import {
   ArrowDown,
   Bot,
+  Check,
+  Copy,
   FolderOpen,
   Loader2,
   Sparkles,
@@ -36,6 +38,7 @@ import {
   EMPTY_JOURNAL_EXTRACTION,
   generateJournalChatReply,
   type JournalChatRecord,
+  type JournalChatTurnResult,
   type JournalMessageExtraction,
   normalizeSuggestedAppointment,
   normalizeSuggestedReminder,
@@ -96,7 +99,209 @@ interface Message {
   isError?: boolean;
   retryPrompt?: string;
   retryAttachments?: ChatAttachmentInput[];
+  retryUserMessageId?: string;
+  retryUserTimestamp?: string;
 }
+
+interface ChatSessionState {
+  isSending: boolean;
+  pendingMessages: Message[];
+  chatRecords: JournalChatRecord[];
+  hasLoadedChats: boolean;
+  messageOverrides: Map<string, Partial<Message>>;
+  abortController: AbortController | null;
+  activeRequestId: string | null;
+  knownExtraction: JournalMessageExtraction;
+  draftInput: string;
+  draftAttachments: ChatAttachmentInput[];
+  listeners: Set<() => void>;
+}
+
+const chatSessions = new Map<string, ChatSessionState>();
+
+const getChatSessionKey = (userId?: string, profileId?: string): string =>
+  `${userId ?? 'anon'}:${profileId ?? 'default'}`;
+
+const getOrCreateChatSession = (sessionKey: string): ChatSessionState => {
+  let session = chatSessions.get(sessionKey);
+  if (!session) {
+    session = {
+      isSending: false,
+      pendingMessages: [],
+      chatRecords: [],
+      hasLoadedChats: false,
+      messageOverrides: new Map(),
+      abortController: null,
+      activeRequestId: null,
+      knownExtraction: EMPTY_JOURNAL_EXTRACTION,
+      draftInput: '',
+      draftAttachments: [],
+      listeners: new Set(),
+    };
+    chatSessions.set(sessionKey, session);
+  }
+  return session;
+};
+
+const notifyChatSession = (session: ChatSessionState): void => {
+  session.listeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      // Ignore listener errors
+    }
+  });
+};
+
+const setSessionDraftInput = (sessionKey: string, nextValue: string): void => {
+  const target = getOrCreateChatSession(sessionKey);
+  target.draftInput = nextValue;
+  notifyChatSession(target);
+};
+
+const setSessionDraftAttachments = (
+  sessionKey: string,
+  nextAttachments: ChatAttachmentInput[]
+): void => {
+  const target = getOrCreateChatSession(sessionKey);
+  target.draftAttachments = nextAttachments;
+  notifyChatSession(target);
+};
+
+const updateSessionMessage = (
+  sessionKey: string,
+  messageId: string,
+  patch: Partial<Message>
+): void => {
+  const target = getOrCreateChatSession(sessionKey);
+  const existingOverride = target.messageOverrides.get(messageId) ?? {};
+  target.messageOverrides.set(messageId, { ...existingOverride, ...patch });
+  target.pendingMessages = target.pendingMessages.map((m) =>
+    m.id === messageId ? { ...m, ...patch } : m
+  );
+  notifyChatSession(target);
+};
+
+const removeSessionMessages = (
+  sessionKey: string,
+  idsToDelete: string[]
+): void => {
+  const target = getOrCreateChatSession(sessionKey);
+  const deleteSet = new Set(idsToDelete);
+  target.pendingMessages = target.pendingMessages.filter(
+    (m) => !deleteSet.has(m.id)
+  );
+  target.chatRecords = target.chatRecords.filter(
+    (r) => !deleteSet.has(String(r.id))
+  );
+  idsToDelete.forEach((delId) => target.messageOverrides.delete(delId));
+  notifyChatSession(target);
+};
+
+const createVitalHistoryEntryId = (
+  baseId: string,
+  includeRandomSuffix = false
+): string => {
+  const now = Date.now();
+  if (!includeRandomSuffix) {
+    return `${baseId}-${now}`;
+  }
+  return `${baseId}-${now}-${Math.random().toString(36).slice(2, 6)}`;
+};
+
+const createUserTurnIds = (
+  existingUserMessageId?: string,
+  existingUserTimestamp?: string
+): {
+  userMessageId: string;
+  userTimestamp: string;
+  requestId: string;
+} => {
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  return {
+    userMessageId: existingUserMessageId ?? `user-${now}`,
+    userTimestamp: existingUserTimestamp ?? nowIso,
+    requestId: `req-${now}-${Math.random().toString(36).slice(2, 7)}`,
+  };
+};
+
+const createAssistantTurnIds = (): {
+  assistantMessageId: string;
+  assistantTimestamp: string;
+} => {
+  const ts = Date.now() + 1;
+  return {
+    assistantMessageId: `assistant-${ts}`,
+    assistantTimestamp: new Date(ts).toISOString(),
+  };
+};
+
+const createErrorTurnId = (): string => `error-${Date.now()}`;
+
+const isAbortError = (error: unknown, signal?: AbortSignal): boolean => {
+  if (signal?.aborted) return true;
+  if (!error) return false;
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    if (error.name === 'AbortError') return true;
+  }
+  const name = (error as { name?: string })?.name ?? '';
+  const message = error instanceof Error ? error.message : String(error);
+  return name === 'AbortError' || /\babort(?:ed)?\b/i.test(message);
+};
+
+const isTransientNetworkError = (error: unknown): boolean => {
+  const lower = (
+    error instanceof Error ? error.message : String(error ?? '')
+  ).toLowerCase();
+  return (
+    lower.includes('failed to fetch') ||
+    lower.includes('network') ||
+    lower.includes('load failed') ||
+    lower.includes('connection')
+  );
+};
+
+const waitForDocumentVisibleOrDelay = (
+  signal: AbortSignal,
+  timeoutMs = 15000
+): Promise<void> =>
+  new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+
+    const isHidden =
+      typeof document !== 'undefined' && document.visibilityState === 'hidden';
+
+    if (!isHidden) {
+      const timer = window.setTimeout(cleanupAndResolve, 600);
+      function cleanupAndResolve() {
+        window.clearTimeout(timer);
+        signal.removeEventListener('abort', cleanupAndResolve);
+        resolve();
+      }
+      signal.addEventListener('abort', cleanupAndResolve, { once: true });
+      return;
+    }
+
+    const maxTimer = window.setTimeout(cleanup, timeoutMs);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        window.setTimeout(cleanup, 350);
+      }
+    };
+    function cleanup() {
+      window.clearTimeout(maxTimer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      signal.removeEventListener('abort', cleanup);
+      resolve();
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    signal.addEventListener('abort', cleanup, { once: true });
+  });
 
 const getTimeGreeting = () => {
   const hour = new Date().getHours();
@@ -135,10 +340,71 @@ const formatFriendlyError = (error: unknown): string => {
   return 'I ran into a hiccup while putting together your reply. Please tap Try again in a moment.';
 };
 
+const formatMessageForCopy = (msg: Message): string => {
+  const cleanBody = msg.message.replace(/\*\*([^*]+)\*\*/g, '$1').trim();
+  const followUp =
+    msg.role === 'assistant' &&
+    !msg.isError &&
+    msg.followUpQuestion &&
+    msg.followUpQuestion.trim() &&
+    !msg.message.includes(msg.followUpQuestion.trim())
+      ? msg.followUpQuestion.trim()
+      : '';
+  const combinedText = [cleanBody, followUp].filter(Boolean).join('\n\n');
+  if (combinedText) return combinedText;
+  if (msg.attachments && msg.attachments.length > 0) {
+    return msg.attachments.map((a) => a.name).join(', ');
+  }
+  return '';
+};
+
+const copyTextToClipboard = async (text: string): Promise<boolean> => {
+  if (!text) return false;
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back to execCommand below
+    }
+  }
+  if (typeof document === 'undefined') return false;
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, text.length);
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+};
+
 function ChatWindow() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const userId = user?.uid;
+
+  const sessionKey = getChatSessionKey(userId, id);
+  const [sessionTick, setSessionTick] = useState(0);
+
+  useEffect(() => {
+    const currentSession = getOrCreateChatSession(sessionKey);
+    const handleUpdate = () => {
+      setSessionTick((t) => t + 1);
+    };
+    currentSession.listeners.add(handleUpdate);
+    return () => {
+      currentSession.listeners.delete(handleUpdate);
+    };
+  }, [sessionKey]);
 
   const { profile } = useProfile(userId, id);
   const { appointments } = useAppointments(userId, id);
@@ -156,22 +422,219 @@ function ChatWindow() {
   const [healthActivityInsight, setHealthActivityInsight] =
     useState<AIHealthActivityInsight | null>(null);
 
-  const [chatRecords, setChatRecords] = useState<JournalChatRecord[]>([]);
-  const [hasLoadedChats, setHasLoadedChats] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [attachments, setAttachments] = useState<ChatAttachmentInput[]>([]);
   const [previewAttachment, setPreviewAttachment] =
     useState<ChatAttachmentMeta | null>(null);
   const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeletingMessages, setIsDeletingMessages] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [knownExtraction, setKnownExtraction] = useState<JournalMessageExtraction>(
-    EMPTY_JOURNAL_EXTRACTION
+
+  const copiedToastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedToastTimerRef.current !== null) {
+        window.clearTimeout(copiedToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const sessionSnapshot = useMemo(
+    () => {
+      const s = getOrCreateChatSession(sessionKey);
+      return {
+        isSending: s.isSending,
+        draftInput: s.draftInput,
+        draftAttachments: s.draftAttachments,
+        chatRecords: s.chatRecords,
+        hasLoadedChats: s.hasLoadedChats,
+        pendingMessages: s.pendingMessages,
+        messageOverrides: new Map(s.messageOverrides),
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessionKey, sessionTick]
   );
+
+  const isSending = sessionSnapshot.isSending;
+  const input = sessionSnapshot.draftInput;
+  const attachments = sessionSnapshot.draftAttachments;
+  const chatRecords = sessionSnapshot.chatRecords;
+  const hasLoadedChats = sessionSnapshot.hasLoadedChats;
+  const sessionPendingMessages = sessionSnapshot.pendingMessages;
+  const sessionMessageOverrides = sessionSnapshot.messageOverrides;
+
+  const setInput = (nextValue: string) => {
+    setSessionDraftInput(sessionKey, nextValue);
+  };
+
+  const setAttachments = (nextAttachments: ChatAttachmentInput[]) => {
+    setSessionDraftAttachments(sessionKey, nextAttachments);
+  };
+
+  const updateMessageInSession = (
+    messageId: string,
+    patch: Partial<Message>
+  ) => {
+    updateSessionMessage(sessionKey, messageId, patch);
+  };
+
+  useEffect(() => {
+    if (!userId || !id) return;
+
+    const currentSession = getOrCreateChatSession(getChatSessionKey(userId, id));
+
+    const unsubReports = subscribeToMedicalReports(
+      userId,
+      id,
+      (fetchedReports) => setReports(fetchedReports),
+      () => undefined
+    );
+
+    const unsubMedications = subscribeToMedications(
+      userId,
+      id,
+      (fetchedMeds) => setMedications(fetchedMeds),
+      () => undefined
+    );
+
+    const unsubDailyLogs = subscribeToRecentDailyLogs(userId, id, (logs) => {
+      setRecentDailyLogs(logs);
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const todayLog = logs.find((l) => l.date === todayKey);
+      if (todayLog) {
+        currentSession.knownExtraction = {
+          meals: todayLog.meals ?? [],
+          hydration: todayLog.hydration ?? [],
+          symptoms: todayLog.symptoms ?? [],
+          activities: todayLog.activities ?? [],
+          medications: todayLog.medications ?? [],
+          mood: todayLog.mood,
+          sleep: todayLog.sleep,
+          notes: (todayLog.notes ?? []).map((n) => n.text),
+          other: [],
+        };
+      }
+    });
+
+    const unsubHealthInsight = subscribeToLatestHealthActivityInsight(
+      userId,
+      id,
+      (latestInsight) => setHealthActivityInsight(latestInsight),
+      () => undefined
+    );
+
+    return () => {
+      unsubReports();
+      unsubMedications();
+      unsubDailyLogs();
+      unsubHealthInsight();
+    };
+  }, [userId, id]);
+
+  useEffect(() => {
+    if (!userId || !id) return;
+
+    const currentSession = getOrCreateChatSession(getChatSessionKey(userId, id));
+
+    const unsubscribe = subscribeToJournalChats(userId, id, (records) => {
+      currentSession.chatRecords = records;
+      currentSession.hasLoadedChats = true;
+
+      const recordIds = new Set(records.map((r) => String(r.id)));
+      currentSession.pendingMessages = currentSession.pendingMessages.filter(
+        (m) => m.isError || !recordIds.has(m.id)
+      );
+
+      notifyChatSession(currentSession);
+    });
+
+    return unsubscribe;
+  }, [userId, id]);
+
+  const messages = useMemo<Message[]>(() => {
+    const filteredRecords = chatRecords.filter(
+      (record) => record.role === 'user' || record.role === 'assistant'
+    );
+
+    const historyMessages: Message[] = filteredRecords.map((record, index) => {
+      const prevUserRecord =
+        record.role === 'assistant' &&
+        index > 0 &&
+        filteredRecords[index - 1]?.role === 'user'
+          ? filteredRecords[index - 1]
+          : undefined;
+
+      const recordId = String(record.id);
+      const override = sessionMessageOverrides.get(recordId);
+
+      return {
+        id: recordId,
+        role: record.role as 'user' | 'assistant',
+        message: record.content,
+        attachments: override?.attachments ?? record.attachments,
+        followUpQuestion:
+          record.role === 'assistant' ? record.reply?.followUpQuestion : undefined,
+        suggestedAppointment:
+          override?.suggestedAppointment ??
+          (record.role === 'assistant'
+            ? normalizeSuggestedAppointment(
+                record.reply?.suggestedAppointment,
+                {
+                  profile: profile ?? null,
+                  appointments: appointments ?? [],
+                  reports,
+                },
+                record.content
+              )
+            : undefined),
+        suggestedReminder:
+          override?.suggestedReminder ??
+          (record.role === 'assistant'
+            ? normalizeSuggestedReminder(
+                record.reply?.suggestedReminder,
+                {
+                  message: prevUserRecord?.content,
+                  medications,
+                  reports,
+                  reminders: reminders ?? [],
+                },
+                record.content
+              )
+            : undefined),
+        suggestedVitals:
+          override?.suggestedVitals ??
+          (record.role === 'assistant'
+            ? normalizeSuggestedVitals(
+                record.reply?.suggestedVitals,
+                {
+                  message: prevUserRecord?.content,
+                  reports,
+                  measurements: mergedMeasurements,
+                },
+                record.content
+              )
+            : undefined),
+        timestamp: record.timestamp,
+      };
+    });
+
+    const historyIds = new Set(historyMessages.map((m) => m.id));
+    const pending = sessionPendingMessages.filter((m) => !historyIds.has(m.id));
+    return [...historyMessages, ...pending];
+  }, [
+    chatRecords,
+    sessionPendingMessages,
+    sessionMessageOverrides,
+    profile,
+    appointments,
+    reports,
+    medications,
+    reminders,
+    mergedMeasurements,
+  ]);
 
   const allChatAttachments = useMemo<ChatMediaGalleryItem[]>(() => {
     const items: ChatMediaGalleryItem[] = [];
@@ -194,157 +657,14 @@ function ChatWindow() {
   const firstName = profile?.fullName?.trim().split(/\s+/)[0];
   const userInitial = firstName ? firstName.charAt(0).toUpperCase() : undefined;
 
-  const welcomeMessage: Message = {
-    id: 'welcome-1',
-    role: 'assistant',
-    message: `${getTimeGreeting()}${firstName ? `, ${firstName}` : ''} 🌱 How are you feeling today? Feel free to share how your day is going or ask me anything.`,
-  };
-
-  useEffect(() => {
-    if (!userId || !id) return;
-
-    const unsubReports = subscribeToMedicalReports(
-      userId,
-      id,
-      (fetchedReports) => setReports(fetchedReports),
-      () => undefined
-    );
-
-    const unsubMedications = subscribeToMedications(
-      userId,
-      id,
-      (fetchedMeds) => setMedications(fetchedMeds),
-      () => undefined
-    );
-
-    const unsubDailyLogs = subscribeToRecentDailyLogs(userId, id, (logs) => {
-      setRecentDailyLogs(logs);
-      const todayKey = new Date().toISOString().slice(0, 10);
-      const todayLog = logs.find((l) => l.date === todayKey);
-      if (todayLog) {
-        setKnownExtraction({
-          meals: todayLog.meals ?? [],
-          hydration: todayLog.hydration ?? [],
-          symptoms: todayLog.symptoms ?? [],
-          activities: todayLog.activities ?? [],
-          medications: todayLog.medications ?? [],
-          mood: todayLog.mood,
-          sleep: todayLog.sleep,
-          notes: (todayLog.notes ?? []).map((n) => n.text),
-          other: [],
-        });
-      }
-    });
-
-    const unsubHealthInsight = subscribeToLatestHealthActivityInsight(
-      userId,
-      id,
-      (latestInsight) => setHealthActivityInsight(latestInsight),
-      () => undefined
-    );
-
-    return () => {
-      unsubReports();
-      unsubMedications();
-      unsubDailyLogs();
-      unsubHealthInsight();
-    };
-  }, [userId, id]);
-
-  useEffect(() => {
-    if (!userId || !id) return;
-
-    const unsubscribe = subscribeToJournalChats(userId, id, (records) => {
-      setChatRecords(records);
-      setHasLoadedChats(true);
-    });
-
-    return unsubscribe;
-  }, [userId, id]);
-
-  useEffect(() => {
-    if (!hasLoadedChats) return;
-
-    if (chatRecords.length === 0) {
-      setMessages((prev) => prev.filter((m) => m.isError));
-      return;
-    }
-
-    const filteredRecords = chatRecords.filter(
-      (record) => record.role === 'user' || record.role === 'assistant'
-    );
-
-    const history: Message[] = filteredRecords.map((record, index) => {
-      const prevUserRecord =
-        record.role === 'assistant' &&
-        index > 0 &&
-        filteredRecords[index - 1]?.role === 'user'
-          ? filteredRecords[index - 1]
-          : undefined;
-
-      return {
-        id: String(record.id),
-        role: record.role as 'user' | 'assistant',
-        message: record.content,
-        attachments: record.attachments,
-        followUpQuestion:
-          record.role === 'assistant' ? record.reply?.followUpQuestion : undefined,
-        suggestedAppointment:
-          record.role === 'assistant'
-            ? normalizeSuggestedAppointment(
-                record.reply?.suggestedAppointment,
-                {
-                  profile: profile ?? null,
-                  appointments: appointments ?? [],
-                  reports,
-                },
-                record.content
-              )
-            : undefined,
-        suggestedReminder:
-          record.role === 'assistant'
-            ? normalizeSuggestedReminder(
-                record.reply?.suggestedReminder,
-                {
-                  message: prevUserRecord?.content,
-                  medications,
-                  reports,
-                  reminders: reminders ?? [],
-                },
-                record.content
-              )
-            : undefined,
-        suggestedVitals:
-          record.role === 'assistant'
-            ? normalizeSuggestedVitals(
-                record.reply?.suggestedVitals,
-                {
-                  message: prevUserRecord?.content,
-                  reports,
-                  measurements: mergedMeasurements,
-                },
-                record.content
-              )
-            : undefined,
-        timestamp: record.timestamp,
-      };
-    });
-
-    setMessages((prev) => {
-      const historyIds = new Set(history.map((m) => m.id));
-      const pending = prev.filter((m) => !historyIds.has(m.id));
-      return [...history, ...pending];
-    });
-  }, [
-    hasLoadedChats,
-    chatRecords,
-    profile,
-    appointments,
-    reports,
-    medications,
-    reminders,
-    mergedMeasurements,
-  ]);
+  const welcomeMessage = useMemo<Message>(
+    () => ({
+      id: 'welcome-1',
+      role: 'assistant',
+      message: `${getTimeGreeting()}${firstName ? `, ${firstName}` : ''} 🌱 How are you feeling today? Feel free to share how your day is going or ask me anything.`,
+    }),
+    [firstName]
+  );
 
   const [isDriveRefreshing, setIsDriveRefreshing] = useState(() =>
     isDriveTokenRefreshing()
@@ -403,7 +723,7 @@ function ChatWindow() {
   }, [userId, id]);
 
   useEffect(() => {
-    if (!hasLoadedChats) return;
+    if (!hasLoadedChats && messages.length === 0) return;
     if (chatRecords.length > 0 && messages.length === 0) return;
 
     if (!hasInitialScrollDoneRef.current) {
@@ -465,11 +785,7 @@ function ChatWindow() {
       dismissed: false,
     };
 
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId ? { ...m, suggestedAppointment: savedDraft } : m
-      )
-    );
+    updateMessageInSession(messageId, { suggestedAppointment: savedDraft });
 
     await updateJournalChatSuggestedAppointment(userId, id, messageId, savedDraft);
     return createdId;
@@ -479,11 +795,7 @@ function ChatWindow() {
     messageId: string,
     draft: ChatSuggestedAppointment
   ): Promise<void> => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId ? { ...m, suggestedAppointment: draft } : m
-      )
-    );
+    updateMessageInSession(messageId, { suggestedAppointment: draft });
 
     if (userId && id) {
       await updateJournalChatSuggestedAppointment(userId, id, messageId, draft);
@@ -574,11 +886,7 @@ function ChatWindow() {
       dismissed: false,
     };
 
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId ? { ...m, suggestedReminder: savedDraft } : m
-      )
-    );
+    updateMessageInSession(messageId, { suggestedReminder: savedDraft });
 
     await updateJournalChatSuggestedReminder(userId, id, messageId, savedDraft);
     return createdId;
@@ -588,11 +896,7 @@ function ChatWindow() {
     messageId: string,
     draft: ChatSuggestedReminder
   ): Promise<void> => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId ? { ...m, suggestedReminder: draft } : m
-      )
-    );
+    updateMessageInSession(messageId, { suggestedReminder: draft });
 
     if (userId && id) {
       await updateJournalChatSuggestedReminder(userId, id, messageId, draft);
@@ -642,7 +946,7 @@ function ChatWindow() {
 
         const nextHistory = [...existingHistory];
         const newEntry = {
-          id: `${target.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          id: createVitalHistoryEntryId(target.id, true),
           value: cleanVal,
           measuredAt: measuredDate,
           ...(entryNote ? { notes: entryNote } : {}),
@@ -681,7 +985,7 @@ function ChatWindow() {
           },
           [
             {
-              id: `${item.id}-${Date.now()}`,
+              id: createVitalHistoryEntryId(item.id),
               value: cleanVal,
               measuredAt: measuredDate,
               ...(entryNote ? { notes: entryNote } : {}),
@@ -707,11 +1011,7 @@ function ChatWindow() {
       dismissed: false,
     };
 
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId ? { ...m, suggestedVitals: savedDraft } : m
-      )
-    );
+    updateMessageInSession(messageId, { suggestedVitals: savedDraft });
 
     await updateJournalChatSuggestedVitals(userId, id, messageId, savedDraft);
   };
@@ -720,32 +1020,52 @@ function ChatWindow() {
     messageId: string,
     draft: ChatSuggestedVitals
   ): Promise<void> => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId ? { ...m, suggestedVitals: draft } : m
-      )
-    );
+    updateMessageInSession(messageId, { suggestedVitals: draft });
 
     if (userId && id) {
       await updateJournalChatSuggestedVitals(userId, id, messageId, draft);
     }
   };
 
+  const handleStopGenerating = () => {
+    const activeSession = getOrCreateChatSession(sessionKey);
+    if (!activeSession.isSending) return;
+    const controller = activeSession.abortController;
+    activeSession.isSending = false;
+    activeSession.abortController = null;
+    activeSession.activeRequestId = null;
+    notifyChatSession(activeSession);
+    controller?.abort();
+  };
+
   async function sendPrompt(
     rawContent: string,
     isRetry = false,
-    overrideAttachments?: ChatAttachmentInput[]
+    overrideAttachments?: ChatAttachmentInput[],
+    existingUserMessageId?: string,
+    existingUserTimestamp?: string
   ) {
+    const activeSession = getOrCreateChatSession(sessionKey);
     const content = rawContent.trim();
-    const activeAttachments = overrideAttachments ?? attachments;
-    if ((!content && activeAttachments.length === 0) || isSending) return;
+    const activeAttachments =
+      overrideAttachments ?? activeSession.draftAttachments;
+    if (
+      (!content && activeAttachments.length === 0) ||
+      activeSession.isSending
+    ) {
+      return;
+    }
 
-    const now = Date.now();
-    const nowIso = new Date(now).toISOString();
-    const userMessageId = `user-${now}`;
+    const { userMessageId, userTimestamp, requestId } = createUserTurnIds(
+      existingUserMessageId,
+      existingUserTimestamp
+    );
     const attachmentMetas = activeAttachments.map(stripAttachmentBase64);
 
     const cleanHistory = messages.filter((m) => !m.isError);
+    activeSession.pendingMessages = activeSession.pendingMessages.filter(
+      (m) => !m.isError
+    );
 
     if (!isRetry) {
       const userMessage: Message = {
@@ -753,25 +1073,60 @@ function ChatWindow() {
         role: 'user',
         message: content,
         ...(attachmentMetas.length > 0 ? { attachments: attachmentMetas } : {}),
-        timestamp: nowIso,
+        timestamp: userTimestamp,
       };
-      setMessages([...cleanHistory, userMessage]);
-      setInput('');
-      setAttachments([]);
-    } else {
-      setMessages(cleanHistory);
+      activeSession.pendingMessages = [
+        ...activeSession.pendingMessages,
+        userMessage,
+      ];
+      activeSession.draftInput = '';
+      activeSession.draftAttachments = [];
+
+      // Immediately persist the user message so switching tabs never loses it
+      if (userId && id) {
+        void saveJournalChatTurn(userId, id, {
+          id: userMessageId,
+          role: 'user',
+          content,
+          timestamp: userTimestamp,
+          observationIds: [],
+          ...(attachmentMetas.length > 0
+            ? { attachments: attachmentMetas }
+            : {}),
+        }).catch(() => undefined);
+      }
     }
 
-    setIsSending(true);
+    const abortController = new AbortController();
+    activeSession.isSending = true;
+    activeSession.abortController = abortController;
+    activeSession.activeRequestId = requestId;
+    notifyChatSession(activeSession);
+
+    const isRequestStaleOrAborted = () =>
+      abortController.signal.aborted ||
+      activeSession.activeRequestId !== requestId;
+
+    let didChangeVisibilityDuringRequest =
+      typeof document !== 'undefined' && document.visibilityState === 'hidden';
+    const handleVisibilityChange = () => {
+      didChangeVisibilityDuringRequest = true;
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     try {
-      if (activeAttachments.length > 0 && !hasGoogleDriveToken()) {
-        await ensureGoogleDriveToken(false).catch(() => undefined);
-      }
-
       const uploadAttachmentsPromise = (async (): Promise<ChatAttachmentMeta[]> => {
         if (!userId || !id || activeAttachments.length === 0) {
           return attachmentMetas;
+        }
+
+        if (!hasGoogleDriveToken()) {
+          await restoreGoogleDriveSession(userId).catch(() => null);
+        }
+        if (!hasGoogleDriveToken()) {
+          await ensureGoogleDriveToken(false).catch(() => undefined);
         }
 
         const uploadedMetas: ChatAttachmentMeta[] = [];
@@ -795,6 +1150,30 @@ function ChatWindow() {
             })
           );
         }
+
+        if (uploadedMetas.some((m) => Boolean(m.url))) {
+          const existingOverride =
+            activeSession.messageOverrides.get(userMessageId) ?? {};
+          activeSession.messageOverrides.set(userMessageId, {
+            ...existingOverride,
+            attachments: uploadedMetas,
+          });
+          activeSession.pendingMessages = activeSession.pendingMessages.map(
+            (m) =>
+              m.id === userMessageId ? { ...m, attachments: uploadedMetas } : m
+          );
+          notifyChatSession(activeSession);
+
+          void saveJournalChatTurn(userId, id, {
+            id: userMessageId,
+            role: 'user',
+            content,
+            timestamp: userTimestamp,
+            observationIds: [],
+            attachments: uploadedMetas,
+          }).catch(() => undefined);
+        }
+
         return uploadedMetas;
       })();
 
@@ -803,40 +1182,73 @@ function ChatWindow() {
           ? await getGeminiApiKey(userId, id).catch(() => undefined)
           : undefined;
 
+      if (isRequestStaleOrAborted()) return;
+
       // Only pass historical message text to Gemini to avoid redundant attachment tokens
       const chatHistory: ConversationMessage[] = cleanHistory
-        .filter((message) => Boolean(message.message?.trim()))
+        .filter(
+          (message) =>
+            Boolean(message.message?.trim()) && message.id !== userMessageId
+        )
         .map((message) => ({
           id: String(message.id),
           role: message.role,
           content: message.message,
-          timestamp: message.timestamp ?? nowIso,
+          timestamp: message.timestamp ?? userTimestamp,
           observationIds: [],
         }));
 
-      const [result, finalizedAttachmentMetas] = await Promise.all([
-        generateJournalChatReply(
-          {
-            message: content,
-            attachments: activeAttachments,
-            profile: profile ?? null,
-            reports,
-            appointments: appointments ?? [],
-            measurements: mergedMeasurements,
-            medications,
-            reminders,
-            recentDailyLogs,
-            healthActivityInsight,
-            history: chatHistory,
-            knownState: knownExtraction,
-          },
-          apiKey ?? undefined
-        ),
-        uploadAttachmentsPromise,
-      ]);
+      const contextPayload = {
+        message: content,
+        attachments: activeAttachments,
+        profile: profile ?? null,
+        reports,
+        appointments: appointments ?? [],
+        measurements: mergedMeasurements,
+        medications,
+        reminders,
+        recentDailyLogs,
+        healthActivityInsight,
+        history: chatHistory,
+        knownState: activeSession.knownExtraction,
+      };
 
-      const assistantTimestamp = new Date(Date.now() + 1).toISOString();
-      const assistantMessageId = `assistant-${Date.now() + 1}`;
+      const executeReplyGeneration = async (): Promise<JournalChatTurnResult> => {
+        try {
+          return await generateJournalChatReply(
+            contextPayload,
+            apiKey ?? undefined,
+            abortController.signal
+          );
+        } catch (err) {
+          if (isRequestStaleOrAborted() || isAbortError(err, abortController.signal)) {
+            throw err;
+          }
+          const wasBackgrounded =
+            didChangeVisibilityDuringRequest ||
+            (typeof document !== 'undefined' &&
+              document.visibilityState === 'hidden');
+          if (wasBackgrounded && isTransientNetworkError(err)) {
+            await waitForDocumentVisibleOrDelay(abortController.signal);
+            if (isRequestStaleOrAborted()) {
+              throw err;
+            }
+            return await generateJournalChatReply(
+              contextPayload,
+              apiKey ?? undefined,
+              abortController.signal
+            );
+          }
+          throw err;
+        }
+      };
+
+      const result = await executeReplyGeneration();
+
+      if (isRequestStaleOrAborted()) return;
+
+      const { assistantMessageId, assistantTimestamp } =
+        createAssistantTurnIds();
       const assistantMessage: Message = {
         id: assistantMessageId,
         role: 'assistant',
@@ -848,22 +1260,26 @@ function ChatWindow() {
         timestamp: assistantTimestamp,
       };
 
-      setKnownExtraction(result.extracted);
-      setMessages((prev) => {
-        const updatedPrev = prev
-          .filter((m) => !m.isError)
-          .map((m) =>
-            m.id === userMessageId && finalizedAttachmentMetas.length > 0
-              ? { ...m, attachments: finalizedAttachmentMetas }
-              : m
-          );
-        if (updatedPrev.some((m) => m.id === assistantMessageId)) {
-          return updatedPrev;
-        }
-        return [...updatedPrev, assistantMessage];
-      });
+      activeSession.knownExtraction = result.extracted;
+      activeSession.isSending = false;
+      activeSession.abortController = null;
+      activeSession.activeRequestId = null;
+
+      if (
+        !activeSession.pendingMessages.some((m) => m.id === assistantMessageId)
+      ) {
+        activeSession.pendingMessages = [
+          ...activeSession.pendingMessages.filter((m) => !m.isError),
+          assistantMessage,
+        ];
+      }
+      notifyChatSession(activeSession);
 
       if (userId && id) {
+        const finalizedAttachmentMetas = await uploadAttachmentsPromise.catch(
+          () => attachmentMetas
+        );
+
         await Promise.all([
           saveJournalChatTurn(
             userId,
@@ -872,7 +1288,7 @@ function ChatWindow() {
               id: userMessageId,
               role: 'user',
               content,
-              timestamp: nowIso,
+              timestamp: userTimestamp,
               observationIds: [],
               ...(finalizedAttachmentMetas.length > 0
                 ? { attachments: finalizedAttachmentMetas }
@@ -895,31 +1311,58 @@ function ChatWindow() {
             result.reply
           ),
           upsertDailyLogFromExtraction(userId, id, result.extracted, {
-            date: nowIso,
+            date: userTimestamp,
             profile: profile ?? null,
           }),
         ]);
       }
     } catch (error) {
+      if (
+        isRequestStaleOrAborted() ||
+        isAbortError(error, abortController.signal)
+      ) {
+        return;
+      }
+
       const friendlyMessage = formatFriendlyError(error);
-      setMessages((prev) => [
-        ...prev.filter((m) => !m.isError),
+      activeSession.isSending = false;
+      activeSession.abortController = null;
+      activeSession.activeRequestId = null;
+      activeSession.pendingMessages = [
+        ...activeSession.pendingMessages.filter((m) => !m.isError),
         {
-          id: `error-${Date.now()}`,
+          id: createErrorTurnId(),
           role: 'assistant',
           message: friendlyMessage,
           timestamp: new Date().toISOString(),
           isError: true,
           retryPrompt: content,
           retryAttachments: activeAttachments,
+          retryUserMessageId: userMessageId,
+          retryUserTimestamp: userTimestamp,
         },
-      ]);
+      ];
+      notifyChatSession(activeSession);
     } finally {
-      setIsSending(false);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener(
+          'visibilitychange',
+          handleVisibilityChange
+        );
+      }
+      if (activeSession.activeRequestId === requestId) {
+        activeSession.isSending = false;
+        activeSession.abortController = null;
+        activeSession.activeRequestId = null;
+        notifyChatSession(activeSession);
+      }
     }
   }
 
-  const displayedMessages = messages.length > 0 ? messages : [welcomeMessage];
+  const displayedMessages = useMemo(
+    () => (messages.length > 0 ? messages : [welcomeMessage]),
+    [messages, welcomeMessage]
+  );
   const selectableIds = useMemo(
     () =>
       displayedMessages
@@ -966,18 +1409,52 @@ function ChatWindow() {
     }
   };
 
+  const handleCopySelectedMessages = async () => {
+    if (selectedMessageIds.length === 0) return;
+    const selectedMessages = displayedMessages.filter((m) =>
+      selectedSet.has(m.id)
+    );
+    if (selectedMessages.length === 0) return;
+
+    const textToCopy =
+      selectedMessages.length === 1
+        ? formatMessageForCopy(selectedMessages[0])
+        : selectedMessages
+            .map((msg) => {
+              const formatted = formatMessageForCopy(msg);
+              if (!formatted) return '';
+              const sender = msg.role === 'user' ? 'You' : 'MIRA';
+              return `${sender}:\n${formatted}`;
+            })
+            .filter(Boolean)
+            .join('\n\n');
+
+    const didCopy = await copyTextToClipboard(textToCopy);
+    setSelectedMessageIds([]);
+    setIsDeleteConfirmOpen(false);
+
+    if (didCopy) {
+      setShowCopiedToast(true);
+      if (copiedToastTimerRef.current !== null) {
+        window.clearTimeout(copiedToastTimerRef.current);
+      }
+      copiedToastTimerRef.current = window.setTimeout(() => {
+        copiedToastTimerRef.current = null;
+        setShowCopiedToast(false);
+      }, 2000);
+    }
+  };
+
   const handleConfirmDeleteMessages = async () => {
     if (selectedMessageIds.length === 0 || isDeletingMessages) return;
     setIsDeletingMessages(true);
     const idsToDelete = [...selectedMessageIds];
-    const deleteSet = new Set(idsToDelete);
 
     try {
       if (userId && id) {
         await deleteJournalChatMessages(userId, id, idsToDelete);
       }
-      setMessages((prev) => prev.filter((m) => !deleteSet.has(m.id)));
-      setChatRecords((prev) => prev.filter((r) => !deleteSet.has(String(r.id))));
+      removeSessionMessages(sessionKey, idsToDelete);
       setSelectedMessageIds([]);
       setIsDeleteConfirmOpen(false);
     } finally {
@@ -991,7 +1468,7 @@ function ChatWindow() {
       <div className="sticky top-0 z-20 -mx-4 -mt-6 border-b border-emerald-100/80 bg-white/95 px-4 py-3 shadow-2xs backdrop-blur-md">
         {isSelectionMode ? (
           <div className="flex min-h-[48px] items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex min-w-0 items-center gap-2">
               <button
                 type="button"
                 onClick={handleClearSelection}
@@ -1000,17 +1477,17 @@ function ChatWindow() {
               >
                 <X size={18} />
               </button>
-              <span className="truncate text-sm font-bold text-gray-900">
+              <span className="truncate whitespace-nowrap text-sm font-bold text-gray-900">
                 {selectedMessageIds.length} selected
               </span>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               {selectableIds.length > 1 && (
                 <button
                   type="button"
                   onClick={handleToggleSelectAll}
-                  className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200/80 transition hover:bg-emerald-100"
+                  className="rounded-full bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200/80 transition hover:bg-emerald-100"
                 >
                   {allSelectableSelected ? 'Deselect all' : 'Select all'}
                 </button>
@@ -1018,13 +1495,25 @@ function ChatWindow() {
 
               <button
                 type="button"
+                onClick={() => void handleCopySelectedMessages()}
+                aria-label={`Copy ${selectedMessageIds.length} selected ${
+                  selectedMessageIds.length === 1 ? 'message' : 'messages'
+                }`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200/80 transition hover:bg-emerald-100 active:scale-95"
+              >
+                <Copy size={13} />
+                <span>Copy</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIsDeleteConfirmOpen(true)}
                 aria-label={`Delete ${selectedMessageIds.length} selected ${
                   selectedMessageIds.length === 1 ? 'message' : 'messages'
                 }`}
-                className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-red-700 active:scale-95"
+                className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-red-700 active:scale-95"
               >
-                <Trash2 size={14} />
+                <Trash2 size={13} />
                 <span>Delete</span>
               </button>
             </div>
@@ -1084,6 +1573,20 @@ function ChatWindow() {
           </div>
         )}
       </div>
+
+      {/* Copied to Clipboard Feedback Pill */}
+      {showCopiedToast && (
+        <div className="pointer-events-none fixed left-0 right-0 top-16 z-30 flex justify-center px-4">
+          <div
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-800/95 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md ring-1 ring-emerald-700/50 backdrop-blur-xs"
+          >
+            <Check size={13} className="text-emerald-300" />
+            <span>Copied to clipboard</span>
+          </div>
+        </div>
+      )}
 
       {/* Google Drive Session / Media Preview Syncing Indicator */}
       {isDriveSyncing && (
@@ -1152,7 +1655,9 @@ function ChatWindow() {
                     sendPrompt(
                       message.retryPrompt ?? '',
                       true,
-                      message.retryAttachments
+                      message.retryAttachments,
+                      message.retryUserMessageId,
+                      message.retryUserTimestamp
                     )
                 : undefined
             }
@@ -1202,6 +1707,7 @@ function ChatWindow() {
         attachments={attachments}
         onAttachmentsChange={setAttachments}
         onSend={() => sendPrompt(input)}
+        onStop={handleStopGenerating}
         disabled={!input.trim() && attachments.length === 0}
         isLoading={isSending}
       />
