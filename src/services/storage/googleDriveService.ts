@@ -23,6 +23,7 @@ let loadedFirestoreUserId: string | null = null;
 
 let pendingTokenPromise: Promise<string> | null = null;
 let isRefreshingTokenState = false;
+let isRequestingDrivePopupState = false;
 const activePreviewFetchIds = new Set<string>();
 const failedSilentPreviewFileIds = new Set<string>();
 
@@ -61,6 +62,13 @@ const setRefreshingTokenState = (refreshing: boolean): void => {
   }
 };
 
+const setRequestingDrivePopupState = (requesting: boolean): void => {
+  if (isRequestingDrivePopupState !== requesting) {
+    isRequestingDrivePopupState = requesting;
+    notifyDriveCacheListeners();
+  }
+};
+
 export const subscribeToDriveCacheUpdates = (
   listener: () => void
 ): (() => void) => {
@@ -71,6 +79,9 @@ export const subscribeToDriveCacheUpdates = (
 };
 
 export const isDriveTokenRefreshing = (): boolean => isRefreshingTokenState;
+
+export const isDriveTokenPopupRequesting = (): boolean =>
+  isRequestingDrivePopupState;
 
 export const isDriveFilePreviewLoading = (driveUrl?: string): boolean => {
   const fileId = extractGoogleDriveFileId(driveUrl);
@@ -164,6 +175,7 @@ export const clearGoogleDriveToken = (): void => {
   pendingTokenPromise = null;
   failedSilentPreviewFileIds.clear();
   setRefreshingTokenState(false);
+  setRequestingDrivePopupState(false);
 };
 
 export const hasGoogleDriveToken = (): boolean => isCachedTokenValid();
@@ -255,23 +267,28 @@ export const ensureGoogleDriveToken = async (
         provider.setCustomParameters({ login_hint: auth.currentUser.email });
       }
 
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential?.accessToken;
+      setRequestingDrivePopupState(true);
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const token = credential?.accessToken;
 
-      if (!token) {
-        throw new Error('Failed to obtain Google Drive access token.');
-      }
-
-      const tokenResponse = (
-        result as unknown as {
-          _tokenResponse?: { oauthExpireIn?: number };
+        if (!token) {
+          throw new Error('Failed to obtain Google Drive access token.');
         }
-      )._tokenResponse;
-      const expiresIn = tokenResponse?.oauthExpireIn ?? DEFAULT_TOKEN_TTL_SECONDS;
 
-      setGoogleDriveToken(token, expiresIn);
-      return token;
+        const tokenResponse = (
+          result as unknown as {
+            _tokenResponse?: { oauthExpireIn?: number };
+          }
+        )._tokenResponse;
+        const expiresIn = tokenResponse?.oauthExpireIn ?? DEFAULT_TOKEN_TTL_SECONDS;
+
+        setGoogleDriveToken(token, expiresIn);
+        return token;
+      } finally {
+        setRequestingDrivePopupState(false);
+      }
     } finally {
       pendingTokenPromise = null;
       setRefreshingTokenState(false);
