@@ -389,7 +389,7 @@ const copyTextToClipboard = async (text: string): Promise<boolean> => {
 
 function ChatWindow() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const userId = user?.uid;
 
   const sessionKey = getChatSessionKey(userId, id);
@@ -539,17 +539,25 @@ function ChatWindow() {
 
     const currentSession = getOrCreateChatSession(getChatSessionKey(userId, id));
 
-    const unsubscribe = subscribeToJournalChats(userId, id, (records) => {
-      currentSession.chatRecords = records;
-      currentSession.hasLoadedChats = true;
+    const unsubscribe = subscribeToJournalChats(
+      userId,
+      id,
+      (records) => {
+        currentSession.chatRecords = records;
+        currentSession.hasLoadedChats = true;
 
-      const recordIds = new Set(records.map((r) => String(r.id)));
-      currentSession.pendingMessages = currentSession.pendingMessages.filter(
-        (m) => m.isError || !recordIds.has(m.id)
-      );
+        const recordIds = new Set(records.map((r) => String(r.id)));
+        currentSession.pendingMessages = currentSession.pendingMessages.filter(
+          (m) => m.isError || !recordIds.has(m.id)
+        );
 
-      notifyChatSession(currentSession);
-    });
+        notifyChatSession(currentSession);
+      },
+      () => {
+        currentSession.hasLoadedChats = true;
+        notifyChatSession(currentSession);
+      }
+    );
 
     return unsubscribe;
   }, [userId, id]);
@@ -1359,9 +1367,18 @@ function ChatWindow() {
     }
   }
 
+  const isSyncingChat =
+    messages.length === 0 &&
+    (isAuthLoading || (Boolean(userId && id) && !hasLoadedChats));
+
   const displayedMessages = useMemo(
-    () => (messages.length > 0 ? messages : [welcomeMessage]),
-    [messages, welcomeMessage]
+    () =>
+      isSyncingChat
+        ? []
+        : messages.length > 0
+          ? messages
+          : [welcomeMessage],
+    [isSyncingChat, messages, welcomeMessage]
   );
   const selectableIds = useMemo(
     () =>
@@ -1526,7 +1543,8 @@ function ChatWindow() {
                   <Bot size={20} />
                 </div>
                 <span
-                  className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
+                    className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${isSyncingChat ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'
+                      }`}
                   aria-hidden="true"
                 />
               </div>
@@ -1551,7 +1569,9 @@ function ChatWindow() {
                 </p>
 
                 <p className="mt-0.5 truncate text-[11px] text-gray-400">
-                  Online • Share your day or ask anything
+                    {isSyncingChat
+                      ? 'Syncing your conversation history…'
+                      : 'Online • Share your day or ask anything'}
                 </p>
               </div>
             </div>
@@ -1604,54 +1624,149 @@ function ChatWindow() {
 
       {/* Chat Messages */}
       <div className="space-y-4 pt-1">
-        {displayedMessages.map((message) => (
-          <ChatBubble
-            key={message.id}
-            role={message.role}
-            message={message.message}
-            attachments={message.attachments}
-            onPreviewAttachment={(att) => {
-              if (att.url && !getAttachmentPreviewUrl(att)) {
-                void fetchDriveFilePreview(att.url, att.mimeType, true);
+        {isSyncingChat ? (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label="Syncing your chat history with MIRA"
+            className="space-y-5 py-4"
+          >
+            {/* Central MIRA Sync Card */}
+            <div className="relative overflow-hidden rounded-3xl border border-emerald-100/90 bg-gradient-to-b from-white via-[#f7fdf9] to-[#edf9f1] px-6 py-7 text-center shadow-xs">
+              <div className="mx-auto flex flex-col items-center">
+                <div className="relative flex h-16 w-16 items-center justify-center">
+                  <span
+                    className="absolute inset-0 animate-ping rounded-full bg-emerald-400/20 [animation-duration:2.2s]"
+                    aria-hidden="true"
+                  />
+                  <span
+                    className="absolute -inset-1.5 animate-pulse rounded-full bg-emerald-100/80"
+                    aria-hidden="true"
+                  />
+                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-md ring-4 ring-white">
+                    <Bot size={26} />
+                  </div>
+                  <span
+                    className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-600 shadow-xs ring-1 ring-emerald-100"
+                    aria-hidden="true"
+                  >
+                    <Sparkles size={13} className="animate-pulse" />
+                  </span>
+                </div>
+
+                <h2 className="mt-4 text-sm font-bold tracking-tight text-gray-900">
+                  Syncing your conversation with MIRA…
+                </h2>
+                <p className="mt-1 max-w-xs text-xs leading-relaxed text-gray-500">
+                  Restoring your recent messages, daily logs, and care context
+                  so you can pick up right where you left off.
+                </p>
+
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[11px] font-semibold text-emerald-800 shadow-2xs ring-1 ring-emerald-200/80">
+                  <Loader2
+                    size={13}
+                    className="animate-spin text-emerald-600"
+                  />
+                  <span>Fetching your journal history</span>
+                  <span className="inline-flex items-center gap-0.5 pl-0.5">
+                    <span className="h-1 w-1 animate-bounce rounded-full bg-emerald-600 [animation-delay:-0.3s]" />
+                    <span className="h-1 w-1 animate-bounce rounded-full bg-emerald-600 [animation-delay:-0.15s]" />
+                    <span className="h-1 w-1 animate-bounce rounded-full bg-emerald-600" />
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Subtle Skeleton Chat Timeline Preview */}
+            <div
+              className="space-y-3.5 px-1 opacity-70"
+              aria-hidden="true"
+            >
+              <div className="flex items-end justify-start gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100/80 text-emerald-600">
+                  <Bot size={15} />
+                </div>
+                <div className="w-64 max-w-[75%] rounded-2xl rounded-bl-sm bg-white p-3.5 shadow-2xs ring-1 ring-emerald-100/60">
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-2.5 w-4/5 rounded-full bg-emerald-100/90" />
+                    <div className="h-2.5 w-3/5 rounded-full bg-emerald-50" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-end justify-end gap-2.5">
+                <div className="w-48 max-w-[70%] rounded-2xl rounded-br-sm bg-emerald-600/15 p-3.5 ring-1 ring-emerald-200/50">
+                  <div className="space-y-2 animate-pulse">
+                    <div className="ml-auto h-2.5 w-5/6 rounded-full bg-emerald-600/25" />
+                    <div className="ml-auto h-2.5 w-1/2 rounded-full bg-emerald-600/20" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-end justify-start gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100/80 text-emerald-600">
+                  <Bot size={15} />
+                </div>
+                <div className="w-72 max-w-[80%] rounded-2xl rounded-bl-sm bg-white p-3.5 shadow-2xs ring-1 ring-emerald-100/60">
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-2.5 w-11/12 rounded-full bg-emerald-100/90" />
+                    <div className="h-2.5 w-3/4 rounded-full bg-emerald-50" />
+                    <div className="h-2.5 w-2/5 rounded-full bg-emerald-50" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          displayedMessages.map((message) => (
+            <ChatBubble
+              key={message.id}
+              role={message.role}
+              message={message.message}
+              attachments={message.attachments}
+              onPreviewAttachment={(att) => {
+                if (att.url && !getAttachmentPreviewUrl(att)) {
+                  void fetchDriveFilePreview(att.url, att.mimeType, true);
+                }
+                setPreviewAttachment(att);
+              }}
+              followUpQuestion={message.followUpQuestion}
+              userInitial={userInitial}
+              selectable={message.id !== 'welcome-1'}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedSet.has(message.id)}
+              onLongPressSelect={() => handleLongPressMessage(message.id)}
+              onToggleSelect={() => handleToggleSelectMessage(message.id)}
+              suggestedAppointment={message.suggestedAppointment}
+              onSaveAppointment={(draft) =>
+                handleSaveSuggestedAppointment(message.id, draft)
               }
-              setPreviewAttachment(att);
-            }}
-            followUpQuestion={message.followUpQuestion}
-            userInitial={userInitial}
-            selectable={message.id !== 'welcome-1'}
-            isSelectionMode={isSelectionMode}
-            isSelected={selectedSet.has(message.id)}
-            onLongPressSelect={() => handleLongPressMessage(message.id)}
-            onToggleSelect={() => handleToggleSelectMessage(message.id)}
-            suggestedAppointment={message.suggestedAppointment}
-            onSaveAppointment={(draft) =>
-              handleSaveSuggestedAppointment(message.id, draft)
-            }
-            onDismissAppointment={(draft) =>
-              handleDismissSuggestedAppointment(message.id, draft)
-            }
-            suggestedReminder={message.suggestedReminder}
-            onSaveReminder={(draft) =>
-              handleSaveSuggestedReminder(message.id, draft)
-            }
-            onDismissReminder={(draft) =>
-              handleDismissSuggestedReminder(message.id, draft)
-            }
-            suggestedVitals={message.suggestedVitals}
-            currentMeasurements={mergedMeasurements}
-            onSaveVitals={(draft) =>
-              handleSaveSuggestedVitals(message.id, draft)
-            }
-            onDismissVitals={(draft) =>
-              handleDismissSuggestedVitals(message.id, draft)
-            }
-            timestamp={message.timestamp}
-            isError={message.isError}
-            onRetry={
-              message.isError &&
-              (message.retryPrompt !== undefined ||
-                (message.retryAttachments && message.retryAttachments.length > 0))
-                ? () =>
+              onDismissAppointment={(draft) =>
+                handleDismissSuggestedAppointment(message.id, draft)
+              }
+              suggestedReminder={message.suggestedReminder}
+              onSaveReminder={(draft) =>
+                handleSaveSuggestedReminder(message.id, draft)
+              }
+              onDismissReminder={(draft) =>
+                handleDismissSuggestedReminder(message.id, draft)
+              }
+              suggestedVitals={message.suggestedVitals}
+              currentMeasurements={mergedMeasurements}
+              onSaveVitals={(draft) =>
+                handleSaveSuggestedVitals(message.id, draft)
+              }
+              onDismissVitals={(draft) =>
+                handleDismissSuggestedVitals(message.id, draft)
+              }
+              timestamp={message.timestamp}
+              isError={message.isError}
+              onRetry={
+                message.isError &&
+                  (message.retryPrompt !== undefined ||
+                    (message.retryAttachments &&
+                      message.retryAttachments.length > 0))
+                  ? () =>
                     sendPrompt(
                       message.retryPrompt ?? '',
                       true,
@@ -1659,10 +1774,11 @@ function ChatWindow() {
                       message.retryUserMessageId,
                       message.retryUserTimestamp
                     )
-                : undefined
-            }
-          />
-        ))}
+                  : undefined
+              }
+            />
+          ))
+        )}
 
         {/* Three-Dot Chatbot Typing Indicator */}
         {isSending && (
