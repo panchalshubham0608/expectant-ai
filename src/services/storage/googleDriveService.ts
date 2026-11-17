@@ -1,5 +1,6 @@
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { requestGooglePopupAuth } from '../../auth/googleAuthPrompt';
 import { getUsersCollection } from '../../lib/collections';
 import { isFirebaseConfigured } from '../../lib/firebase';
 
@@ -23,7 +24,6 @@ let loadedFirestoreUserId: string | null = null;
 
 let pendingTokenPromise: Promise<string> | null = null;
 let isRefreshingTokenState = false;
-let isRequestingDrivePopupState = false;
 const activePreviewFetchIds = new Set<string>();
 const failedSilentPreviewFileIds = new Set<string>();
 
@@ -62,13 +62,6 @@ const setRefreshingTokenState = (refreshing: boolean): void => {
   }
 };
 
-const setRequestingDrivePopupState = (requesting: boolean): void => {
-  if (isRequestingDrivePopupState !== requesting) {
-    isRequestingDrivePopupState = requesting;
-    notifyDriveCacheListeners();
-  }
-};
-
 export const subscribeToDriveCacheUpdates = (
   listener: () => void
 ): (() => void) => {
@@ -79,9 +72,6 @@ export const subscribeToDriveCacheUpdates = (
 };
 
 export const isDriveTokenRefreshing = (): boolean => isRefreshingTokenState;
-
-export const isDriveTokenPopupRequesting = (): boolean =>
-  isRequestingDrivePopupState;
 
 export const isDriveFilePreviewLoading = (driveUrl?: string): boolean => {
   const fileId = extractGoogleDriveFileId(driveUrl);
@@ -175,7 +165,6 @@ export const clearGoogleDriveToken = (): void => {
   pendingTokenPromise = null;
   failedSilentPreviewFileIds.clear();
   setRefreshingTokenState(false);
-  setRequestingDrivePopupState(false);
 };
 
 export const hasGoogleDriveToken = (): boolean => isCachedTokenValid();
@@ -260,35 +249,32 @@ export const ensureGoogleDriveToken = async (
         throw new Error('SILENT_DRIVE_TOKEN_UNAVAILABLE');
       }
 
-      // 2. Acquire fresh Google Drive token via Firebase GoogleAuthProvider
+      // 2. Prompt user and synchronously launch signInWithPopup on Continue
       const provider = new GoogleAuthProvider();
       provider.addScope(GOOGLE_DRIVE_FILE_SCOPE);
       if (auth.currentUser?.email) {
         provider.setCustomParameters({ login_hint: auth.currentUser.email });
       }
 
-      setRequestingDrivePopupState(true);
-      try {
-        const result = await signInWithPopup(auth, provider);
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        const token = credential?.accessToken;
+      const result = await requestGooglePopupAuth('drive', () =>
+        signInWithPopup(auth, provider),
+      );
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
 
-        if (!token) {
-          throw new Error('Failed to obtain Google Drive access token.');
-        }
-
-        const tokenResponse = (
-          result as unknown as {
-            _tokenResponse?: { oauthExpireIn?: number };
-          }
-        )._tokenResponse;
-        const expiresIn = tokenResponse?.oauthExpireIn ?? DEFAULT_TOKEN_TTL_SECONDS;
-
-        setGoogleDriveToken(token, expiresIn);
-        return token;
-      } finally {
-        setRequestingDrivePopupState(false);
+      if (!token) {
+        throw new Error('Failed to obtain Google Drive access token.');
       }
+
+      const tokenResponse = (
+        result as unknown as {
+          _tokenResponse?: { oauthExpireIn?: number };
+        }
+      )._tokenResponse;
+      const expiresIn = tokenResponse?.oauthExpireIn ?? DEFAULT_TOKEN_TTL_SECONDS;
+
+      setGoogleDriveToken(token, expiresIn);
+      return token;
     } finally {
       pendingTokenPromise = null;
       setRefreshingTokenState(false);

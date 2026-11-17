@@ -4,6 +4,7 @@ import {
 } from '../../models/reminder';
 import type { Appointment } from '../../models/appointment';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { requestGooglePopupAuth } from '../../auth/googleAuthPrompt';
 import {
   getProfileGoogleCalendarId,
   updateProfileGoogleCalendarId,
@@ -15,55 +16,24 @@ export const GOOGLE_CALENDAR_APP_CREATED_SCOPE =
 // Keep OAuth access token strictly in memory (never in localStorage/sessionStorage per security rules)
 let cachedAccessToken: string | null = null;
 let pendingCalendarTokenPromise: Promise<string> | null = null;
-let isRequestingCalendarToken = false;
-const calendarTokenListeners = new Set<() => void>();
 const calendarIdCacheByProfile = new Map<string, string>();
 const inFlightCalendarByProfile = new Map<string, Promise<string>>();
-
-const notifyCalendarTokenListeners = (): void => {
-  calendarTokenListeners.forEach((listener) => {
-    try {
-      listener();
-    } catch {
-      // Ignore listener errors
-    }
-  });
-};
-
-const setRequestingCalendarToken = (requesting: boolean): void => {
-  if (isRequestingCalendarToken !== requesting) {
-    isRequestingCalendarToken = requesting;
-    notifyCalendarTokenListeners();
-  }
-};
-
-export const subscribeToCalendarTokenUpdates = (
-  listener: () => void,
-): (() => void) => {
-  calendarTokenListeners.add(listener);
-  return () => {
-    calendarTokenListeners.delete(listener);
-  };
-};
-
-export const isCalendarTokenRequesting = (): boolean =>
-  isRequestingCalendarToken;
 
 export const clearGoogleCalendarToken = (): void => {
   cachedAccessToken = null;
   pendingCalendarTokenPromise = null;
-  setRequestingCalendarToken(false);
 };
 
-export const getCalendarAccessToken = async (): Promise<string> => {
-  if (cachedAccessToken) return cachedAccessToken;
+export const getCalendarAccessToken = async (
+  forceRefresh = false,
+): Promise<string> => {
+  if (!forceRefresh && cachedAccessToken) return cachedAccessToken;
 
   if (pendingCalendarTokenPromise) {
     return pendingCalendarTokenPromise;
   }
 
   pendingCalendarTokenPromise = (async (): Promise<string> => {
-    setRequestingCalendarToken(true);
     try {
       const auth = getAuth();
       const provider = new GoogleAuthProvider();
@@ -73,8 +43,10 @@ export const getCalendarAccessToken = async (): Promise<string> => {
         provider.setCustomParameters({ login_hint: auth.currentUser.email });
       }
 
-      // 1. Authenticate & get the Google Calendar access token
-      const result = await signInWithPopup(auth, provider);
+      // 1. Prompt user and synchronously launch signInWithPopup on Continue
+      const result = await requestGooglePopupAuth('calendar', () =>
+        signInWithPopup(auth, provider),
+      );
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken;
 
@@ -86,7 +58,6 @@ export const getCalendarAccessToken = async (): Promise<string> => {
       return token;
     } finally {
       pendingCalendarTokenPromise = null;
-      setRequestingCalendarToken(false);
     }
   })();
 
