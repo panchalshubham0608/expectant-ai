@@ -52,8 +52,8 @@ export default function GoogleAuthPromptModal() {
 
   const serviceName = isCalendar ? 'Google Calendar' : 'Google Drive';
   const description = isCalendar
-    ? 'Expectant AI needs to verify your Google account to sync your appointments and reminders with Google Calendar.'
-    : 'Expectant AI needs to verify your Google account to securely save and view files in your private Google Drive.';
+    ? 'We need a quick check-in with your Google account to keep your appointments and reminders synced with Google Calendar.'
+    : 'We need a quick check-in with your Google account to securely save and view files in your private Google Drive.';
 
   return (
     <div
@@ -84,7 +84,7 @@ export default function GoogleAuthPromptModal() {
               id="google-auth-prompt-title"
               className="mt-5 text-base font-bold text-slate-900"
             >
-              Connecting to {serviceName}...
+              Verifying {serviceName}...
             </h3>
             <p className="mt-2 text-xs leading-relaxed text-slate-500">
               Completing verification with Google. You&apos;ll be right back here in a moment.
@@ -109,7 +109,7 @@ export default function GoogleAuthPromptModal() {
               id="google-auth-prompt-title"
               className="mt-4 text-center text-lg font-bold text-slate-900"
             >
-              Connect to {serviceName}
+              Verify {serviceName} Access
             </h3>
 
             <p className="mt-2 text-center text-sm leading-relaxed text-slate-600">

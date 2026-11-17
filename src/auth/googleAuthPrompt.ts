@@ -69,8 +69,8 @@ export const cancelAllGoogleAuthPrompts = (): void => {
 
 const getCancelledMessage = (service: GoogleAuthService): string =>
   service === 'calendar'
-    ? 'Google Calendar connection was cancelled.'
-    : 'Google Drive connection was cancelled.';
+    ? 'Google Calendar verification was cancelled.'
+    : 'Google Drive verification was cancelled.';
 
 /**
  * Displays a confirmation modal explaining what is about to happen before
