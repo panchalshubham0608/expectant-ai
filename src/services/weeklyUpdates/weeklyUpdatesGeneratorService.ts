@@ -3,7 +3,10 @@ import { getProfilesCollection, getWeeklyUpdatesCollection } from '../../lib/col
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
 import { generateWeeklyUpdate } from '../ai/weeklyUpdateService';
 import { generateImage } from '../ai/imageGenerationService';
-import { uploadFileToGoogleDrive } from '../storage/googleDriveService';
+import {
+  ensureGoogleDriveToken,
+  uploadFileToGoogleDrive,
+} from '../storage/googleDriveService';
 import type { WeeklyUpdate } from "../../models/weeklyUpdate";
 
 const base64ToFile = (base64: string, mimeType: string, filename: string): File => {
@@ -72,24 +75,36 @@ export const generateAndSaveWeeklyUpdate = async (
 
   // 5. Generate missing images in parallel based on the visual prompts
   if (weeklyUpdate.visuals && Array.isArray(weeklyUpdate.visuals)) {
-    weeklyUpdate.visuals = await Promise.all(
-      weeklyUpdate.visuals.map(async (visual) => {
-        if (!visual.url) {
-          try {
-            const generatedImage = await generateImage(visual.prompt, userApiKey);
-            const extension = generatedImage.mimeType.split('/')[1] || 'png';
-            const imageFile = base64ToFile(generatedImage.data, generatedImage.mimeType, `${visual.type}-${pregnancyWeek}.${extension}`);
-            const driveUrl = await uploadFileToGoogleDrive(imageFile);
-            hasNewImages = true;
-            return { ...visual, url: driveUrl };
-          } catch (error) {
-            console.error(`Failed to generate or upload visual image for ${visual.type}:`, error);
-            return visual;
+    const hasMissingVisuals = weeklyUpdate.visuals.some((visual) => !visual.url);
+    let canUploadVisuals = true;
+    if (hasMissingVisuals) {
+      try {
+        await ensureGoogleDriveToken(false);
+      } catch {
+        canUploadVisuals = false;
+      }
+    }
+
+    if (canUploadVisuals) {
+      weeklyUpdate.visuals = await Promise.all(
+        weeklyUpdate.visuals.map(async (visual) => {
+          if (!visual.url) {
+            try {
+              const generatedImage = await generateImage(visual.prompt, userApiKey);
+              const extension = generatedImage.mimeType.split('/')[1] || 'png';
+              const imageFile = base64ToFile(generatedImage.data, generatedImage.mimeType, `${visual.type}-${pregnancyWeek}.${extension}`);
+              const driveUrl = await uploadFileToGoogleDrive(imageFile);
+              hasNewImages = true;
+              return { ...visual, url: driveUrl };
+            } catch (error) {
+              console.error(`Failed to generate or upload visual image for ${visual.type}:`, error);
+              return visual;
+            }
           }
-        }
-        return visual;
-      })
-    );
+          return visual;
+        })
+      );
+    }
   }
 
   // 6. Update Firestore if any new URLs were added

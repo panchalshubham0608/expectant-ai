@@ -1137,10 +1137,11 @@ function ChatWindow() {
           await ensureGoogleDriveToken(false).catch(() => undefined);
         }
 
+        const hasValidDriveToken = hasGoogleDriveToken();
         const uploadedMetas: ChatAttachmentMeta[] = [];
         for (const att of activeAttachments) {
           let driveUrl = att.url;
-          if (!driveUrl && att.file) {
+          if (!driveUrl && att.file && hasValidDriveToken) {
             try {
               driveUrl = await uploadChatAttachmentToGoogleDrive(
                 userId,

@@ -1,5 +1,6 @@
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { requestGooglePopupAuth } from '../../auth/googleAuthPrompt';
 import { getUsersCollection } from '../../lib/collections';
 import { isFirebaseConfigured } from '../../lib/firebase';
 
@@ -248,14 +249,16 @@ export const ensureGoogleDriveToken = async (
         throw new Error('SILENT_DRIVE_TOKEN_UNAVAILABLE');
       }
 
-      // 2. Acquire fresh Google Drive token via Firebase GoogleAuthProvider
+      // 2. Prompt user and synchronously launch signInWithPopup on Continue
       const provider = new GoogleAuthProvider();
       provider.addScope(GOOGLE_DRIVE_FILE_SCOPE);
       if (auth.currentUser?.email) {
         provider.setCustomParameters({ login_hint: auth.currentUser.email });
       }
 
-      const result = await signInWithPopup(auth, provider);
+      const result = await requestGooglePopupAuth('drive', () =>
+        signInWithPopup(auth, provider),
+      );
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken;
 

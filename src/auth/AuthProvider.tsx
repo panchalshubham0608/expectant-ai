@@ -12,6 +12,8 @@ import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase';
 import { AuthContext } from './AuthContext';
 import { registerForNotifications } from '../lib/messaging';
 import { clearGoogleHealthToken } from '../services/health/googleHealthService';
+import { clearGoogleCalendarToken } from '../services/calendar/calendarService';
+import { cancelAllGoogleAuthPrompts } from './googleAuthPrompt';
 import {
   clearGoogleDriveToken,
   restoreGoogleDriveSession,
@@ -66,6 +68,8 @@ function AuthProvider({ children }: { children: ReactNode }) {
       if (!nextUser) {
         clearGoogleHealthToken();
         clearGoogleDriveToken();
+        clearGoogleCalendarToken();
+        cancelAllGoogleAuthPrompts();
       } else {
         void restoreGoogleDriveSession(nextUser.uid);
       }
@@ -117,6 +121,8 @@ function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     clearGoogleHealthToken();
     clearGoogleDriveToken();
+    clearGoogleCalendarToken();
+    cancelAllGoogleAuthPrompts();
     if (auth) await firebaseSignOut(auth);
   };
 

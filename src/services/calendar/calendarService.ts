@@ -4,6 +4,7 @@ import {
 } from '../../models/reminder';
 import type { Appointment } from '../../models/appointment';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { requestGooglePopupAuth } from '../../auth/googleAuthPrompt';
 import {
   getProfileGoogleCalendarId,
   updateProfileGoogleCalendarId,
@@ -14,31 +15,53 @@ export const GOOGLE_CALENDAR_APP_CREATED_SCOPE =
 
 // Keep OAuth access token strictly in memory (never in localStorage/sessionStorage per security rules)
 let cachedAccessToken: string | null = null;
+let pendingCalendarTokenPromise: Promise<string> | null = null;
 const calendarIdCacheByProfile = new Map<string, string>();
 const inFlightCalendarByProfile = new Map<string, Promise<string>>();
 
-export const getCalendarAccessToken = async (): Promise<string> => {
-  if (cachedAccessToken) return cachedAccessToken;
+export const clearGoogleCalendarToken = (): void => {
+  cachedAccessToken = null;
+  pendingCalendarTokenPromise = null;
+};
 
-  const auth = getAuth();
-  const provider = new GoogleAuthProvider();
-  // Non-sensitive scope: allows creating secondary calendars and managing events inside them
-  provider.addScope(GOOGLE_CALENDAR_APP_CREATED_SCOPE);
-  if (auth.currentUser?.email) {
-    provider.setCustomParameters({ login_hint: auth.currentUser.email });
+export const getCalendarAccessToken = async (
+  forceRefresh = false,
+): Promise<string> => {
+  if (!forceRefresh && cachedAccessToken) return cachedAccessToken;
+
+  if (pendingCalendarTokenPromise) {
+    return pendingCalendarTokenPromise;
   }
 
-  // 1. Authenticate & get the Google Calendar access token
-  const result = await signInWithPopup(auth, provider);
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  const token = credential?.accessToken;
+  pendingCalendarTokenPromise = (async (): Promise<string> => {
+    try {
+      const auth = getAuth();
+      const provider = new GoogleAuthProvider();
+      // Non-sensitive scope: allows creating secondary calendars and managing events inside them
+      provider.addScope(GOOGLE_CALENDAR_APP_CREATED_SCOPE);
+      if (auth.currentUser?.email) {
+        provider.setCustomParameters({ login_hint: auth.currentUser.email });
+      }
 
-  if (!token) {
-    throw new Error('Failed to obtain Google Calendar access token.');
-  }
+      // 1. Prompt user and synchronously launch signInWithPopup on Continue
+      const result = await requestGooglePopupAuth('calendar', () =>
+        signInWithPopup(auth, provider),
+      );
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
 
-  cachedAccessToken = token;
-  return token;
+      if (!token) {
+        throw new Error('Failed to obtain Google Calendar access token.');
+      }
+
+      cachedAccessToken = token;
+      return token;
+    } finally {
+      pendingCalendarTokenPromise = null;
+    }
+  })();
+
+  return pendingCalendarTokenPromise;
 };
 
 const verifyCalendarIdExists = async (
