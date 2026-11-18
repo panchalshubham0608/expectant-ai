@@ -38,7 +38,7 @@ const inputClass =
   'mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-green-600 focus:ring-4 focus:ring-green-100';
 
 const contactInputClass =
-  'mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-rose-500 focus:ring-4 focus:ring-rose-100';
+  'mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-green-600 focus:ring-4 focus:ring-green-100';
 
 export default function ProfileFormDialog({
   initialValues,
@@ -423,11 +423,11 @@ export default function ProfileFormDialog({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4">
+          <div className="rounded-2xl border border-green-100 bg-green-50/60 p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-gray-800">
-                  <Phone size={15} className="text-rose-600" />
+                  <Phone size={15} className="text-green-700" />
                   Emergency contacts
                 </p>
                 <p className="mt-1 text-xs text-gray-500">
@@ -438,7 +438,7 @@ export default function ProfileFormDialog({
                 <button
                   type="button"
                   onClick={addEmergencyContact}
-                  className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm ring-1 ring-rose-200 transition hover:bg-rose-50"
+                  className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-green-700 shadow-sm ring-1 ring-green-200 transition hover:bg-green-50"
                 >
                   <Plus size={14} />
                   Add contact
@@ -453,12 +453,12 @@ export default function ProfileFormDialog({
             </datalist>
 
             {emergencyContacts.length === 0 ? (
-              <div className="mt-4 rounded-xl border border-dashed border-rose-200 bg-white/80 p-4 text-center">
+              <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-white/90 p-4 text-center">
                 <p className="text-xs text-gray-500">No emergency contacts added yet.</p>
                 <button
                   type="button"
                   onClick={addEmergencyContact}
-                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700"
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-green-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-green-800"
                 >
                   <Plus size={14} />
                   Add emergency contact
@@ -471,7 +471,7 @@ export default function ProfileFormDialog({
                   return (
                     <div
                       key={contact.key}
-                      className="rounded-xl border border-rose-100 bg-white p-3.5 shadow-sm"
+                      className="rounded-xl border border-gray-200/80 bg-white p-3.5 shadow-sm"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -479,7 +479,7 @@ export default function ProfileFormDialog({
                             Contact {index + 1}
                           </span>
                           {index === 0 && emergencyContacts.length > 1 && (
-                            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200/70">
                               Primary
                             </span>
                           )}
@@ -510,7 +510,7 @@ export default function ProfileFormDialog({
                           <button
                             type="button"
                             onClick={() => removeEmergencyContact(contact.key)}
-                            className="rounded-lg p-1 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
+                            className="rounded-lg p-1 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
                             aria-label={`Remove emergency contact ${index + 1}`}
                           >
                             <Trash2 size={16} />
@@ -607,7 +607,7 @@ export default function ProfileFormDialog({
                   <button
                     type="button"
                     onClick={addEmergencyContact}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700 transition hover:text-rose-900"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 transition hover:text-green-900"
                   >
                     <Plus size={15} />
                     Add another emergency contact

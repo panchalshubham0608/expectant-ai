@@ -230,7 +230,7 @@ export default function ExpectantProfile() {
             </div>
             <div className="border-t border-gray-100 pt-5">
               <div className="flex items-center gap-4">
-                <div className="rounded-2xl bg-rose-50 p-3 text-rose-600">
+                <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
                   <Phone size={22} />
                 </div>
                 <div className="flex flex-1 items-center justify-between gap-2">
@@ -243,7 +243,7 @@ export default function ExpectantProfile() {
                     )}
                   </div>
                   {emergencyContacts.length > 1 && (
-                    <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
                       {emergencyContacts.length}
                     </span>
                   )}
@@ -258,18 +258,18 @@ export default function ExpectantProfile() {
                     return (
                       <div
                         key={`${contact.name}-${contact.phone}-${index}`}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-rose-100/80 bg-rose-50/40 px-4 py-3"
+                        className="flex items-center justify-between gap-3 rounded-2xl bg-gray-50 px-4 py-3.5 ring-1 ring-gray-100"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <p className="truncate font-semibold text-gray-900">{displayName}</p>
                             {contact.name && contact.relationship && (
-                              <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-rose-700 ring-1 ring-rose-100">
+                              <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200/80">
                                 {contact.relationship}
                               </span>
                             )}
                             {index === 0 && emergencyContacts.length > 1 && (
-                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200/70">
                                 Primary
                               </span>
                             )}
@@ -277,7 +277,7 @@ export default function ExpectantProfile() {
                           {contact.phone && (
                             <p className="mt-0.5 truncate text-sm font-medium text-gray-600">
                               {telHref ? (
-                                <a href={telHref} className="hover:text-rose-700 hover:underline">
+                                <a href={telHref} className="hover:text-emerald-700 hover:underline">
                                   {contact.phone}
                                 </a>
                               ) : (
@@ -290,7 +290,7 @@ export default function ExpectantProfile() {
                           <a
                             href={telHref}
                             aria-label={`Call ${displayName}`}
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700"
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
                           >
                             <PhoneCall size={14} />
                             <span>Call</span>
