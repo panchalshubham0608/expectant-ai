@@ -9,6 +9,7 @@ import {
   Stethoscope,
   Hospital,
   Phone,
+  PhoneCall,
   Edit3,
   Heart,
   BarChart3,
@@ -19,6 +20,7 @@ import ProfileFormDialog from "../components/profile/ProfileFormDialog";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
+import { getProfileEmergencyContacts, sanitizeTelHref } from "../models/profile";
 import { updateProfile, type ProfileInput } from "../services/profiles/profileService";
 import { getPregnancyAge } from "../utils/pregnancyUtils";
 
@@ -44,8 +46,8 @@ export default function ExpectantProfile() {
     try {
       await updateProfile(user.uid, id, updatedProfile);
       setIsEditOpen(false);
-    } catch (err) {
-      console.error("Failed to update profile", err);
+    } catch {
+      console.error("Failed to update profile");
     }
   };
 
@@ -62,6 +64,8 @@ export default function ExpectantProfile() {
       </div>
     );
   }
+
+  const emergencyContacts = getProfileEmergencyContacts(profile);
 
   let gestationalAgeText = "Not available";
   const age = getPregnancyAge(profile.lastMenstrualPeriod, profile.ultrasoundLastMenstrualPeriod);
@@ -224,25 +228,79 @@ export default function ExpectantProfile() {
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-4">
-              <div className="rounded-2xl bg-rose-50 p-3 text-rose-600">
-                <Phone size={22} />
-              </div>
-              <div>
-                <p className="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Emergency Contact</p>
-                <p className="font-semibold text-gray-900">
-                  {profile.emergencyContact ? (
-                    <a
-                      href={`tel:${profile.emergencyContact.replace(/[^0-9+]/g, "")}`}
-                      className="text-blue-600 hover:underline"
-                    >
-                      {profile.emergencyContact}
-                    </a>
-                  ) : (
-                    "Not specified"
+            <div className="border-t border-gray-100 pt-5">
+              <div className="flex items-center gap-4">
+                <div className="rounded-2xl bg-rose-50 p-3 text-rose-600">
+                  <Phone size={22} />
+                </div>
+                <div className="flex flex-1 items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Emergency Contacts
+                    </p>
+                    {emergencyContacts.length === 0 && (
+                      <p className="mt-1 font-semibold text-gray-900">Not specified</p>
+                    )}
+                  </div>
+                  {emergencyContacts.length > 1 && (
+                    <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+                      {emergencyContacts.length}
+                    </span>
                   )}
-                </p>
+                </div>
               </div>
+
+              {emergencyContacts.length > 0 && (
+                <div className="mt-4 space-y-2.5">
+                  {emergencyContacts.map((contact, index) => {
+                    const telHref = sanitizeTelHref(contact.phone);
+                    const displayName = contact.name || contact.relationship || "Emergency Contact";
+                    return (
+                      <div
+                        key={`${contact.name}-${contact.phone}-${index}`}
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-rose-100/80 bg-rose-50/40 px-4 py-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="truncate font-semibold text-gray-900">{displayName}</p>
+                            {contact.name && contact.relationship && (
+                              <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-rose-700 ring-1 ring-rose-100">
+                                {contact.relationship}
+                              </span>
+                            )}
+                            {index === 0 && emergencyContacts.length > 1 && (
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                                Primary
+                              </span>
+                            )}
+                          </div>
+                          {contact.phone && (
+                            <p className="mt-0.5 truncate text-sm font-medium text-gray-600">
+                              {telHref ? (
+                                <a href={telHref} className="hover:text-rose-700 hover:underline">
+                                  {contact.phone}
+                                </a>
+                              ) : (
+                                contact.phone
+                              )}
+                            </p>
+                          )}
+                        </div>
+                        {telHref && (
+                          <a
+                            href={telHref}
+                            aria-label={`Call ${displayName}`}
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700"
+                          >
+                            <PhoneCall size={14} />
+                            <span>Call</span>
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -270,7 +328,7 @@ export default function ExpectantProfile() {
       {isEditOpen && (
         <ProfileFormDialog
           mode="edit"
-          initialValues={profile as any}
+          initialValues={profile}
           onClose={() => setIsEditOpen(false)}
           onSubmit={handleSave}
         />

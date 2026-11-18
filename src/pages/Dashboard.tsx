@@ -4,7 +4,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import ProfileFormDialog from '../components/profile/ProfileFormDialog';
 import { createProfile, subscribeToProfiles, type ProfileInput } from '../services/profiles/profileService';
-import type { ExpectantProfile } from '../models/profile';
+import {
+  formatEmergencyContactSummary,
+  getProfileEmergencyContacts,
+  type ExpectantProfile,
+} from '../models/profile';
 
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(
@@ -122,6 +126,9 @@ function Dashboard() {
               <div className="space-y-4">
                 {profiles.map((profile) => {
                   const pregnancy = getPregnancyDetails(profile.lastMenstrualPeriod, today);
+                  const emergencyContacts = getProfileEmergencyContacts(profile);
+                  const primaryEmergencyContact = emergencyContacts[0];
+                  const additionalContactsCount = emergencyContacts.length - 1;
                   return (
                     <Link
                       key={profile.id}
@@ -152,7 +159,7 @@ function Dashboard() {
                         </div>
                         {(profile.bloodGroup ||
                           profile.careProvider ||
-                          profile.emergencyContact) && (
+                          primaryEmergencyContact) && (
                           <div className="mt-3 grid gap-2 sm:grid-cols-2">
                             {profile.bloodGroup && (
                               <div className="flex items-center gap-2">
@@ -166,10 +173,17 @@ function Dashboard() {
                                 <span>{profile.careProvider}</span>
                               </div>
                             )}
-                            {profile.emergencyContact && (
+                            {primaryEmergencyContact && (
                               <div className="flex items-center gap-2 sm:col-span-2">
                                 <Phone size={16} className="shrink-0 text-green-700" />
-                                <span>{profile.emergencyContact}</span>
+                                <span className="truncate">
+                                  {formatEmergencyContactSummary(primaryEmergencyContact)}
+                                </span>
+                                {additionalContactsCount > 0 && (
+                                  <span className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                                    +{additionalContactsCount} more
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
