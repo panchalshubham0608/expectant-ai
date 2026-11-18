@@ -4,12 +4,23 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import ProfileFormDialog from '../components/profile/ProfileFormDialog';
 import { createProfile, subscribeToProfiles, type ProfileInput } from '../services/profiles/profileService';
-import type { ExpectantProfile } from '../models/profile';
+import {
+  formatEmergencyContactSummary,
+  getProfileEmergencyContacts,
+  type ExpectantProfile,
+} from '../models/profile';
+import { getPregnancyAge } from '../utils/pregnancyUtils';
 
-const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(
-    new Date(`${date}T00:00:00`),
-  );
+const formatDate = (date: string) => {
+  if (!date) return 'Not specified';
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  }).format(parsed);
+};
 
 const getInitials = (name: string) =>
   name
@@ -20,22 +31,25 @@ const getInitials = (name: string) =>
     .join('')
     .toUpperCase();
 
-const getPregnancyDetails = (lastMenstrualPeriod: string, today: Date) => {
-  const pregnancyWeek = Math.max(
-    1,
-    Math.min(
-      42,
-      Math.floor(
-        (today.getTime() - new Date(`${lastMenstrualPeriod}T00:00:00`).getTime()) / 604800000,
-      ),
-    ),
-  );
+const getPregnancyDetails = (
+  lastMenstrualPeriod: string,
+  ultrasoundLastMenstrualPeriod: string | undefined,
+  today: Date,
+) => {
+  const age = getPregnancyAge(lastMenstrualPeriod, ultrasoundLastMenstrualPeriod, today);
+  if (!age) {
+    return { weekLabel: null, stage: 'Pregnancy profile' };
+  }
+  if (age.isFuture) {
+    return { weekLabel: 'Upcoming', stage: 'Not started yet' };
+  }
+  const currentWeek = age.currentWeek;
   return {
-    week: pregnancyWeek,
+    weekLabel: `Week ${currentWeek}`,
     stage:
-      pregnancyWeek < 14
+      currentWeek < 14
         ? 'First trimester'
-        : pregnancyWeek < 28
+        : currentWeek < 28
           ? 'Second trimester'
           : 'Third trimester',
   };
@@ -48,6 +62,7 @@ function Dashboard() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(user));
   const [error, setError] = useState('');
+  const [createError, setCreateError] = useState('');
   const [today] = useState(() => new Date());
 
   useEffect(() => {
@@ -57,7 +72,7 @@ function Dashboard() {
     return subscribeToProfiles(
       user.uid,
       user.email,
-      (nextProfiles : ExpectantProfile[]) => {
+      (nextProfiles: ExpectantProfile[]) => {
         setProfiles(nextProfiles);
         setIsLoading(false);
       },
@@ -68,18 +83,25 @@ function Dashboard() {
     );
   }, [user]);
 
+  const openCreateDialog = () => {
+    setCreateError('');
+    setIsCreateDialogOpen(true);
+  };
+
+  const closeCreateDialog = () => {
+    setCreateError('');
+    setIsCreateDialogOpen(false);
+  };
+
   const handleCreate = async (form: ProfileInput) => {
     if (!user) return;
-    setError('');
+    setCreateError('');
     try {
       await createProfile(user.uid, form);
       setIsCreateDialogOpen(false);
-    } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : 'Unable to create the profile. Please try again.',
-      );
+    } catch {
+      console.error('Failed to create profile');
+      setCreateError('Unable to create the profile. Please check your connection and try again.');
     }
   };
 
@@ -113,7 +135,7 @@ function Dashboard() {
               <div className="flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setIsCreateDialogOpen(true)}
+                  onClick={openCreateDialog}
                   className="inline-flex items-center justify-center rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-800"
                 >
                   + Create profile
@@ -121,7 +143,20 @@ function Dashboard() {
               </div>
               <div className="space-y-4">
                 {profiles.map((profile) => {
-                  const pregnancy = getPregnancyDetails(profile.lastMenstrualPeriod, today);
+                  const pregnancy = getPregnancyDetails(
+                    profile.lastMenstrualPeriod,
+                    profile.ultrasoundLastMenstrualPeriod,
+                    today,
+                  );
+                  const emergencyContacts = getProfileEmergencyContacts(profile);
+                  const primaryEmergencyContact = emergencyContacts[0];
+                  const additionalContactsCount = emergencyContacts.length - 1;
+                  const hasFooterDetails = Boolean(
+                    profile.location ||
+                      profile.bloodGroup ||
+                      profile.careProvider ||
+                      primaryEmergencyContact,
+                  );
                   return (
                     <Link
                       key={profile.id}
@@ -138,43 +173,60 @@ function Dashboard() {
                         </div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2 text-sm text-gray-600">
-                        <span className="rounded-full bg-gray-100 px-3 py-1">
-                          Week {pregnancy.week}
-                        </span>
-                        <span className="rounded-full bg-gray-100 px-3 py-1">
-                          Due {formatDate(profile.expectedDueDate)}
-                        </span>
-                      </div>
-                      <div className="mt-4 border-t border-gray-100 pt-4 text-sm text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <MapPin size={16} className="shrink-0 text-green-700" />
-                          <span>{profile.location}</span>
-                        </div>
-                        {(profile.bloodGroup ||
-                          profile.careProvider ||
-                          profile.emergencyContact) && (
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                            {profile.bloodGroup && (
-                              <div className="flex items-center gap-2">
-                                <Droplets size={16} className="shrink-0 text-green-700" />
-                                <span>Blood group: {profile.bloodGroup}</span>
-                              </div>
-                            )}
-                            {profile.careProvider && (
-                              <div className="flex items-center gap-2">
-                                <Stethoscope size={16} className="shrink-0 text-green-700" />
-                                <span>{profile.careProvider}</span>
-                              </div>
-                            )}
-                            {profile.emergencyContact && (
-                              <div className="flex items-center gap-2 sm:col-span-2">
-                                <Phone size={16} className="shrink-0 text-green-700" />
-                                <span>{profile.emergencyContact}</span>
-                              </div>
-                            )}
-                          </div>
+                        {pregnancy.weekLabel && (
+                          <span className="rounded-full bg-gray-100 px-3 py-1">
+                            {pregnancy.weekLabel}
+                          </span>
+                        )}
+                        {profile.expectedDueDate && (
+                          <span className="rounded-full bg-gray-100 px-3 py-1">
+                            Due {formatDate(profile.expectedDueDate)}
+                          </span>
                         )}
                       </div>
+                      {hasFooterDetails && (
+                        <div className="mt-4 border-t border-gray-100 pt-4 text-sm text-gray-600">
+                          {profile.location && (
+                            <div className="flex items-center gap-2">
+                              <MapPin size={16} className="shrink-0 text-green-700" />
+                              <span>{profile.location}</span>
+                            </div>
+                          )}
+                          {(profile.bloodGroup ||
+                            profile.careProvider ||
+                            primaryEmergencyContact) && (
+                            <div
+                              className={`${profile.location ? 'mt-3 ' : ''}grid gap-2 sm:grid-cols-2`}
+                            >
+                              {profile.bloodGroup && (
+                                <div className="flex items-center gap-2">
+                                  <Droplets size={16} className="shrink-0 text-green-700" />
+                                  <span>Blood group: {profile.bloodGroup}</span>
+                                </div>
+                              )}
+                              {profile.careProvider && (
+                                <div className="flex items-center gap-2">
+                                  <Stethoscope size={16} className="shrink-0 text-green-700" />
+                                  <span>{profile.careProvider}</span>
+                                </div>
+                              )}
+                              {primaryEmergencyContact && (
+                                <div className="flex items-center gap-2 sm:col-span-2">
+                                  <Phone size={16} className="shrink-0 text-green-700" />
+                                  <span className="truncate">
+                                    {formatEmergencyContactSummary(primaryEmergencyContact)}
+                                  </span>
+                                  {additionalContactsCount > 0 && (
+                                    <span className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                                      +{additionalContactsCount} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </Link>
                   );
                 })}
@@ -191,7 +243,7 @@ function Dashboard() {
                 <button
                   type="button"
                   disabled={!user}
-                  onClick={() => setIsCreateDialogOpen(true)}
+                  onClick={openCreateDialog}
                   className="inline-flex items-center justify-center rounded-full bg-green-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   + Create profile
@@ -204,7 +256,8 @@ function Dashboard() {
       {isCreateDialogOpen && (
         <ProfileFormDialog
           mode="create"
-          onClose={() => setIsCreateDialogOpen(false)}
+          submitError={createError}
+          onClose={closeCreateDialog}
           onSubmit={handleCreate}
         />
       )}

@@ -16,7 +16,11 @@ import {
 } from 'firebase/firestore';
 import type { DocumentData, DocumentSnapshot, Unsubscribe } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import type { ExpectantProfile } from "../../models/profile";
+import {
+  formatEmergencyContactSummary,
+  getProfileEmergencyContacts,
+  type ExpectantProfile,
+} from "../../models/profile";
 import { getUsersCollection, getProfilesCollection, getKeysCollection } from '../../lib/collections';
 
 
@@ -30,42 +34,75 @@ export type Profile = ExpectantProfile;
 const toProfile = (
   id: string,
   data: DocumentData,
-): Profile => ({
-  id,
-  fullName: data.fullName ?? "",
-  dateOfBirth: data.dateOfBirth ?? "",
-  location: data.location ?? "",
-  bloodGroup: data.bloodGroup ?? "",
-  lastMenstrualPeriod: data.lastMenstrualPeriod ?? "",
-  ultrasoundLastMenstrualPeriod: data.ultrasoundLastMenstrualPeriod ?? "",
-  expectedDueDate: data.expectedDueDate ?? "",
-  careProvider: data.careProvider ?? "",
-  primaryHospital: data.primaryHospital ?? "",
-  primaryHospitalLocation: data.primaryHospitalLocation ?? "",
-  emergencyContact: data.emergencyContact ?? "",
-  googleCalendarId: data.googleCalendarId ?? "",
-  syncRemindersToCalendar: data.syncRemindersToCalendar ?? false,
-  syncAppointmentsToCalendar: data.syncAppointmentsToCalendar ?? false,
-  babyNameContext: data.babyNameContext ?? "",
-  babyNameCount: typeof data.babyNameCount === "number" ? data.babyNameCount : undefined,
-  spiritualSlokaContext: data.spiritualSlokaContext ?? "",
-  babyTalkEnabled: data.babyTalkEnabled ?? false,
-  babyTalkContext: data.babyTalkContext ?? "",
-  customMessage: data.customMessage ?? "",
-  customMessageUpdatedAt:
-    data.customMessageUpdatedAt?.toDate?.()?.toISOString() ??
-    (typeof data.customMessageUpdatedAt === "string"
-      ? data.customMessageUpdatedAt
-      : data.customMessage
-        ? new Date().toISOString()
-        : undefined),
-  customMessageDismissed: data.customMessageDismissed ?? false,
-  status: data.status ?? "active",
-  creatorId: data.creatorId ?? '',
-  sharedWith: data.sharedWith ?? [],
-  createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
-  updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
-});
+): Profile => {
+  const hasStructuredContacts = Array.isArray(data.emergencyContacts);
+  const emergencyContacts = getProfileEmergencyContacts({
+    emergencyContacts: hasStructuredContacts ? data.emergencyContacts : undefined,
+    emergencyContact: typeof data.emergencyContact === "string" ? data.emergencyContact : "",
+  });
+  const emergencyContact = hasStructuredContacts
+    ? emergencyContacts[0]
+      ? formatEmergencyContactSummary(emergencyContacts[0])
+      : ""
+    : typeof data.emergencyContact === "string"
+      ? data.emergencyContact
+      : "";
+
+  return {
+    id,
+    fullName: data.fullName ?? "",
+    dateOfBirth: data.dateOfBirth ?? "",
+    location: data.location ?? "",
+    bloodGroup: data.bloodGroup ?? "",
+    lastMenstrualPeriod: data.lastMenstrualPeriod ?? "",
+    ultrasoundLastMenstrualPeriod: data.ultrasoundLastMenstrualPeriod ?? "",
+    expectedDueDate: data.expectedDueDate ?? "",
+    careProvider: data.careProvider ?? "",
+    primaryHospital: data.primaryHospital ?? "",
+    primaryHospitalLocation: data.primaryHospitalLocation ?? "",
+    emergencyContact,
+    emergencyContacts,
+    googleCalendarId: data.googleCalendarId ?? "",
+    syncRemindersToCalendar: data.syncRemindersToCalendar ?? false,
+    syncAppointmentsToCalendar: data.syncAppointmentsToCalendar ?? false,
+    babyNameContext: data.babyNameContext ?? "",
+    babyNameCount: typeof data.babyNameCount === "number" ? data.babyNameCount : undefined,
+    spiritualSlokaContext: data.spiritualSlokaContext ?? "",
+    babyTalkEnabled: data.babyTalkEnabled ?? false,
+    babyTalkContext: data.babyTalkContext ?? "",
+    customMessage: data.customMessage ?? "",
+    customMessageUpdatedAt:
+      data.customMessageUpdatedAt?.toDate?.()?.toISOString() ??
+      (typeof data.customMessageUpdatedAt === "string"
+        ? data.customMessageUpdatedAt
+        : data.customMessage
+          ? new Date().toISOString()
+          : undefined),
+    customMessageDismissed: data.customMessageDismissed ?? false,
+    status: data.status ?? "active",
+    creatorId: data.creatorId ?? '',
+    sharedWith: data.sharedWith ?? [],
+    createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+    updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+  };
+};
+
+const stripProtectedProfileFields = <T extends Record<string, unknown>>(payload: T) => {
+  const {
+    id: _id,
+    creatorId: _creatorId,
+    sharedWith: _sharedWith,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...safeFields
+  } = payload;
+  void _id;
+  void _creatorId;
+  void _sharedWith;
+  void _createdAt;
+  void _updatedAt;
+  return safeFields;
+};
 
 const getUpdatableProfileDocSnap = async (
   profileId: string,
@@ -106,8 +143,15 @@ export const createProfile = async (userId: string, profile: ProfileInput) => {
     }, { merge: true });
   }
 
+  const emergencyContacts = getProfileEmergencyContacts(profile);
+  const emergencyContact = emergencyContacts[0]
+    ? formatEmergencyContactSummary(emergencyContacts[0])
+    : "";
+
   const reference = await addDoc(getProfilesCollection(userId), {
-    ...profile,
+    ...stripProtectedProfileFields(profile as Record<string, unknown>),
+    emergencyContacts,
+    emergencyContact,
     creatorId: userId,
     sharedWith: [],
     createdAt: serverTimestamp(),
@@ -119,8 +163,20 @@ export const createProfile = async (userId: string, profile: ProfileInput) => {
 // userId is kept in the signature to prevent breaking existing usages in other files
 export const updateProfile = async (userId: string, profileId: string, profile: Partial<ProfileInput>) => {
   const docSnap = await getUpdatableProfileDocSnap(profileId, userId);
+  const safePayload: Record<string, unknown> = stripProtectedProfileFields(
+    profile as Record<string, unknown>,
+  );
+
+  if ("emergencyContacts" in profile || "emergencyContact" in profile) {
+    const emergencyContacts = getProfileEmergencyContacts(profile);
+    safePayload.emergencyContacts = emergencyContacts;
+    safePayload.emergencyContact = emergencyContacts[0]
+      ? formatEmergencyContactSummary(emergencyContacts[0])
+      : "";
+  }
+
   return updateDoc(docSnap.ref, {
-    ...profile,
+    ...safePayload,
     updatedAt: serverTimestamp(),
   });
 };
