@@ -11,6 +11,7 @@ import {
   Phone,
   PhoneCall,
   Edit3,
+  ExternalLink,
   Heart,
   BarChart3,
   Map,
@@ -20,19 +21,42 @@ import ProfileFormDialog from "../components/profile/ProfileFormDialog";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
-import { getProfileEmergencyContacts, sanitizeTelHref } from "../models/profile";
+import {
+  getProfileEmergencyContacts,
+  getSafeHospitalMapsLink,
+  sanitizeTelHref,
+  type ExpectantProfile as ExpectantProfileModel,
+} from "../models/profile";
 import { updateProfile, type ProfileInput } from "../services/profiles/profileService";
 import { getPregnancyAge } from "../utils/pregnancyUtils";
 
 const formatDate = (date: string) => {
   if (!date) return "Not specified";
-  try {
-    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(
-      new Date(`${date}T00:00:00`)
-    );
-  } catch {
-    return date;
-  }
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(parsed);
+};
+
+const STATUS_BADGE_STYLES: Record<
+  ExpectantProfileModel["status"],
+  { label: string; className: string }
+> = {
+  active: {
+    label: "Active Profile",
+    className: "border-green-100 bg-green-50 text-green-700",
+  },
+  completed: {
+    label: "Completed",
+    className: "border-blue-100 bg-blue-50 text-blue-700",
+  },
+  archived: {
+    label: "Archived",
+    className: "border-gray-200 bg-gray-100 text-gray-600",
+  },
 };
 
 export default function ExpectantProfile() {
@@ -40,14 +64,27 @@ export default function ExpectantProfile() {
   const { user } = useAuth();
   const { error, isLoading, profile } = useProfile(user?.uid, id);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  const openEditDialog = () => {
+    setSaveError("");
+    setIsEditOpen(true);
+  };
+
+  const closeEditDialog = () => {
+    setSaveError("");
+    setIsEditOpen(false);
+  };
 
   const handleSave = async (updatedProfile: ProfileInput) => {
     if (!user || !id) return;
+    setSaveError("");
     try {
       await updateProfile(user.uid, id, updatedProfile);
       setIsEditOpen(false);
     } catch {
       console.error("Failed to update profile");
+      setSaveError("Unable to save profile changes. Please check your connection and try again.");
     }
   };
 
@@ -66,6 +103,8 @@ export default function ExpectantProfile() {
   }
 
   const emergencyContacts = getProfileEmergencyContacts(profile);
+  const hospitalMapsLink = getSafeHospitalMapsLink(profile.primaryHospitalLocation);
+  const statusBadge = STATUS_BADGE_STYLES[profile.status] ?? STATUS_BADGE_STYLES.active;
 
   let gestationalAgeText = "Not available";
   const age = getPregnancyAge(profile.lastMenstrualPeriod, profile.ultrasoundLastMenstrualPeriod);
@@ -85,7 +124,8 @@ export default function ExpectantProfile() {
 
   const getInitials = (name: string) => {
     return name
-      .split(" ")
+      .split(/\s+/)
+      .filter(Boolean)
       .map((n) => n[0])
       .join("")
       .toUpperCase()
@@ -104,7 +144,7 @@ export default function ExpectantProfile() {
           <h1 className="text-2xl font-bold tracking-tight text-white">Profile</h1>
           <button
             className="flex items-center gap-1.5 rounded-full bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-all hover:bg-white/30"
-            onClick={() => setIsEditOpen(true)}
+            onClick={openEditDialog}
           >
             <Edit3 size={16} />
             <span>Edit</span>
@@ -119,21 +159,27 @@ export default function ExpectantProfile() {
             <span className="text-3xl font-bold text-green-700">{getInitials(profile.fullName)}</span>
           </div>
           <h2 className="text-2xl font-bold text-gray-900">{profile.fullName}</h2>
-          <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-gray-500">
-            <MapPin size={16} className="text-gray-400" /> {profile.location}
-          </p>
+          {profile.location && (
+            <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-gray-500">
+              <MapPin size={16} className="text-gray-400" /> {profile.location}
+            </p>
+          )}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            <span className="rounded-full border border-green-100 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-              Active Profile
+            <span
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge.className}`}
+            >
+              {statusBadge.label}
             </span>
             <span className="flex items-center gap-1 rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
               <BarChart3 size={12} />
               {gestationalAgeText}
             </span>
-            <span className="flex items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-              <Droplets size={12} />
-              {profile.bloodGroup}
-            </span>
+            {profile.bloodGroup && (
+              <span className="flex items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
+                <Droplets size={12} />
+                {profile.bloodGroup}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -211,21 +257,23 @@ export default function ExpectantProfile() {
               <div className="rounded-2xl bg-amber-50 p-3 text-amber-600">
                 <Map size={22} />
               </div>
-              <div className="overflow-hidden">
+              <div className="min-w-0 flex-1">
                 <p className="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Hospital Location</p>
-                <p className="font-semibold text-gray-900 truncate">
-                  {profile.primaryHospitalLocation ? (
-                    profile.primaryHospitalLocation.startsWith("http") ? (
-                      <a href={profile.primaryHospitalLocation} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        View on Maps
-                      </a>
-                    ) : (
-                      profile.primaryHospitalLocation
-                    )
-                  ) : (
-                    "Not specified"
-                  )}
-                </p>
+                {hospitalMapsLink ? (
+                  <a
+                    href={hospitalMapsLink.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex max-w-full items-center gap-1.5 font-semibold text-emerald-700 hover:underline"
+                  >
+                    <span className="truncate">{hospitalMapsLink.label}</span>
+                    <ExternalLink size={14} className="shrink-0" />
+                  </a>
+                ) : (
+                  <p className="truncate font-semibold text-gray-900">
+                    {profile.primaryHospitalLocation || "Not specified"}
+                  </p>
+                )}
               </div>
             </div>
             <div className="border-t border-gray-100 pt-5">
@@ -318,7 +366,7 @@ export default function ExpectantProfile() {
             </div>
             <div className="rounded-2xl bg-gray-50 p-4">
               <p className="mb-1 text-xs font-medium uppercase tracking-wider text-gray-500">Blood Group</p>
-              <p className="font-semibold text-gray-900">{profile.bloodGroup}</p>
+              <p className="font-semibold text-gray-900">{profile.bloodGroup || "Not specified"}</p>
             </div>
           </div>
         </div>
@@ -329,7 +377,8 @@ export default function ExpectantProfile() {
         <ProfileFormDialog
           mode="edit"
           initialValues={profile}
-          onClose={() => setIsEditOpen(false)}
+          submitError={saveError}
+          onClose={closeEditDialog}
           onSubmit={handleSave}
         />
       )}

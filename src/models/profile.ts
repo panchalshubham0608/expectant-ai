@@ -202,3 +202,34 @@ export const formatEmergencyContactSummary = (contact: EmergencyContact): string
   if (displayName && phone) return `${displayName} · ${phone}`;
   return displayName || phone;
 };
+
+const BLOCKED_URL_SCHEMES = /^(?:javascript|data|vbscript|file|blob|mailto|tel):/i;
+
+export const getSafeHospitalMapsLink = (
+  rawLocation?: string,
+): { href: string; label: string; isDirectUrl: boolean } | null => {
+  const trimmed = rawLocation?.trim();
+  if (!trimmed || BLOCKED_URL_SCHEMES.test(trimmed)) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+        return {
+          href: parsed.toString(),
+          label: "View on Maps",
+          isDirectUrl: true,
+        };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  return {
+    href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`,
+    label: trimmed,
+    isDirectUrl: false,
+  };
+};

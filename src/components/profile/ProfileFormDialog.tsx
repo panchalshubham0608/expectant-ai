@@ -18,6 +18,7 @@ export type { ProfileInput as ProfileFormData } from '../../services/profiles/pr
 type ProfileFormDialogProps = {
   initialValues?: Partial<ProfileInput>;
   mode: 'create' | 'edit';
+  submitError?: string;
   onClose: () => void;
   onSubmit: (profile: ProfileInput) => void | Promise<void>;
 };
@@ -43,6 +44,7 @@ const contactInputClass =
 export default function ProfileFormDialog({
   initialValues,
   mode,
+  submitError,
   onClose,
   onSubmit,
 }: ProfileFormDialogProps) {
@@ -620,6 +622,15 @@ export default function ProfileFormDialog({
               </div>
             )}
           </div>
+
+          {submitError && (
+            <p
+              role="alert"
+              className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {submitError}
+            </p>
+          )}
 
           <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
             <button
