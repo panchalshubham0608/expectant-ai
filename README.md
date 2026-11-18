@@ -136,3 +136,14 @@ src/
 ├── services/       # Firestore & AI services (dailyDigests, weeklyUpdates, reports, appointments, ai)
 └── utils/          # Pregnancy gestational age and helper utilities
 ```
+
+---
+
+## 📄 License
+
+**Copyright © 2026 Shubham Panchal. All Rights Reserved.**
+
+Although the source code is publicly visible for viewing and reference, this project is **not** open-source software. You may not copy, modify, host, or redistribute any part of this codebase or its assets without prior written permission. See [`LICENSE`](./LICENSE) for full details.
+
+Please also review [`TERMS.md`](./TERMS.md) (including the medical disclaimer) and [`PRIVACY.md`](./PRIVACY.md).
+
