@@ -155,21 +155,45 @@ export const saveMemoryState = (profileId: string, state: SavedMemoryState): voi
 /* ---------- Mandala Coloring Persistence ---------- */
 
 export interface SavedMandalaState {
+  designId: string;
   selectedColor: string;
   symmetryMode: boolean;
-  fills: Record<string, string>;
+  fillsByDesign: Record<string, Record<string, string>>;
 }
+
+const MAX_SAVED_MANDALA_DESIGNS = 25;
+
+const sanitizeFillsMap = (
+  raw: unknown,
+  allowedHexSet: ReadonlySet<string>,
+  allowedRegionIds: ReadonlySet<string>
+): Record<string, string> => {
+  const fills: Record<string, string> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fills;
+  for (const [regionId, hex] of Object.entries(raw as Record<string, unknown>)) {
+    if (allowedRegionIds.has(regionId) && typeof hex === 'string' && allowedHexSet.has(hex)) {
+      fills[regionId] = hex;
+    }
+  }
+  return fills;
+};
 
 export const loadMandalaState = (
   profileId: string,
   allowedHexSet: ReadonlySet<string>,
-  allowedRegionIds: ReadonlySet<string>,
+  getRegionIdsForDesignId: (designId: string) => ReadonlySet<string> | null,
+  defaultDesignId: string,
   defaultColor: string
 ): SavedMandalaState | null => {
   const raw = readJson(buildKey(profileId, 'mandala'));
   if (!raw || typeof raw !== 'object') return null;
 
   const record = raw as Record<string, unknown>;
+  const designId =
+    typeof record.designId === 'string' && getRegionIdsForDesignId(record.designId)
+      ? record.designId
+      : defaultDesignId;
+
   const selectedColor =
     typeof record.selectedColor === 'string' && allowedHexSet.has(record.selectedColor)
       ? record.selectedColor
@@ -177,24 +201,55 @@ export const loadMandalaState = (
 
   const symmetryMode = typeof record.symmetryMode === 'boolean' ? record.symmetryMode : true;
 
-  const fills: Record<string, string> = {};
-  if (record.fills && typeof record.fills === 'object' && !Array.isArray(record.fills)) {
-    for (const [regionId, hex] of Object.entries(record.fills as Record<string, unknown>)) {
-      if (allowedRegionIds.has(regionId) && typeof hex === 'string' && allowedHexSet.has(hex)) {
-        fills[regionId] = hex;
+  const fillsByDesign: Record<string, Record<string, string>> = {};
+  if (
+    record.fillsByDesign &&
+    typeof record.fillsByDesign === 'object' &&
+    !Array.isArray(record.fillsByDesign)
+  ) {
+    let kept = 0;
+    for (const [dId, rawFills] of Object.entries(
+      record.fillsByDesign as Record<string, unknown>
+    )) {
+      const regionIds = getRegionIdsForDesignId(dId);
+      if (!regionIds) continue;
+      const cleaned = sanitizeFillsMap(rawFills, allowedHexSet, regionIds);
+      if (Object.keys(cleaned).length > 0) {
+        fillsByDesign[dId] = cleaned;
+        kept++;
+        if (kept >= MAX_SAVED_MANDALA_DESIGNS) break;
+      }
+    }
+  } else if (record.fills) {
+    // Graceful migration from earlier single-design saves
+    const regionIds = getRegionIdsForDesignId(designId);
+    if (regionIds) {
+      const cleaned = sanitizeFillsMap(record.fills, allowedHexSet, regionIds);
+      if (Object.keys(cleaned).length > 0) {
+        fillsByDesign[designId] = cleaned;
       }
     }
   }
 
   return {
+    designId,
     selectedColor,
     symmetryMode,
-    fills,
+    fillsByDesign,
   };
 };
 
 export const saveMandalaState = (profileId: string, state: SavedMandalaState): void => {
-  writeJson(buildKey(profileId, 'mandala'), state);
+  const entries = Object.entries(state.fillsByDesign).filter(
+    ([, fills]) => Object.keys(fills).length > 0
+  );
+  const trimmedEntries = entries.slice(-MAX_SAVED_MANDALA_DESIGNS);
+  writeJson(buildKey(profileId, 'mandala'), {
+    designId: state.designId,
+    selectedColor: state.selectedColor,
+    symmetryMode: state.symmetryMode,
+    fillsByDesign: Object.fromEntries(trimmedEntries),
+  });
 };
 
 /* ---------- Calm Breathing Preference Persistence ---------- */
@@ -210,4 +265,74 @@ export const loadBreathingRhythm = (profileId: string): BreathingRhythmKey | nul
 
 export const saveBreathingRhythm = (profileId: string, rhythmKey: BreathingRhythmKey): void => {
   writeJson(buildKey(profileId, 'breathing'), { rhythmKey });
+};
+
+/* ---------- MindPlay Navigation Category Persistence ---------- */
+
+export type MindPlayMainTab = 'ai' | 'builtin';
+export type MindPlayPuzzleFilter = 'all' | 'connections' | 'wordScramble' | 'riddle';
+export type MindPlayBuiltInKind = 'sudoku' | 'memory' | 'mandala' | 'breathing';
+
+export interface SavedMindPlayNavState {
+  activeTab: MindPlayMainTab;
+  puzzleFilter: MindPlayPuzzleFilter;
+  activeBuiltIn: MindPlayBuiltInKind;
+}
+
+const NAV_STORAGE_PREFIX = 'mindPlay:nav';
+
+const ALLOWED_MAIN_TABS = new Set<MindPlayMainTab>(['ai', 'builtin']);
+const ALLOWED_PUZZLE_FILTERS = new Set<MindPlayPuzzleFilter>([
+  'all',
+  'connections',
+  'wordScramble',
+  'riddle',
+]);
+const ALLOWED_BUILTIN_KINDS = new Set<MindPlayBuiltInKind>([
+  'sudoku',
+  'memory',
+  'mandala',
+  'breathing',
+]);
+
+const DEFAULT_MINDPLAY_NAV_STATE: SavedMindPlayNavState = {
+  activeTab: 'ai',
+  puzzleFilter: 'all',
+  activeBuiltIn: 'sudoku',
+};
+
+export const loadMindPlayNavState = (profileId: string | undefined): SavedMindPlayNavState => {
+  if (!profileId) return DEFAULT_MINDPLAY_NAV_STATE;
+  const raw = readJson(`${NAV_STORAGE_PREFIX}:${profileId}`);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return DEFAULT_MINDPLAY_NAV_STATE;
+  }
+
+  const record = raw as Record<string, unknown>;
+  const activeTab =
+    typeof record.activeTab === 'string' &&
+    ALLOWED_MAIN_TABS.has(record.activeTab as MindPlayMainTab)
+      ? (record.activeTab as MindPlayMainTab)
+      : DEFAULT_MINDPLAY_NAV_STATE.activeTab;
+
+  const puzzleFilter =
+    typeof record.puzzleFilter === 'string' &&
+    ALLOWED_PUZZLE_FILTERS.has(record.puzzleFilter as MindPlayPuzzleFilter)
+      ? (record.puzzleFilter as MindPlayPuzzleFilter)
+      : DEFAULT_MINDPLAY_NAV_STATE.puzzleFilter;
+
+  const activeBuiltIn =
+    typeof record.activeBuiltIn === 'string' &&
+    ALLOWED_BUILTIN_KINDS.has(record.activeBuiltIn as MindPlayBuiltInKind)
+      ? (record.activeBuiltIn as MindPlayBuiltInKind)
+      : DEFAULT_MINDPLAY_NAV_STATE.activeBuiltIn;
+
+  return { activeTab, puzzleFilter, activeBuiltIn };
+};
+
+export const saveMindPlayNavState = (
+  profileId: string,
+  state: SavedMindPlayNavState
+): void => {
+  writeJson(`${NAV_STORAGE_PREFIX}:${profileId}`, state);
 };

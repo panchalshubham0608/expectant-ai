@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface PuzzlePlayModalProps {
@@ -47,9 +48,9 @@ export default function PuzzlePlayModal({
 
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}
@@ -59,7 +60,7 @@ export default function PuzzlePlayModal({
         }
       }}
     >
-      <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-3xl">
+      <div className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-3xl">
         {/* Sticky modal header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-3.5">
           <span className="text-xs font-medium text-gray-400">
@@ -77,17 +78,19 @@ export default function PuzzlePlayModal({
         </div>
 
         {/* Scrollable puzzle content */}
-        <div ref={scrollRef} className="overflow-y-auto p-5">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-5 pb-6">
           {children}
         </div>
 
-        {/* Optional sticky footer (e.g. Play next / Surprise me after solving) */}
+        {/* Optional sticky footer (e.g. Next puzzle) */}
         {footer && (
-          <div className="shrink-0 border-t border-gray-100 bg-gray-50/80 px-5 py-3.5">
+          <div className="shrink-0 border-t border-gray-100 bg-gray-50/80 px-5 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             {footer}
           </div>
         )}
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }

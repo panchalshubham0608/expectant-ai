@@ -45,10 +45,16 @@ import CalmSudokuActivity from '../components/mindPlay/CalmSudokuActivity';
 import MemoryMatchActivity from '../components/mindPlay/MemoryMatchActivity';
 import MandalaColoringActivity from '../components/mindPlay/MandalaColoringActivity';
 import CalmBreathingActivity from '../components/mindPlay/CalmBreathingActivity';
+import {
+  loadMindPlayNavState,
+  saveMindPlayNavState,
+  type MindPlayBuiltInKind,
+  type MindPlayPuzzleFilter,
+  type SavedMindPlayNavState,
+} from '../utils/mindPlayStorage';
 
-type MainTab = 'ai' | 'builtin';
-type PuzzleFilter = 'all' | MindPuzzleKind;
-type BuiltInActivityKind = 'sudoku' | 'memory' | 'mandala' | 'breathing';
+type PuzzleFilter = MindPlayPuzzleFilter;
+type BuiltInActivityKind = MindPlayBuiltInKind;
 
 interface PuzzleCardEntry {
   kind: MindPuzzleKind;
@@ -212,13 +218,32 @@ export default function MindPlay() {
   const { profile, isLoading: isProfileLoading, error: profileError } = useProfile(userId, id);
   const todayId = getTodayDateId();
 
-  const [activeTab, setActiveTab] = useState<MainTab>('ai');
-  const [puzzleFilter, setPuzzleFilter] = useState<PuzzleFilter>('all');
+  const [navOverridesByProfile, setNavOverridesByProfile] = useState<
+    Record<string, Partial<SavedMindPlayNavState>>
+  >({});
   const [activeModalSlot, setActiveModalSlot] = useState<{
     kind: MindPuzzleKind;
     index: number;
   } | null>(null);
-  const [activeBuiltIn, setActiveBuiltIn] = useState<BuiltInActivityKind>('sudoku');
+
+  const navState = useMemo<SavedMindPlayNavState>(() => {
+    const persisted = loadMindPlayNavState(id);
+    const override = id ? navOverridesByProfile[id] : undefined;
+    return override ? { ...persisted, ...override } : persisted;
+  }, [id, navOverridesByProfile]);
+
+  const { activeTab, puzzleFilter, activeBuiltIn } = navState;
+
+  const updateNavState = (patch: Partial<SavedMindPlayNavState>) => {
+    const next: SavedMindPlayNavState = { ...navState, ...patch };
+    if (id) {
+      saveMindPlayNavState(id, next);
+      setNavOverridesByProfile((prev) => ({
+        ...prev,
+        [id]: { ...(prev[id] ?? {}), ...patch },
+      }));
+    }
+  };
 
   const [puzzles, setPuzzles] = useState<DailyMindPuzzles | null>(null);
   const [isUsingOfflineFallback, setIsUsingOfflineFallback] = useState(false);
@@ -537,7 +562,7 @@ export default function MindPlay() {
           <div className="grid grid-cols-2 gap-2 rounded-2xl bg-gray-100/80 p-1">
             <button
               type="button"
-              onClick={() => setActiveTab('ai')}
+              onClick={() => updateNavState({ activeTab: 'ai' })}
               className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${
                 activeTab === 'ai'
                   ? 'bg-white text-indigo-700 shadow-sm'
@@ -549,7 +574,7 @@ export default function MindPlay() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('builtin')}
+              onClick={() => updateNavState({ activeTab: 'builtin' })}
               className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${
                 activeTab === 'builtin'
                   ? 'bg-white text-indigo-700 shadow-sm'
@@ -571,7 +596,7 @@ export default function MindPlay() {
                     <button
                       key={key}
                       type="button"
-                      onClick={() => setPuzzleFilter(key)}
+                      onClick={() => updateNavState({ puzzleFilter: key })}
                       aria-pressed={isSelected}
                       className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
                         isSelected
@@ -610,7 +635,7 @@ export default function MindPlay() {
                     <button
                       key={key}
                       type="button"
-                      onClick={() => setActiveBuiltIn(key)}
+                      onClick={() => updateNavState({ activeBuiltIn: key })}
                       aria-pressed={isSelected}
                       className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
                         isSelected
