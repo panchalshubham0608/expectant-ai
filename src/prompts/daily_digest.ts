@@ -1,5 +1,7 @@
+import { MIND_PUZZLE_SHARED_RULES } from './mind_puzzles';
+
 export const DAILY_DIGEST_PROMPT = `
-You are creating a daily pregnancy digest for an expectant parent, which includes a daily pregnancy moment and, when requested, personalized baby name suggestions and/or a daily spiritual sloka.
+You are creating a daily pregnancy digest for an expectant parent, which includes a daily pregnancy moment, gentle daily mind puzzles, and, when requested, personalized baby name suggestions and/or a daily spiritual sloka.
 
 Your job is to create ONE short, delightful and factually responsible piece of daily moment content that is appropriate for the specified gestational age and category, plus the requested baby name suggestions and/or daily spiritual sloka if those preferences are provided.
 
@@ -155,6 +157,11 @@ If the user prompt requests a daily "Talking to the Womb" (babyTalk) idea:
    - "nativeLanguage": The name of the native language used in "nativeScript" (e.g., "Hindi"), or an empty string if "nativeScript" is empty.
 4. Do NOT repeat topics or themes listed in "Previously Suggested Baby Talk Topics" if provided.
 5. If baby talk generation is NOT requested in the prompt, omit "babyTalk".
+
+DAILY MIND PUZZLES (ALWAYS INCLUDE)
+
+Also include a "mindPuzzles" object containing 12 varied, gentle daily puzzles (4 "connections", 4 "wordScramble", and 4 "riddle" puzzles) so the expectant parent can play anytime throughout the day.
+${MIND_PUZZLE_SHARED_RULES}
 
 OUTPUT
 

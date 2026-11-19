@@ -9,6 +9,7 @@ import { getDailyDigest, saveDailyDigest, getRecentDailyDigests, getTodayDateId 
 import { getGeneratedBabyNames, saveGeneratedBabyNames } from './generatedBabyNamesService';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
 import type { DailyDigest } from '../../models/dailyDigest';
+import { countDailyMindPuzzles, sanitizeDailyMindPuzzles } from '../../models/mindPuzzle';
 
 const CATEGORIES: DailyDigestCategory[] = [
   'baby-fact',
@@ -25,6 +26,10 @@ const inFlightGenerations = new Map<string, Promise<DailyDigest>>();
 
 const isFieldPresent = (digest: DailyDigest | null, field: DailyDigestOverrideField): boolean => {
   if (!digest) return false;
+  if (field === 'mindPuzzles') {
+    const sanitized = sanitizeDailyMindPuzzles(digest.mindPuzzles);
+    return countDailyMindPuzzles(sanitized) > 0;
+  }
   const val = digest[field];
   if (val === undefined || val === null) return false;
   if (Array.isArray(val)) return val.length > 0;
@@ -167,6 +172,7 @@ export const generateAndSaveDailyDigestForToday = async (
 
     const resolvedSpiritualSloka = resolveField('spiritualSloka');
     const resolvedBabyTalk = resolveField('babyTalk');
+    const resolvedMindPuzzles = sanitizeDailyMindPuzzles(resolveField('mindPuzzles'));
 
     const dailyDigest: DailyDigest = {
       category: resolveField('category'),
@@ -176,6 +182,7 @@ export const generateAndSaveDailyDigestForToday = async (
       babyNames: resolveField('babyNames') ?? [],
       ...(resolvedSpiritualSloka ? { spiritualSloka: resolvedSpiritualSloka } : {}),
       ...(resolvedBabyTalk ? { babyTalk: resolvedBabyTalk } : {}),
+      ...(resolvedMindPuzzles ? { mindPuzzles: resolvedMindPuzzles } : {}),
       id: dateId,
       date: dateId,
       pregnancyWeek,

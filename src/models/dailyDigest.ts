@@ -5,8 +5,15 @@ import type {
   SpiritualSloka,
   BabyTalkSuggestion,
 } from '../services/ai/dailyDigestService';
+import type { DailyMindPuzzles } from './mindPuzzle';
 
-export type { BabyNameSuggestion, BabyNameGender, SpiritualSloka, BabyTalkSuggestion };
+export type {
+  BabyNameSuggestion,
+  BabyNameGender,
+  SpiritualSloka,
+  BabyTalkSuggestion,
+  DailyMindPuzzles,
+};
 
 export interface FavoriteBabyName extends BabyNameSuggestion {
   id: string;

@@ -1,4 +1,9 @@
 import { DAILY_DIGEST_PROMPT } from '../../prompts/daily_digest';
+import {
+  sanitizeDailyMindPuzzles,
+  type DailyMindPuzzles,
+} from '../../models/mindPuzzle';
+import { DAILY_MIND_PUZZLES_SCHEMA } from './mindPuzzleService';
 import { getGeminiClient, DEFAULT_GEMINI_MODEL } from './geminiCore';
 
 export type DailyDigestCategory =
@@ -61,6 +66,7 @@ export interface DailyDigestResponse {
   babyNames?: BabyNameSuggestion[];
   spiritualSloka?: SpiritualSloka;
   babyTalk?: BabyTalkSuggestion;
+  mindPuzzles?: DailyMindPuzzles;
 }
 
 export const generateDailyDigest = async (
@@ -108,6 +114,8 @@ ${request.recentSlokas && request.recentSlokas.length > 0 ? `- Previously Sugges
         }`
       : ''
   }
+
+Also include a calm, varied "mindPuzzles" object with 12 puzzles (4 "connections", 4 "wordScramble", and 4 "riddle" brain teasers) for today's Mindful Play.
 `;
 
   try {
@@ -188,12 +196,14 @@ ${request.recentSlokas && request.recentSlokas.length > 0 ? `- Previously Sugges
               },
               required: ['title', 'prompt', 'script', 'nativeScript', 'nativeLanguage'],
             },
+            mindPuzzles: DAILY_MIND_PUZZLES_SCHEMA,
           },
           required: [
             'category',
             'header',
             'card',
             'emoji',
+            'mindPuzzles',
             ...(shouldGenerateBabyNames ? ['babyNames'] : []),
             ...(shouldGenerateSpiritualSloka ? ['spiritualSloka'] : []),
             ...(shouldGenerateBabyTalk ? ['babyTalk'] : []),
@@ -206,7 +216,13 @@ ${request.recentSlokas && request.recentSlokas.length > 0 ? `- Previously Sugges
       throw new Error('Gemini returned an empty response for the daily digest.');
     }
 
-    return JSON.parse(response.text) as DailyDigestResponse;
+    const parsed = JSON.parse(response.text) as DailyDigestResponse;
+    const sanitizedMindPuzzles = sanitizeDailyMindPuzzles(parsed.mindPuzzles);
+
+    return {
+      ...parsed,
+      ...(sanitizedMindPuzzles ? { mindPuzzles: sanitizedMindPuzzles } : { mindPuzzles: undefined }),
+    };
   } catch (error: any) {
     throw new Error(`Failed to generate daily digest: ${error.message || 'Unknown error'}`);
   }

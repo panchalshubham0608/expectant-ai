@@ -62,6 +62,26 @@ export const saveDailyDigest = async (
   await setDoc(docRef, dailyDigest, { merge: true });
 };
 
+export const updateDailyDigestMindPuzzles = async (
+  userId: string,
+  profileId: string,
+  dateId: string,
+  mindPuzzles: NonNullable<DailyDigest['mindPuzzles']>
+): Promise<void> => {
+  const collectionRef = getDailyDigestsCollectionRef(userId, profileId);
+  const docRef = doc(collectionRef, dateId);
+
+  await setDoc(
+    docRef,
+    {
+      id: dateId,
+      date: dateId,
+      mindPuzzles,
+    },
+    { merge: true }
+  );
+};
+
 export const getRecentDailyDigests = async (
   userId: string,
   profileId: string,
