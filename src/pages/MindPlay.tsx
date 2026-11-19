@@ -47,6 +47,7 @@ import MandalaColoringActivity from '../components/mindPlay/MandalaColoringActiv
 import CalmBreathingActivity from '../components/mindPlay/CalmBreathingActivity';
 import CalmStarlightPathsActivity from '../components/mindPlay/CalmStarlightPathsActivity';
 import HerbalTeaPourActivity from '../components/mindPlay/HerbalTeaPourActivity';
+import CozyNurseryDecoratorActivity from '../components/mindPlay/CozyNurseryDecoratorActivity';
 import {
   loadMindPlayNavState,
   saveMindPlayNavState,
@@ -59,7 +60,11 @@ import {
 type PuzzleFilter = MindPlayPuzzleFilter;
 type VisibleBuiltInActivityKind = Exclude<MindPlayBuiltInKind, 'surprise'>;
 
-const BONUS_GAMES: readonly BonusGameKind[] = ['starlight-paths', 'tea-pour'] as const;
+const BONUS_GAMES: readonly BonusGameKind[] = [
+  'starlight-paths',
+  'tea-pour',
+  'nursery-decorator',
+] as const;
 
 interface PuzzleCardEntry {
   kind: MindPuzzleKind;
@@ -921,7 +926,6 @@ export default function MindPlay() {
                 {activeBonusGame === 'starlight-paths' && (
                   <CalmStarlightPathsActivity
                     key={`${id}-starlight`}
-                    profileId={id}
                     sessionSolvedCount={surpriseSolvedCount}
                     onBoardSolved={handleSurpriseBoardSolved}
                   />
@@ -929,10 +933,12 @@ export default function MindPlay() {
                 {activeBonusGame === 'tea-pour' && (
                   <HerbalTeaPourActivity
                     key={`${id}-teapour`}
-                    profileId={id}
                     sessionSolvedCount={surpriseSolvedCount}
                     onBoardSolved={handleSurpriseBoardSolved}
                   />
+                )}
+                {activeBonusGame === 'nursery-decorator' && (
+                  <CozyNurseryDecoratorActivity key={`${id}-nursery`} />
                 )}
               </div>
             )}

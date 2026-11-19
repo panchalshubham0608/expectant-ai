@@ -1,19 +1,4 @@
 import type { SudokuBoard, SudokuSize } from './sudokuGenerator';
-import {
-  ALLOWED_STARLIGHT_TOKEN_IDS,
-  areCellsAdjacent,
-  type StarlightBoard,
-  type StarlightGridSize,
-  type StarlightPair,
-  type StarlightTokenId,
-} from './starlightPathsGenerator';
-import {
-  ALLOWED_TEA_COLOR_IDS,
-  TEA_JAR_CAPACITY,
-  type TeaColorId,
-  type TeaJar,
-  type TeaPourDifficulty,
-} from './teaPourGenerator';
 
 const STORAGE_PREFIX = 'mindPlay:builtin';
 
@@ -287,7 +272,7 @@ export const saveBreathingRhythm = (profileId: string, rhythmKey: BreathingRhyth
 export type MindPlayMainTab = 'ai' | 'builtin';
 export type MindPlayPuzzleFilter = 'all' | 'connections' | 'wordScramble' | 'riddle';
 export type MindPlayBuiltInKind = 'sudoku' | 'memory' | 'mandala' | 'breathing' | 'surprise';
-export type BonusGameKind = 'starlight-paths' | 'tea-pour';
+export type BonusGameKind = 'starlight-paths' | 'tea-pour' | 'nursery-decorator';
 
 export interface SavedMindPlayNavState {
   activeTab: MindPlayMainTab;
@@ -312,7 +297,11 @@ const ALLOWED_BUILTIN_KINDS = new Set<MindPlayBuiltInKind>([
   'breathing',
   'surprise',
 ]);
-const ALLOWED_BONUS_GAMES = new Set<BonusGameKind>(['starlight-paths', 'tea-pour']);
+const ALLOWED_BONUS_GAMES = new Set<BonusGameKind>([
+  'starlight-paths',
+  'tea-pour',
+  'nursery-decorator',
+]);
 
 const DEFAULT_MINDPLAY_NAV_STATE: SavedMindPlayNavState = {
   activeTab: 'ai',
@@ -361,186 +350,4 @@ export const saveMindPlayNavState = (
   state: SavedMindPlayNavState
 ): void => {
   writeJson(`${NAV_STORAGE_PREFIX}:${profileId}`, state);
-};
-
-/* ---------- Starlight Paths Persistence ---------- */
-
-export interface SavedStarlightPathsState {
-  board: StarlightBoard;
-  paths: Record<string, number[]>;
-}
-
-const isValidCellPath = (
-  raw: unknown,
-  size: StarlightGridSize,
-  maxCells: number
-): raw is number[] => {
-  if (!Array.isArray(raw) || raw.length === 0 || raw.length > maxCells) return false;
-  const seen = new Set<number>();
-  for (let i = 0; i < raw.length; i++) {
-    const cell = raw[i];
-    if (typeof cell !== 'number' || !Number.isInteger(cell) || cell < 0 || cell >= maxCells) {
-      return false;
-    }
-    if (seen.has(cell)) return false;
-    seen.add(cell);
-    if (i > 0 && !areCellsAdjacent(raw[i - 1], cell, size)) return false;
-  }
-  return true;
-};
-
-export const loadStarlightPathsState = (profileId: string): SavedStarlightPathsState | null => {
-  const raw = readJson(buildKey(profileId, 'starlight-paths'));
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-
-  const record = raw as Record<string, unknown>;
-  const rawBoard = record.board;
-  if (!rawBoard || typeof rawBoard !== 'object' || Array.isArray(rawBoard)) return null;
-
-  const b = rawBoard as Record<string, unknown>;
-  const size =
-    b.size === 5 || b.size === 6 || b.size === 7 || b.size === 8
-      ? (b.size as StarlightGridSize)
-      : null;
-  if (!size) return null;
-  const maxCells = size * size;
-
-  if (!Array.isArray(b.pairs) || b.pairs.length < 3 || b.pairs.length > 8) return null;
-  const rawSolution = b.solution;
-  if (!rawSolution || typeof rawSolution !== 'object' || Array.isArray(rawSolution)) return null;
-
-  const pairs: StarlightPair[] = [];
-  const solution: Record<string, number[]> = {};
-  const seenTokens = new Set<string>();
-  const seenEndpoints = new Set<number>();
-
-  for (const item of b.pairs) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
-    const p = item as Record<string, unknown>;
-    if (
-      typeof p.tokenId !== 'string' ||
-      !ALLOWED_STARLIGHT_TOKEN_IDS.has(p.tokenId) ||
-      seenTokens.has(p.tokenId)
-    ) {
-      return null;
-    }
-    if (
-      typeof p.start !== 'number' ||
-      typeof p.end !== 'number' ||
-      !Number.isInteger(p.start) ||
-      !Number.isInteger(p.end) ||
-      p.start < 0 ||
-      p.start >= maxCells ||
-      p.end < 0 ||
-      p.end >= maxCells ||
-      p.start === p.end ||
-      seenEndpoints.has(p.start) ||
-      seenEndpoints.has(p.end)
-    ) {
-      return null;
-    }
-
-    const solPath = (rawSolution as Record<string, unknown>)[p.tokenId];
-    if (!isValidCellPath(solPath, size, maxCells)) return null;
-    if (solPath[0] !== p.start || solPath[solPath.length - 1] !== p.end) return null;
-
-    seenTokens.add(p.tokenId);
-    seenEndpoints.add(p.start);
-    seenEndpoints.add(p.end);
-    pairs.push({
-      tokenId: p.tokenId as StarlightTokenId,
-      start: p.start,
-      end: p.end,
-    });
-    solution[p.tokenId] = [...solPath];
-  }
-
-  const paths: Record<string, number[]> = {};
-  const occupiedCells = new Set<number>();
-  if (record.paths && typeof record.paths === 'object' && !Array.isArray(record.paths)) {
-    for (const pair of pairs) {
-      const candidate = (record.paths as Record<string, unknown>)[pair.tokenId];
-      if (!isValidCellPath(candidate, size, maxCells)) continue;
-      if (candidate[0] !== pair.start && candidate[0] !== pair.end) continue;
-      // Ensure no overlap with previously restored paths or other pairs' endpoints
-      const overlaps = candidate.some(
-        (cell) =>
-          occupiedCells.has(cell) ||
-          (seenEndpoints.has(cell) && cell !== pair.start && cell !== pair.end)
-      );
-      if (overlaps) continue;
-      candidate.forEach((c) => occupiedCells.add(c));
-      paths[pair.tokenId] = [...candidate];
-    }
-  }
-
-  return {
-    board: { size, pairs, solution },
-    paths,
-  };
-};
-
-export const saveStarlightPathsState = (
-  profileId: string,
-  state: SavedStarlightPathsState
-): void => {
-  writeJson(buildKey(profileId, 'starlight-paths'), state);
-};
-
-/* ---------- Watercolor Pour Sort Persistence ---------- */
-
-export interface SavedTeaPourState {
-  difficulty: TeaPourDifficulty;
-  initialJars: TeaJar[];
-  jars: TeaJar[];
-}
-
-const sanitizeTeaJars = (raw: unknown, difficulty: TeaPourDifficulty): TeaJar[] | null => {
-  if (!Array.isArray(raw) || raw.length !== difficulty + 2) return null;
-  const counts = new Map<string, number>();
-  const jars: TeaJar[] = [];
-
-  for (const rawJar of raw) {
-    if (!Array.isArray(rawJar) || rawJar.length > TEA_JAR_CAPACITY) return null;
-    const jar: TeaJar = [];
-    for (const entry of rawJar) {
-      if (typeof entry !== 'string' || !ALLOWED_TEA_COLOR_IDS.has(entry)) return null;
-      counts.set(entry, (counts.get(entry) ?? 0) + 1);
-      jar.push(entry as TeaColorId);
-    }
-    jars.push(jar);
-  }
-
-  if (counts.size !== difficulty) return null;
-  for (const count of counts.values()) {
-    if (count !== TEA_JAR_CAPACITY) return null;
-  }
-
-  return jars;
-};
-
-export const loadTeaPourState = (profileId: string): SavedTeaPourState | null => {
-  const raw = readJson(buildKey(profileId, 'tea-pour'));
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-
-  const record = raw as Record<string, unknown>;
-  const difficulty =
-    record.difficulty === 4 ||
-    record.difficulty === 5 ||
-    record.difficulty === 6 ||
-    record.difficulty === 7 ||
-    record.difficulty === 8
-      ? (record.difficulty as TeaPourDifficulty)
-      : null;
-  if (!difficulty) return null;
-
-  const initialJars = sanitizeTeaJars(record.initialJars, difficulty);
-  const jars = sanitizeTeaJars(record.jars, difficulty);
-  if (!initialJars || !jars) return null;
-
-  return { difficulty, initialJars, jars };
-};
-
-export const saveTeaPourState = (profileId: string, state: SavedTeaPourState): void => {
-  writeJson(buildKey(profileId, 'tea-pour'), state);
 };

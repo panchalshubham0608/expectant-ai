@@ -19,13 +19,8 @@ import {
   type StarlightPair,
   type StarlightTokenId,
 } from '../../utils/starlightPathsGenerator';
-import {
-  loadStarlightPathsState,
-  saveStarlightPathsState,
-} from '../../utils/mindPlayStorage';
 
 interface CalmStarlightPathsActivityProps {
-  profileId: string;
   sessionSolvedCount?: number;
   onBoardSolved?: () => void;
 }
@@ -62,27 +57,17 @@ const clonePaths = (paths: Record<string, number[]>): Record<string, number[]> =
 };
 
 export default function CalmStarlightPathsActivity({
-  profileId,
   sessionSolvedCount = 0,
   onBoardSolved,
 }: CalmStarlightPathsActivityProps) {
-  const [initialState] = useState(() => {
-    const saved = loadStarlightPathsState(profileId);
-    if (saved && !isStarlightBoardSolved(saved.board, saved.paths)) {
-      return saved;
-    }
+  const [board, setBoard] = useState<StarlightBoard>(() => {
     const tier = getStarlightTierForSolvedCount(sessionSolvedCount);
-    return {
-      board: generateStarlightBoard(tier.size, {
-        complexity: tier.complexity,
-        pairCount: tier.pairCount,
-      }),
-      paths: {} as Record<string, number[]>,
-    };
+    return generateStarlightBoard(tier.size, {
+      complexity: tier.complexity,
+      pairCount: tier.pairCount,
+    });
   });
-
-  const [board, setBoard] = useState<StarlightBoard>(initialState.board);
-  const [paths, setPaths] = useState<Record<string, number[]>>(initialState.paths);
+  const [paths, setPaths] = useState<Record<string, number[]>>({});
   const [history, setHistory] = useState<Record<string, number[]>[]>([]);
   const [activeTokenId, setActiveTokenId] = useState<StarlightTokenId | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -93,9 +78,7 @@ export default function CalmStarlightPathsActivity({
   const isDraggingRef = useRef(false);
   const activeTokenRef = useRef<StarlightTokenId | null>(null);
   const dragSnapshotSavedRef = useRef(false);
-  const boardSolvedReportedRef = useRef(
-    isStarlightBoardSolved(initialState.board, initialState.paths)
-  );
+  const boardSolvedReportedRef = useRef(false);
 
   const size = board.size;
   const totalCells = size * size;
@@ -136,10 +119,6 @@ export default function CalmStarlightPathsActivity({
   );
 
   const isSolved = useMemo(() => isStarlightBoardSolved(board, paths), [board, paths]);
-
-  useEffect(() => {
-    saveStarlightPathsState(profileId, { board, paths });
-  }, [profileId, board, paths]);
 
   useEffect(() => {
     if (isSolved && !boardSolvedReportedRef.current) {

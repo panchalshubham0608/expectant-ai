@@ -23,10 +23,8 @@ import {
   type TeaPourDifficulty,
   type TeaPourMove,
 } from '../../utils/teaPourGenerator';
-import { loadTeaPourState, saveTeaPourState } from '../../utils/mindPlayStorage';
 
 interface HerbalTeaPourActivityProps {
-  profileId: string;
   sessionSolvedCount?: number;
   onBoardSolved?: () => void;
 }
@@ -36,15 +34,10 @@ const DIFFICULTY_OPTIONS: readonly TeaPourDifficulty[] = [4, 5, 6, 7, 8] as cons
 const cloneJars = (jars: readonly TeaJar[]): TeaJar[] => jars.map((jar) => [...jar]);
 
 export default function HerbalTeaPourActivity({
-  profileId,
   sessionSolvedCount = 0,
   onBoardSolved,
 }: HerbalTeaPourActivityProps) {
   const [initialState] = useState(() => {
-    const saved = loadTeaPourState(profileId);
-    if (saved && !isTeaPourSolved(saved.jars)) {
-      return saved;
-    }
     const tier = getTeaPourTierForSolvedCount(sessionSolvedCount);
     const generated = generateTeaPourPuzzle(tier.difficulty, tier.strictMix);
     return {
@@ -65,7 +58,7 @@ export default function HerbalTeaPourActivity({
     () => getTeaPourTierForSolvedCount(sessionSolvedCount).level
   );
 
-  const solvedReportedRef = useRef(isTeaPourSolved(initialState.jars));
+  const solvedReportedRef = useRef(false);
 
   const sessionTier = getTeaPourTierForSolvedCount(sessionSolvedCount);
   const isSolved = useMemo(() => isTeaPourSolved(jars), [jars]);
@@ -77,10 +70,6 @@ export default function HerbalTeaPourActivity({
     () => !isSolved && !hasAnyValidTeaPour(jars),
     [isSolved, jars]
   );
-
-  useEffect(() => {
-    saveTeaPourState(profileId, { difficulty, initialJars, jars });
-  }, [profileId, difficulty, initialJars, jars]);
 
   useEffect(() => {
     if (isSolved && !solvedReportedRef.current) {
