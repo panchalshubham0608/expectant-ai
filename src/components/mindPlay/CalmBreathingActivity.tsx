@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pause, Play, RotateCcw, Wind } from 'lucide-react';
+import { Pause, Play, RotateCcw } from 'lucide-react';
 import {
   loadBreathingRhythm,
   saveBreathingRhythm,
@@ -80,7 +80,6 @@ export default function CalmBreathingActivity({ profileId }: CalmBreathingActivi
   const [secondsLeft, setSecondsLeft] = useState(
     () => RHYTHMS[loadBreathingRhythm(profileId) ?? 'gentle'].phases[0].seconds
   );
-  const [completedCycles, setCompletedCycles] = useState(0);
 
   const rhythm = RHYTHMS[rhythmKey];
   const currentPhase = rhythm.phases[phaseIndex];
@@ -98,9 +97,6 @@ export default function CalmBreathingActivity({ profileId }: CalmBreathingActivi
 
         const nextPhaseIdx = (phaseIndex + 1) % rhythm.phases.length;
         setPhaseIndex(nextPhaseIdx);
-        if (nextPhaseIdx === 0) {
-          setCompletedCycles((c) => c + 1);
-        }
         return rhythm.phases[nextPhaseIdx].seconds;
       });
     }, 1000);
@@ -113,29 +109,21 @@ export default function CalmBreathingActivity({ profileId }: CalmBreathingActivi
     setRhythmKey(nextKey);
     setPhaseIndex(0);
     setSecondsLeft(RHYTHMS[nextKey].phases[0].seconds);
-    setCompletedCycles(0);
   };
 
   const handleReset = () => {
     setIsRunning(false);
     setPhaseIndex(0);
     setSecondsLeft(rhythm.phases[0].seconds);
-    setCompletedCycles(0);
   };
 
   return (
     <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Guided Calm Breathing</h2>
-          <p className="mt-0.5 text-xs text-gray-500">
-            A quiet 2-minute pause to relax your shoulders and breathe peacefully.
-          </p>
-        </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
-          <Wind size={12} />
-          {completedCycles} {completedCycles === 1 ? 'cycle' : 'cycles'}
-        </span>
+      <div className="text-center">
+        <h2 className="text-lg font-bold text-gray-900">Guided Calm Breathing</h2>
+        <p className="mt-0.5 text-xs text-gray-500">
+          A quiet 2-minute pause to relax your shoulders and breathe peacefully.
+        </p>
       </div>
 
       {/* Rhythm selector */}
