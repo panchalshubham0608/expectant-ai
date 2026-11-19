@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, RefreshCw } from 'lucide-react';
+import { ArrowRight, CheckCircle2, RefreshCw } from 'lucide-react';
+import {
+  MEMORY_MATCH_ALLOWED_IDS,
+  MEMORY_MATCH_ITEMS,
+  MEMORY_MATCH_ITEM_BY_ID,
+  type MemorySymbolDefinition,
+} from '../../utils/memoryMatchItems';
 import {
   loadMemoryState,
   saveMemoryState,
@@ -10,65 +16,50 @@ interface MemoryMatchActivityProps {
   profileId: string;
 }
 
-interface MemoryCardItem {
+interface MemoryCardItem extends MemorySymbolDefinition {
   uid: number;
-  pairId: string;
-  symbol: string;
-  label: string;
-  tint: string;
 }
 
-const SYMBOLS: Omit<MemoryCardItem, 'uid'>[] = [
-  { pairId: 'blossom', symbol: '🌸', label: 'Cherry Blossom', tint: 'bg-rose-50 ring-rose-200' },
-  { pairId: 'leaf', symbol: '🌿', label: 'Botanical Leaf', tint: 'bg-emerald-50 ring-emerald-200' },
-  { pairId: 'moon', symbol: '🌙', label: 'Crescent Moon', tint: 'bg-indigo-50 ring-indigo-200' },
-  { pairId: 'star', symbol: '⭐', label: 'Golden Star', tint: 'bg-amber-50 ring-amber-200' },
-  { pairId: 'butterfly', symbol: '🦋', label: 'Butterfly', tint: 'bg-sky-50 ring-sky-200' },
-  { pairId: 'daisy', symbol: '🌼', label: 'Wild Daisy', tint: 'bg-yellow-50 ring-yellow-200' },
-  { pairId: 'rainbow', symbol: '🌈', label: 'Rainbow', tint: 'bg-purple-50 ring-purple-200' },
-  { pairId: 'cloud', symbol: '☁️', label: 'Soft Cloud', tint: 'bg-teal-50 ring-teal-200' },
-];
-
-const SYMBOL_BY_PAIR_ID = new Map(SYMBOLS.map((s) => [s.pairId, s]));
-const ORDERED_PAIR_IDS = SYMBOLS.map((s) => s.pairId);
+const shuffleArray = <T,>(items: readonly T[]): T[] => {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+};
 
 const buildDeck = (pairCount: MemoryPairCount): MemoryCardItem[] => {
-  const chosen = SYMBOLS.slice(0, pairCount);
+  const chosen = shuffleArray(MEMORY_MATCH_ITEMS).slice(0, pairCount);
   const deck: MemoryCardItem[] = [];
   let uid = 0;
   for (const item of chosen) {
     deck.push({ ...item, uid: uid++ });
     deck.push({ ...item, uid: uid++ });
   }
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
+  return shuffleArray(deck);
 };
 
 const rebuildDeckFromPairIds = (deckPairIds: string[]): MemoryCardItem[] =>
   deckPairIds.map((pairId, idx) => {
-    const symbol = SYMBOL_BY_PAIR_ID.get(pairId) ?? SYMBOLS[0];
+    const symbol = MEMORY_MATCH_ITEM_BY_ID.get(pairId) ?? MEMORY_MATCH_ITEMS[0];
     return { ...symbol, uid: idx };
   });
 
 export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityProps) {
   const [initialState] = useState(() => {
-    const saved = loadMemoryState(profileId, ORDERED_PAIR_IDS);
+    const saved = loadMemoryState(profileId, MEMORY_MATCH_ALLOWED_IDS);
     if (saved) {
       return {
         pairCount: saved.pairCount,
         cards: rebuildDeckFromPairIds(saved.deckPairIds),
         matchedPairIds: saved.matchedPairIds,
-        moves: saved.moves,
       };
     }
     return {
       pairCount: 6 as MemoryPairCount,
       cards: buildDeck(6),
       matchedPairIds: [] as string[],
-      moves: 0,
     };
   });
 
@@ -76,7 +67,6 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
   const [cards, setCards] = useState<MemoryCardItem[]>(initialState.cards);
   const [flippedUids, setFlippedUids] = useState<number[]>([]);
   const [matchedPairIds, setMatchedPairIds] = useState<string[]>(initialState.matchedPairIds);
-  const [moves, setMoves] = useState(initialState.moves);
   const [isChecking, setIsChecking] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -93,9 +83,8 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
       pairCount,
       deckPairIds: cards.map((c) => c.pairId),
       matchedPairIds,
-      moves,
     });
-  }, [profileId, pairCount, cards, matchedPairIds, moves]);
+  }, [profileId, pairCount, cards, matchedPairIds]);
 
   const resetGame = (nextPairCount: MemoryPairCount) => {
     if (timerRef.current !== null) {
@@ -106,7 +95,6 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
     setCards(buildDeck(nextPairCount));
     setFlippedUids([]);
     setMatchedPairIds([]);
-    setMoves(0);
     setIsChecking(false);
   };
 
@@ -118,7 +106,6 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
     setFlippedUids(nextFlipped);
 
     if (nextFlipped.length === 2) {
-      setMoves((m) => m + 1);
       const firstCard = cards.find((c) => c.uid === nextFlipped[0]);
       if (firstCard && firstCard.pairId === card.pairId) {
         setMatchedPairIds((prev) => [...prev, card.pairId]);
@@ -140,9 +127,9 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
     <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Botanical Memory Match</h2>
+          <h2 className="text-lg font-bold text-gray-900">Calm Memory Match</h2>
           <p className="mt-0.5 text-xs text-gray-500">
-            Turn over two gentle cards at a time to uncover all matching pairs.
+            Fresh playful icons every round — turn over two cards at a time to match all pairs.
           </p>
         </div>
         <button
@@ -175,13 +162,8 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3 text-xs font-medium text-gray-500">
-          <span>
-            Pairs: <strong className="text-gray-800">{matchedPairIds.length}/{pairCount}</strong>
-          </span>
-          <span>
-            Turns: <strong className="text-gray-800">{moves}</strong>
-          </span>
+        <div className="text-xs font-medium text-gray-500">
+          Pairs: <strong className="text-gray-800">{matchedPairIds.length}/{pairCount}</strong>
         </div>
       </div>
 
@@ -198,7 +180,7 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
               onClick={() => handleCardTap(card)}
               disabled={isMatched}
               aria-label={isRevealed ? card.label : 'Hidden memory card'}
-              className={`aspect-square flex items-center justify-center rounded-2xl text-2xl transition duration-200 active:scale-95 sm:text-3xl ${
+              className={`aspect-square flex items-center justify-center rounded-2xl transition duration-200 active:scale-95 ${
                 isMatched
                   ? `${card.tint} ring-2 opacity-90`
                   : isRevealed
@@ -207,11 +189,15 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
               }`}
             >
               {isRevealed ? (
-                <span role="img" aria-hidden="true">
+                <span
+                  role="img"
+                  aria-hidden="true"
+                  className="select-none text-[2.5rem] leading-none sm:text-5xl"
+                >
                   {card.symbol}
                 </span>
               ) : (
-                <span className="text-base font-bold text-emerald-500/60">✦</span>
+                <span className="select-none text-xl font-bold text-emerald-500/60">✦</span>
               )}
             </button>
           );
@@ -219,20 +205,18 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
       </div>
 
       {isCompleted && (
-        <div
-          role="status"
-          className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-200/70"
-        >
-          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-900">
+        <div role="status" className="mt-4 space-y-3">
+          <div className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200/70">
             <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
-            <span>Every pair matched calmly in {moves} turns!</span>
+            <span>Every pair matched! Take a quiet breath or enjoy another round.</span>
           </div>
           <button
             type="button"
             onClick={() => resetGame(pairCount)}
-            className="rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99]"
           >
-            Play again
+            <span>Play again</span>
+            <ArrowRight size={15} />
           </button>
         </div>
       )}

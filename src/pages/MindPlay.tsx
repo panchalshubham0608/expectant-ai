@@ -150,7 +150,7 @@ const BUILTIN_ACTIVITIES: {
   {
     key: 'memory',
     label: 'Memory Match',
-    subtitle: 'Botanical pairs',
+    subtitle: 'Playful matching pairs',
     icon: Flower2,
     iconClass: 'text-emerald-600',
     activeClass: 'bg-emerald-600 text-white shadow-sm',

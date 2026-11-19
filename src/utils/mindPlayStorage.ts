@@ -101,12 +101,11 @@ export interface SavedMemoryState {
   pairCount: MemoryPairCount;
   deckPairIds: string[];
   matchedPairIds: string[];
-  moves: number;
 }
 
 export const loadMemoryState = (
   profileId: string,
-  allowedPairIdsInOrder: readonly string[]
+  allowedPairIdsSet: ReadonlySet<string>
 ): SavedMemoryState | null => {
   const raw = readJson(buildKey(profileId, 'memory'));
   if (!raw || typeof raw !== 'object') return null;
@@ -115,9 +114,6 @@ export const loadMemoryState = (
   const pairCount = record.pairCount;
   if (pairCount !== 6 && pairCount !== 8) return null;
 
-  const expectedIds = allowedPairIdsInOrder.slice(0, pairCount);
-  const expectedSet = new Set(expectedIds);
-
   if (!Array.isArray(record.deckPairIds) || record.deckPairIds.length !== pairCount * 2) {
     return null;
   }
@@ -125,35 +121,30 @@ export const loadMemoryState = (
   const counts = new Map<string, number>();
   const deckPairIds: string[] = [];
   for (const item of record.deckPairIds) {
-    if (typeof item !== 'string' || !expectedSet.has(item)) return null;
+    if (typeof item !== 'string' || !allowedPairIdsSet.has(item)) return null;
     counts.set(item, (counts.get(item) ?? 0) + 1);
     deckPairIds.push(item);
   }
 
-  // Every expected pairId must appear exactly twice
-  for (const id of expectedIds) {
-    if (counts.get(id) !== 2) return null;
+  // Must contain exactly pairCount distinct items, each appearing twice
+  if (counts.size !== pairCount) return null;
+  for (const count of counts.values()) {
+    if (count !== 2) return null;
   }
 
   const matchedSet = new Set<string>();
   if (Array.isArray(record.matchedPairIds)) {
     for (const item of record.matchedPairIds) {
-      if (typeof item === 'string' && expectedSet.has(item)) {
+      if (typeof item === 'string' && counts.has(item)) {
         matchedSet.add(item);
       }
     }
   }
 
-  const moves =
-    typeof record.moves === 'number' && Number.isInteger(record.moves) && record.moves >= 0
-      ? Math.min(record.moves, 9999)
-      : 0;
-
   return {
     pairCount,
     deckPairIds,
     matchedPairIds: Array.from(matchedSet),
-    moves,
   };
 };
 
