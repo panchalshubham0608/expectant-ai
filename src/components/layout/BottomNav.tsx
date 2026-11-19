@@ -54,26 +54,31 @@ function BottomNav() {
       name: 'Home',
       path: basePath,
       icon: Home,
+      activeClass: 'bg-emerald-50 text-emerald-700 font-semibold',
     },
     {
       name: 'Daily',
       path: `${basePath}/daily`,
       icon: Sparkles,
+      activeClass: 'bg-amber-50 text-amber-700 font-semibold',
     },
     {
       name: 'Play',
       path: `${basePath}/mind-play`,
       icon: Puzzle,
+      activeClass: 'bg-indigo-50 text-indigo-700 font-semibold',
     },
     {
       name: 'Journal',
       path: `${basePath}/journal`,
       icon: MessageCircle,
+      activeClass: 'bg-teal-50 text-teal-700 font-semibold',
     },
     {
       name: 'Health',
       path: `${basePath}/health`,
       icon: HeartPulse,
+      activeClass: 'bg-purple-50 text-purple-700 font-semibold',
     },
   ];
 
@@ -84,6 +89,7 @@ function BottomNav() {
       path: `${basePath}/appointments`,
       icon: Stethoscope,
       iconBg: 'bg-sky-50 text-sky-600',
+      navActiveClass: 'bg-sky-50 text-sky-700 font-semibold',
     },
     {
       name: 'Reports',
@@ -91,6 +97,7 @@ function BottomNav() {
       path: `${basePath}/reports`,
       icon: FileText,
       iconBg: 'bg-indigo-50 text-indigo-600',
+      navActiveClass: 'bg-indigo-50 text-indigo-700 font-semibold',
     },
     {
       name: 'Reminders',
@@ -98,6 +105,7 @@ function BottomNav() {
       path: `${basePath}/reminders`,
       icon: BellRing,
       iconBg: 'bg-amber-50 text-amber-600',
+      navActiveClass: 'bg-amber-50 text-amber-700 font-semibold',
     },
     {
       name: 'Profile',
@@ -105,10 +113,11 @@ function BottomNav() {
       path: `${basePath}/expectant`,
       icon: User,
       iconBg: 'bg-emerald-50 text-emerald-600',
+      navActiveClass: 'bg-emerald-50 text-emerald-700 font-semibold',
     },
   ];
 
-  const isMoreRouteActive = morePages.some((page) => location.pathname === page.path);
+  const activeMorePage = morePages.find((page) => location.pathname === page.path);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -136,7 +145,7 @@ function BottomNav() {
       border-t border-gray-100 bg-white/95 backdrop-blur-md
       "
     >
-      <div className="relative mx-auto flex max-w-md items-center justify-around px-1 py-2.5">
+      <div className="relative mx-auto flex max-w-md items-center justify-around px-1.5 py-2">
         {primaryItems.map((item) => {
           const Icon = item.icon;
 
@@ -147,12 +156,12 @@ function BottomNav() {
               end={item.path === basePath}
               className={({ isActive }) =>
                 `
-                flex min-w-[52px] flex-col items-center gap-1 rounded-xl px-1.5 py-0.5 text-[11px] font-medium transition
-                ${isActive ? 'text-green-700' : 'text-gray-400 hover:text-gray-600'}
+                flex min-w-[54px] flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] transition
+                ${isActive ? item.activeClass : 'font-medium text-gray-400 hover:text-gray-600'}
                 `
               }
             >
-              <Icon size={21} />
+              <Icon size={20} />
               <span>{item.name}</span>
             </NavLink>
           );
@@ -162,15 +171,17 @@ function BottomNav() {
           <button
             type="button"
             onClick={() => setIsMenuOpen((open) => !open)}
-            className={`flex min-w-[52px] flex-col items-center gap-1 rounded-xl px-1.5 py-0.5 text-[11px] font-medium transition ${
-              isMenuOpen || isMoreRouteActive
-                ? 'text-green-700'
-                : 'text-gray-400 hover:text-gray-600'
+            className={`flex min-w-[54px] flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] transition ${
+              activeMorePage
+                ? activeMorePage.navActiveClass
+                : isMenuOpen
+                  ? 'bg-slate-100 font-semibold text-slate-800'
+                  : 'font-medium text-gray-400 hover:text-gray-600'
             }`}
             aria-label="Open more pages and settings"
             aria-expanded={isMenuOpen}
           >
-            <Menu size={21} />
+            <Menu size={20} />
             <span>More</span>
           </button>
         )}
