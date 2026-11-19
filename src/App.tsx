@@ -19,6 +19,7 @@ import Reminders from './pages/Reminders';
 import WeeklyUpdates from './pages/WeeklyUpdates';
 import BabyNames from './pages/BabyNames';
 import DailyDigestPage from './pages/DailyDigestPage';
+import MindPlay from './pages/MindPlay';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
@@ -49,6 +50,7 @@ function App() {
             <Route path="reminders" element={<Reminders />} />
             <Route path="weekly-updates" element={<WeeklyUpdates />} />
             <Route path="baby-names" element={<BabyNames />} />
+            <Route path="mind-play" element={<MindPlay />} />
           </Route>
         </Route>
       </Routes>
