@@ -1,5 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Palette, RotateCcw, Sparkles, Undo2 } from 'lucide-react';
+import { loadMandalaState, saveMandalaState } from '../../utils/mindPlayStorage';
+
+interface MandalaColoringActivityProps {
+  profileId: string;
+}
 
 interface PaletteColor {
   name: string;
@@ -29,6 +34,13 @@ type RingKey = 'center' | 'inner' | 'mid' | 'outer' | 'dots' | 'halo';
 const getRegionId = (ring: RingKey, idx?: number): string =>
   ring === 'center' ? 'center' : `${ring}-${idx}`;
 
+const ALLOWED_REGION_IDS = new Set<string>([
+  'center',
+  ...(['inner', 'mid', 'outer', 'dots', 'halo'] as const).flatMap((ring) =>
+    PETAL_INDICES.map((i) => getRegionId(ring, i))
+  ),
+]);
+
 const PRESET_FILLS: Record<string, string> = {
   center: '#fde68a',
   ...Object.fromEntries(PETAL_INDICES.map((i) => [`inner-${i}`, i % 2 === 0 ? '#fda4af' : '#fdba74'])),
@@ -38,11 +50,31 @@ const PRESET_FILLS: Record<string, string> = {
   ...Object.fromEntries(PETAL_INDICES.map((i) => [`halo-${i}`, '#fde68a'])),
 };
 
-export default function MandalaColoringActivity() {
-  const [selectedColor, setSelectedColor] = useState<string>(CALM_PALETTE[0].hex);
-  const [symmetryMode, setSymmetryMode] = useState<boolean>(true);
-  const [fills, setFills] = useState<Record<string, string>>({});
+export default function MandalaColoringActivity({ profileId }: MandalaColoringActivityProps) {
+  const [initialState] = useState(() => {
+    const saved = loadMandalaState(
+      profileId,
+      ALLOWED_HEX_SET,
+      ALLOWED_REGION_IDS,
+      CALM_PALETTE[0].hex
+    );
+    return (
+      saved ?? {
+        selectedColor: CALM_PALETTE[0].hex,
+        symmetryMode: true,
+        fills: {} as Record<string, string>,
+      }
+    );
+  });
+
+  const [selectedColor, setSelectedColor] = useState<string>(initialState.selectedColor);
+  const [symmetryMode, setSymmetryMode] = useState<boolean>(initialState.symmetryMode);
+  const [fills, setFills] = useState<Record<string, string>>(initialState.fills);
   const [history, setHistory] = useState<Record<string, string>[]>([]);
+
+  useEffect(() => {
+    saveMandalaState(profileId, { selectedColor, symmetryMode, fills });
+  }, [profileId, selectedColor, symmetryMode, fills]);
 
   const applyColor = (ring: RingKey, idx?: number) => {
     const safeColor = ALLOWED_HEX_SET.has(selectedColor) ? selectedColor : DEFAULT_FILL;

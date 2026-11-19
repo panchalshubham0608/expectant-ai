@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Pause, Play, RotateCcw, Wind } from 'lucide-react';
+import {
+  loadBreathingRhythm,
+  saveBreathingRhythm,
+  type BreathingRhythmKey,
+} from '../../utils/mindPlayStorage';
 
-type RhythmKey = 'gentle' | 'deep';
+interface CalmBreathingActivityProps {
+  profileId: string;
+}
 
 interface BreathingPhase {
   label: string;
@@ -10,7 +17,10 @@ interface BreathingPhase {
   scaleClass: string;
 }
 
-const RHYTHMS: Record<RhythmKey, { name: string; subtitle: string; phases: BreathingPhase[] }> = {
+const RHYTHMS: Record<
+  BreathingRhythmKey,
+  { name: string; subtitle: string; phases: BreathingPhase[] }
+> = {
   gentle: {
     name: 'Gentle Wave (4–2–4)',
     subtitle: 'Easy, comfortable rhythm for any trimester',
@@ -61,15 +71,23 @@ const RHYTHMS: Record<RhythmKey, { name: string; subtitle: string; phases: Breat
   },
 };
 
-export default function CalmBreathingActivity() {
-  const [rhythmKey, setRhythmKey] = useState<RhythmKey>('gentle');
+export default function CalmBreathingActivity({ profileId }: CalmBreathingActivityProps) {
+  const [rhythmKey, setRhythmKey] = useState<BreathingRhythmKey>(
+    () => loadBreathingRhythm(profileId) ?? 'gentle'
+  );
   const [isRunning, setIsRunning] = useState(false);
   const [phaseIndex, setPhaseIndex] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState(RHYTHMS.gentle.phases[0].seconds);
+  const [secondsLeft, setSecondsLeft] = useState(
+    () => RHYTHMS[loadBreathingRhythm(profileId) ?? 'gentle'].phases[0].seconds
+  );
   const [completedCycles, setCompletedCycles] = useState(0);
 
   const rhythm = RHYTHMS[rhythmKey];
   const currentPhase = rhythm.phases[phaseIndex];
+
+  useEffect(() => {
+    saveBreathingRhythm(profileId, rhythmKey);
+  }, [profileId, rhythmKey]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -90,7 +108,7 @@ export default function CalmBreathingActivity() {
     return () => window.clearInterval(interval);
   }, [isRunning, phaseIndex, rhythm]);
 
-  const handleChangeRhythm = (nextKey: RhythmKey) => {
+  const handleChangeRhythm = (nextKey: BreathingRhythmKey) => {
     setIsRunning(false);
     setRhythmKey(nextKey);
     setPhaseIndex(0);

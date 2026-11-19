@@ -1,15 +1,44 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, Eraser, Info, Lightbulb, RefreshCw } from 'lucide-react';
 import { generateCalmSudoku, type SudokuBoard, type SudokuSize } from '../../utils/sudokuGenerator';
+import { loadSudokuState, saveSudokuState } from '../../utils/mindPlayStorage';
 
-export default function CalmSudokuActivity() {
-  const [size, setSize] = useState<SudokuSize>(4);
-  const [board, setBoard] = useState<SudokuBoard>(() => generateCalmSudoku(4));
-  const [values, setValues] = useState<number[]>(() => [...board.puzzle]);
+interface CalmSudokuActivityProps {
+  profileId: string;
+}
+
+const isBoardSolved = (values: number[], board: SudokuBoard): boolean =>
+  values.every((val, idx) => val === board.solution[idx]);
+
+export default function CalmSudokuActivity({ profileId }: CalmSudokuActivityProps) {
+  const [initialState] = useState(() => {
+    const saved = loadSudokuState(profileId);
+    if (saved) return saved;
+    const freshBoard = generateCalmSudoku(4);
+    return {
+      size: 4 as SudokuSize,
+      board: freshBoard,
+      values: [...freshBoard.puzzle],
+    };
+  });
+
+  const [size, setSize] = useState<SudokuSize>(initialState.size);
+  const [board, setBoard] = useState<SudokuBoard>(initialState.board);
+  const [values, setValues] = useState<number[]>(initialState.values);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [checkedWrongIndices, setCheckedWrongIndices] = useState<number[]>([]);
-  const [isSolved, setIsSolved] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isSolved, setIsSolved] = useState<boolean>(() =>
+    isBoardSolved(initialState.values, initialState.board)
+  );
+  const [statusMessage, setStatusMessage] = useState<string | null>(() =>
+    isBoardSolved(initialState.values, initialState.board)
+      ? 'Beautifully done! Every row, column, and box is in calm harmony.'
+      : null
+  );
+
+  useEffect(() => {
+    saveSudokuState(profileId, { size, board, values });
+  }, [profileId, size, board, values]);
 
   const startNewBoard = (nextSize: SudokuSize) => {
     const nextBoard = generateCalmSudoku(nextSize);
@@ -23,7 +52,7 @@ export default function CalmSudokuActivity() {
   };
 
   const checkSolved = (nextValues: number[], currentBoard: SudokuBoard): boolean =>
-    nextValues.every((val, idx) => val === currentBoard.solution[idx]);
+    isBoardSolved(nextValues, currentBoard);
 
   const handleSetNumber = (num: number) => {
     if (selectedIndex === null || isSolved) return;
@@ -139,7 +168,9 @@ export default function CalmSudokuActivity() {
             <button
               key={optionSize}
               type="button"
-              onClick={() => startNewBoard(optionSize)}
+              onClick={() => {
+                if (optionSize !== size) startNewBoard(optionSize);
+              }}
               aria-pressed={size === optionSize}
               className={`rounded-xl py-2 text-xs font-semibold transition ${
                 size === optionSize

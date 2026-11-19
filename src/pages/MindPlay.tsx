@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   AlertCircle,
-  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   ChevronRight,
@@ -496,46 +495,38 @@ export default function MindPlay() {
   return (
     <div className="-mx-4 -mt-6 pb-24">
       {/* Header Section */}
-      <div className="relative overflow-hidden rounded-b-[2.5rem] bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 px-6 pb-20 pt-10 shadow-lg">
+      <div className="relative overflow-hidden rounded-b-[2.5rem] bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 px-6 pb-20 pt-12 shadow-lg">
         <div className="absolute -right-8 -top-8 h-48 w-48 rounded-full bg-white opacity-10 blur-2xl"></div>
         <div className="absolute -left-8 top-16 h-32 w-32 rounded-full bg-white opacity-10 blur-2xl"></div>
 
-        <div className="relative z-10">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <Link
-              to={`/profile/${id}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md transition hover:bg-white/25"
+        <div className="relative z-10 flex items-start justify-between gap-4">
+          <div>
+            <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-indigo-50 backdrop-blur-sm">
+              <Sparkles size={12} />
+              <span>Calm Focus &amp; Joy</span>
+            </div>
+            <h1 className="mb-1.5 text-2xl font-bold tracking-tight text-white">Mindful Play</h1>
+            <p className="max-w-[260px] text-sm leading-relaxed text-indigo-100/90">
+              Drop in anytime today for gentle daily puzzles, calm sudoku, mandala coloring, and
+              mindful breathing.
+            </p>
+          </div>
+
+          {activeTab === 'ai' && (
+            <button
+              type="button"
+              onClick={handleRegenerateAll}
+              disabled={regeneratingTarget !== null || isEnsuringAi}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md transition hover:bg-white/30 disabled:opacity-60"
             >
-              <ArrowLeft size={14} />
-              <span>Home</span>
-            </Link>
-
-            {activeTab === 'ai' && (
-              <button
-                type="button"
-                onClick={handleRegenerateAll}
-                disabled={regeneratingTarget !== null || isEnsuringAi}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md transition hover:bg-white/30 disabled:opacity-60"
-              >
-                {regeneratingTarget === 'all' ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <RefreshCw size={13} />
-                )}
-                <span>Refresh puzzles</span>
-              </button>
-            )}
-          </div>
-
-          <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-indigo-50 backdrop-blur-sm">
-            <Sparkles size={12} />
-            <span>Calm Focus &amp; Joy</span>
-          </div>
-          <h1 className="mb-1.5 text-2xl font-bold tracking-tight text-white">Mindful Play</h1>
-          <p className="max-w-xs text-sm leading-relaxed text-indigo-100/90">
-            Drop in anytime today for gentle daily puzzles, calm sudoku, mandala coloring, and
-            mindful breathing.
-          </p>
+              {regeneratingTarget === 'all' ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <RefreshCw size={13} />
+              )}
+              <span>Refresh puzzles</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -798,10 +789,10 @@ export default function MindPlay() {
         {/* Built-In Activities View */}
         {activeTab === 'builtin' && (
           <div>
-            {activeBuiltIn === 'sudoku' && <CalmSudokuActivity />}
-            {activeBuiltIn === 'memory' && <MemoryMatchActivity />}
-            {activeBuiltIn === 'mandala' && <MandalaColoringActivity />}
-            {activeBuiltIn === 'breathing' && <CalmBreathingActivity />}
+            {activeBuiltIn === 'sudoku' && <CalmSudokuActivity key={id} profileId={id} />}
+            {activeBuiltIn === 'memory' && <MemoryMatchActivity key={id} profileId={id} />}
+            {activeBuiltIn === 'mandala' && <MandalaColoringActivity key={id} profileId={id} />}
+            {activeBuiltIn === 'breathing' && <CalmBreathingActivity key={id} profileId={id} />}
           </div>
         )}
 

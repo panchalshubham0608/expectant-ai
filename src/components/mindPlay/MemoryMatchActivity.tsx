@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, RefreshCw } from 'lucide-react';
+import {
+  loadMemoryState,
+  saveMemoryState,
+  type MemoryPairCount,
+} from '../../utils/mindPlayStorage';
 
-type PairCount = 6 | 8;
+interface MemoryMatchActivityProps {
+  profileId: string;
+}
 
 interface MemoryCardItem {
   uid: number;
@@ -22,7 +29,10 @@ const SYMBOLS: Omit<MemoryCardItem, 'uid'>[] = [
   { pairId: 'cloud', symbol: '☁️', label: 'Soft Cloud', tint: 'bg-teal-50 ring-teal-200' },
 ];
 
-const buildDeck = (pairCount: PairCount): MemoryCardItem[] => {
+const SYMBOL_BY_PAIR_ID = new Map(SYMBOLS.map((s) => [s.pairId, s]));
+const ORDERED_PAIR_IDS = SYMBOLS.map((s) => s.pairId);
+
+const buildDeck = (pairCount: MemoryPairCount): MemoryCardItem[] => {
   const chosen = SYMBOLS.slice(0, pairCount);
   const deck: MemoryCardItem[] = [];
   let uid = 0;
@@ -37,12 +47,36 @@ const buildDeck = (pairCount: PairCount): MemoryCardItem[] => {
   return deck;
 };
 
-export default function MemoryMatchActivity() {
-  const [pairCount, setPairCount] = useState<PairCount>(6);
-  const [cards, setCards] = useState<MemoryCardItem[]>(() => buildDeck(6));
+const rebuildDeckFromPairIds = (deckPairIds: string[]): MemoryCardItem[] =>
+  deckPairIds.map((pairId, idx) => {
+    const symbol = SYMBOL_BY_PAIR_ID.get(pairId) ?? SYMBOLS[0];
+    return { ...symbol, uid: idx };
+  });
+
+export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityProps) {
+  const [initialState] = useState(() => {
+    const saved = loadMemoryState(profileId, ORDERED_PAIR_IDS);
+    if (saved) {
+      return {
+        pairCount: saved.pairCount,
+        cards: rebuildDeckFromPairIds(saved.deckPairIds),
+        matchedPairIds: saved.matchedPairIds,
+        moves: saved.moves,
+      };
+    }
+    return {
+      pairCount: 6 as MemoryPairCount,
+      cards: buildDeck(6),
+      matchedPairIds: [] as string[],
+      moves: 0,
+    };
+  });
+
+  const [pairCount, setPairCount] = useState<MemoryPairCount>(initialState.pairCount);
+  const [cards, setCards] = useState<MemoryCardItem[]>(initialState.cards);
   const [flippedUids, setFlippedUids] = useState<number[]>([]);
-  const [matchedPairIds, setMatchedPairIds] = useState<string[]>([]);
-  const [moves, setMoves] = useState(0);
+  const [matchedPairIds, setMatchedPairIds] = useState<string[]>(initialState.matchedPairIds);
+  const [moves, setMoves] = useState(initialState.moves);
   const [isChecking, setIsChecking] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -54,7 +88,16 @@ export default function MemoryMatchActivity() {
     };
   }, []);
 
-  const resetGame = (nextPairCount: PairCount) => {
+  useEffect(() => {
+    saveMemoryState(profileId, {
+      pairCount,
+      deckPairIds: cards.map((c) => c.pairId),
+      matchedPairIds,
+      moves,
+    });
+  }, [profileId, pairCount, cards, matchedPairIds, moves]);
+
+  const resetGame = (nextPairCount: MemoryPairCount) => {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -119,7 +162,9 @@ export default function MemoryMatchActivity() {
             <button
               key={count}
               type="button"
-              onClick={() => resetGame(count)}
+              onClick={() => {
+                if (count !== pairCount) resetGame(count);
+              }}
               className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
                 pairCount === count
                   ? 'bg-white text-emerald-700 shadow-sm'
