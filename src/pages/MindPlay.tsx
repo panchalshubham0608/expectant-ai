@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   AlertCircle,
@@ -48,6 +48,12 @@ import CalmBreathingActivity from '../components/mindPlay/CalmBreathingActivity'
 import CalmStarlightPathsActivity from '../components/mindPlay/CalmStarlightPathsActivity';
 import HerbalTeaPourActivity from '../components/mindPlay/HerbalTeaPourActivity';
 import CozyNurseryDecoratorActivity from '../components/mindPlay/CozyNurseryDecoratorActivity';
+import LullabyStarChimesActivity from '../components/mindPlay/LullabyStarChimesActivity';
+import LittleStarConstellationsActivity from '../components/mindPlay/LittleStarConstellationsActivity';
+import WishesJarActivity from '../components/mindPlay/WishesJarActivity';
+import PastelGradientHarmonyActivity from '../components/mindPlay/PastelGradientHarmonyActivity';
+import MiniPictureCrossActivity from '../components/mindPlay/MiniPictureCrossActivity';
+import ZenRipplePondActivity from '../components/mindPlay/ZenRipplePondActivity';
 import {
   loadMindPlayNavState,
   saveMindPlayNavState,
@@ -64,7 +70,30 @@ const BONUS_GAMES: readonly BonusGameKind[] = [
   'starlight-paths',
   'tea-pour',
   'nursery-decorator',
+  'lullaby-chimes',
+  'star-constellations',
+  'wishes-jar',
+  'pastel-gradient',
+  'picture-cross',
+  'zen-pond',
 ] as const;
+
+const shuffleBonusGames = (excludeFirst?: BonusGameKind): BonusGameKind[] => {
+  const arr: BonusGameKind[] = [...BONUS_GAMES];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  if (excludeFirst && arr.length > 1 && arr[0] === excludeFirst) {
+    const swapIdx = 1 + Math.floor(Math.random() * (arr.length - 1));
+    const tmp = arr[0];
+    arr[0] = arr[swapIdx];
+    arr[swapIdx] = tmp;
+  }
+  return arr;
+};
 
 interface PuzzleCardEntry {
   kind: MindPuzzleKind;
@@ -256,6 +285,7 @@ export default function MindPlay() {
   };
 
   const [surpriseSolvedCount, setSurpriseSolvedCount] = useState(0);
+  const surpriseBagRef = useRef<BonusGameKind[]>([]);
 
   const handleSurpriseBoardSolved = useCallback(() => {
     setSurpriseSolvedCount((count) => count + 1);
@@ -273,11 +303,20 @@ export default function MindPlay() {
             : 'Level 5 · Master';
 
   const handleLaunchSurpriseGame = () => {
-    const candidates =
-      activeBuiltIn === 'surprise' && BONUS_GAMES.length > 1
-        ? BONUS_GAMES.filter((g) => g !== activeBonusGame)
-        : BONUS_GAMES;
-    const picked = candidates[Math.floor(Math.random() * candidates.length)];
+    const excludeCurrent = activeBuiltIn === 'surprise' ? activeBonusGame : undefined;
+    if (surpriseBagRef.current.length === 0) {
+      surpriseBagRef.current = shuffleBonusGames(excludeCurrent);
+    }
+    let picked = surpriseBagRef.current.shift();
+    if (excludeCurrent && picked === excludeCurrent && BONUS_GAMES.length > 1) {
+      if (surpriseBagRef.current.length === 0) {
+        surpriseBagRef.current = shuffleBonusGames(excludeCurrent);
+      }
+      picked = surpriseBagRef.current.shift();
+    }
+    if (!picked) {
+      picked = BONUS_GAMES[0];
+    }
     updateNavState({ activeBuiltIn: 'surprise', activeBonusGame: picked });
   };
 
@@ -939,6 +978,36 @@ export default function MindPlay() {
                 )}
                 {activeBonusGame === 'nursery-decorator' && (
                   <CozyNurseryDecoratorActivity key={`${id}-nursery`} />
+                )}
+                {activeBonusGame === 'lullaby-chimes' && (
+                  <LullabyStarChimesActivity key={`${id}-lullaby`} />
+                )}
+                {activeBonusGame === 'star-constellations' && (
+                  <LittleStarConstellationsActivity
+                    key={`${id}-constellations`}
+                    sessionSolvedCount={surpriseSolvedCount}
+                    onBoardSolved={handleSurpriseBoardSolved}
+                  />
+                )}
+                {activeBonusGame === 'wishes-jar' && (
+                  <WishesJarActivity key={`${id}-wishes-jar`} />
+                )}
+                {activeBonusGame === 'pastel-gradient' && (
+                  <PastelGradientHarmonyActivity
+                    key={`${id}-gradient`}
+                    sessionSolvedCount={surpriseSolvedCount}
+                    onBoardSolved={handleSurpriseBoardSolved}
+                  />
+                )}
+                {activeBonusGame === 'picture-cross' && (
+                  <MiniPictureCrossActivity
+                    key={`${id}-picture-cross`}
+                    sessionSolvedCount={surpriseSolvedCount}
+                    onBoardSolved={handleSurpriseBoardSolved}
+                  />
+                )}
+                {activeBonusGame === 'zen-pond' && (
+                  <ZenRipplePondActivity key={`${id}-zen-pond`} />
                 )}
               </div>
             )}
