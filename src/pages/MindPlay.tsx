@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   AlertCircle,
@@ -45,16 +45,21 @@ import CalmSudokuActivity from '../components/mindPlay/CalmSudokuActivity';
 import MemoryMatchActivity from '../components/mindPlay/MemoryMatchActivity';
 import MandalaColoringActivity from '../components/mindPlay/MandalaColoringActivity';
 import CalmBreathingActivity from '../components/mindPlay/CalmBreathingActivity';
+import CalmStarlightPathsActivity from '../components/mindPlay/CalmStarlightPathsActivity';
+import HerbalTeaPourActivity from '../components/mindPlay/HerbalTeaPourActivity';
 import {
   loadMindPlayNavState,
   saveMindPlayNavState,
+  type BonusGameKind,
   type MindPlayBuiltInKind,
   type MindPlayPuzzleFilter,
   type SavedMindPlayNavState,
 } from '../utils/mindPlayStorage';
 
 type PuzzleFilter = MindPlayPuzzleFilter;
-type BuiltInActivityKind = MindPlayBuiltInKind;
+type VisibleBuiltInActivityKind = Exclude<MindPlayBuiltInKind, 'surprise'>;
+
+const BONUS_GAMES: readonly BonusGameKind[] = ['starlight-paths', 'tea-pour'] as const;
 
 interface PuzzleCardEntry {
   kind: MindPuzzleKind;
@@ -138,7 +143,7 @@ const PUZZLE_KIND_STYLES: Record<
 };
 
 const BUILTIN_ACTIVITIES: {
-  key: BuiltInActivityKind;
+  key: VisibleBuiltInActivityKind;
   label: string;
   subtitle: string;
   icon: typeof Grid3X3;
@@ -232,7 +237,7 @@ export default function MindPlay() {
     return override ? { ...persisted, ...override } : persisted;
   }, [id, navOverridesByProfile]);
 
-  const { activeTab, puzzleFilter, activeBuiltIn } = navState;
+  const { activeTab, puzzleFilter, activeBuiltIn, activeBonusGame } = navState;
 
   const updateNavState = (patch: Partial<SavedMindPlayNavState>) => {
     const next: SavedMindPlayNavState = { ...navState, ...patch };
@@ -243,6 +248,32 @@ export default function MindPlay() {
         [id]: { ...(prev[id] ?? {}), ...patch },
       }));
     }
+  };
+
+  const [surpriseSolvedCount, setSurpriseSolvedCount] = useState(0);
+
+  const handleSurpriseBoardSolved = useCallback(() => {
+    setSurpriseSolvedCount((count) => count + 1);
+  }, []);
+
+  const surpriseLevelLabel =
+    surpriseSolvedCount < 2
+      ? 'Level 1 · Gentle'
+      : surpriseSolvedCount < 4
+        ? 'Level 2 · Soft'
+        : surpriseSolvedCount < 6
+          ? 'Level 3 · Cozy'
+          : surpriseSolvedCount < 9
+            ? 'Level 4 · Deep'
+            : 'Level 5 · Master';
+
+  const handleLaunchSurpriseGame = () => {
+    const candidates =
+      activeBuiltIn === 'surprise' && BONUS_GAMES.length > 1
+        ? BONUS_GAMES.filter((g) => g !== activeBonusGame)
+        : BONUS_GAMES;
+    const picked = candidates[Math.floor(Math.random() * candidates.length)];
+    updateNavState({ activeBuiltIn: 'surprise', activeBonusGame: picked });
   };
 
   const [puzzles, setPuzzles] = useState<DailyMindPuzzles | null>(null);
@@ -627,43 +658,95 @@ export default function MindPlay() {
               )}
             </div>
           ) : (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {BUILTIN_ACTIVITIES.map(
-                ({ key, label, subtitle, icon: Icon, iconClass, activeClass }) => {
-                  const isSelected = activeBuiltIn === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => updateNavState({ activeBuiltIn: key })}
-                      aria-pressed={isSelected}
-                      className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
-                        isSelected
-                          ? activeClass
-                          : 'bg-gray-50 text-gray-700 ring-1 ring-gray-200/70 hover:bg-gray-100'
-                      }`}
-                    >
-                      <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-                          isSelected ? 'bg-white/20 text-white' : `bg-white ${iconClass} shadow-sm`
+            <div className="mt-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                {BUILTIN_ACTIVITIES.map(
+                  ({ key, label, subtitle, icon: Icon, iconClass, activeClass }) => {
+                    const isSelected = activeBuiltIn === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => updateNavState({ activeBuiltIn: key })}
+                        aria-pressed={isSelected}
+                        className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
+                          isSelected
+                            ? activeClass
+                            : 'bg-gray-50 text-gray-700 ring-1 ring-gray-200/70 hover:bg-gray-100'
                         }`}
                       >
-                        <Icon size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-bold">{label}</p>
-                        <p
-                          className={`truncate text-[10px] ${
-                            isSelected ? 'text-white/85' : 'text-gray-500'
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                            isSelected
+                              ? 'bg-white/20 text-white'
+                              : `bg-white ${iconClass} shadow-sm`
                           }`}
                         >
-                          {subtitle}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                }
-              )}
+                          <Icon size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold">{label}</p>
+                          <p
+                            className={`truncate text-[10px] ${
+                              isSelected ? 'text-white/85' : 'text-gray-500'
+                            }`}
+                          >
+                            {subtitle}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLaunchSurpriseGame}
+                aria-pressed={activeBuiltIn === 'surprise'}
+                className={`flex w-full items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 text-left transition active:scale-[0.99] ${
+                  activeBuiltIn === 'surprise'
+                    ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 text-white shadow-sm'
+                    : 'bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-teal-50/90 text-indigo-950 ring-1 ring-indigo-200/70 hover:from-indigo-100/80 hover:to-teal-100/80'
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                      activeBuiltIn === 'surprise'
+                        ? 'bg-white/20 text-white'
+                        : 'bg-white text-indigo-600 shadow-sm'
+                    }`}
+                  >
+                    <Shuffle size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold">
+                      {activeBuiltIn === 'surprise'
+                        ? 'Surprise Game Active'
+                        : 'Surprise me with a bonus game'}
+                    </p>
+                    <p
+                      className={`truncate text-[10px] ${
+                        activeBuiltIn === 'surprise' ? 'text-white/85' : 'text-indigo-700/80'
+                      }`}
+                    >
+                      {activeBuiltIn === 'surprise'
+                        ? 'Tap anytime to jump into another hidden calm game'
+                        : 'Discover a random hidden calm game from our bonus vault'}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                    activeBuiltIn === 'surprise'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-white text-indigo-700 shadow-xs'
+                  }`}
+                >
+                  {activeBuiltIn === 'surprise' ? 'Shuffle' : 'Surprise'}
+                </span>
+              </button>
             </div>
           )}
         </div>
@@ -818,6 +901,41 @@ export default function MindPlay() {
             {activeBuiltIn === 'memory' && <MemoryMatchActivity key={id} profileId={id} />}
             {activeBuiltIn === 'mandala' && <MandalaColoringActivity key={id} profileId={id} />}
             {activeBuiltIn === 'breathing' && <CalmBreathingActivity key={id} profileId={id} />}
+            {activeBuiltIn === 'surprise' && (
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
+                    <Sparkles size={12} />
+                    <span>{surpriseLevelLabel}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleLaunchSurpriseGame}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-xs ring-1 ring-indigo-200/80 transition hover:bg-indigo-50 active:scale-95"
+                  >
+                    <Shuffle size={12} />
+                    <span>Try another game</span>
+                  </button>
+                </div>
+
+                {activeBonusGame === 'starlight-paths' && (
+                  <CalmStarlightPathsActivity
+                    key={`${id}-starlight`}
+                    profileId={id}
+                    sessionSolvedCount={surpriseSolvedCount}
+                    onBoardSolved={handleSurpriseBoardSolved}
+                  />
+                )}
+                {activeBonusGame === 'tea-pour' && (
+                  <HerbalTeaPourActivity
+                    key={`${id}-teapour`}
+                    profileId={id}
+                    sessionSolvedCount={surpriseSolvedCount}
+                    onBoardSolved={handleSurpriseBoardSolved}
+                  />
+                )}
+              </div>
+            )}
           </div>
         )}
 
