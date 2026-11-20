@@ -34,6 +34,13 @@ const GRID_COLS_CLASS: Record<StarlightGridSize, string> = {
   8: 'grid-cols-8',
 };
 
+const GRID_ROWS_CLASS: Record<StarlightGridSize, string> = {
+  5: 'grid-rows-5',
+  6: 'grid-rows-6',
+  7: 'grid-rows-7',
+  8: 'grid-rows-8',
+};
+
 const ENDPOINT_SIZE_CLASS: Record<StarlightGridSize, string> = {
   5: 'h-10 w-10 text-xl',
   6: 'h-9 w-9 text-lg',
@@ -415,7 +422,7 @@ export default function CalmStarlightPathsActivity({
           className="relative aspect-square w-full max-w-[320px] touch-none select-none overflow-hidden rounded-2xl border-2 border-indigo-200/80 bg-slate-50/70 shadow-inner"
         >
           {/* Underlying cell grid */}
-          <div className={`grid h-full w-full ${GRID_COLS_CLASS[size]}`}>
+          <div className={`grid h-full w-full ${GRID_COLS_CLASS[size]} ${GRID_ROWS_CLASS[size]}`}>
             {Array.from({ length: totalCells }, (_, cellIdx) => {
               const ownerId = cellOwner.get(cellIdx);
               const ownerSpec = ownerId ? STARLIGHT_TOKEN_BY_ID.get(ownerId) : undefined;
@@ -431,7 +438,7 @@ export default function CalmStarlightPathsActivity({
                   style={{
                     backgroundColor: ownerSpec ? `${ownerSpec.softBg}99` : undefined,
                   }}
-                  className="relative flex cursor-pointer items-center justify-center border border-indigo-100/70 transition-colors"
+                  className="relative flex min-h-0 min-w-0 cursor-pointer items-center justify-center border border-indigo-100/70 transition-colors"
                 >
                   {endpoint && endpointSpec && (
                     <div

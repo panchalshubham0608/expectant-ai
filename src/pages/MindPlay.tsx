@@ -47,13 +47,7 @@ import MandalaColoringActivity from '../components/mindPlay/MandalaColoringActiv
 import CalmBreathingActivity from '../components/mindPlay/CalmBreathingActivity';
 import CalmStarlightPathsActivity from '../components/mindPlay/CalmStarlightPathsActivity';
 import HerbalTeaPourActivity from '../components/mindPlay/HerbalTeaPourActivity';
-import CozyNurseryDecoratorActivity from '../components/mindPlay/CozyNurseryDecoratorActivity';
 import LullabyStarChimesActivity from '../components/mindPlay/LullabyStarChimesActivity';
-import LittleStarConstellationsActivity from '../components/mindPlay/LittleStarConstellationsActivity';
-import WishesJarActivity from '../components/mindPlay/WishesJarActivity';
-import PastelGradientHarmonyActivity from '../components/mindPlay/PastelGradientHarmonyActivity';
-import MiniPictureCrossActivity from '../components/mindPlay/MiniPictureCrossActivity';
-import ZenRipplePondActivity from '../components/mindPlay/ZenRipplePondActivity';
 import {
   loadMindPlayNavState,
   saveMindPlayNavState,
@@ -69,13 +63,7 @@ type VisibleBuiltInActivityKind = Exclude<MindPlayBuiltInKind, 'surprise'>;
 const BONUS_GAMES: readonly BonusGameKind[] = [
   'starlight-paths',
   'tea-pour',
-  'nursery-decorator',
   'lullaby-chimes',
-  'star-constellations',
-  'wishes-jar',
-  'pastel-gradient',
-  'picture-cross',
-  'zen-pond',
 ] as const;
 
 const shuffleBonusGames = (excludeFirst?: BonusGameKind): BonusGameKind[] => {
@@ -976,38 +964,8 @@ export default function MindPlay() {
                     onBoardSolved={handleSurpriseBoardSolved}
                   />
                 )}
-                {activeBonusGame === 'nursery-decorator' && (
-                  <CozyNurseryDecoratorActivity key={`${id}-nursery`} />
-                )}
                 {activeBonusGame === 'lullaby-chimes' && (
                   <LullabyStarChimesActivity key={`${id}-lullaby`} />
-                )}
-                {activeBonusGame === 'star-constellations' && (
-                  <LittleStarConstellationsActivity
-                    key={`${id}-constellations`}
-                    sessionSolvedCount={surpriseSolvedCount}
-                    onBoardSolved={handleSurpriseBoardSolved}
-                  />
-                )}
-                {activeBonusGame === 'wishes-jar' && (
-                  <WishesJarActivity key={`${id}-wishes-jar`} />
-                )}
-                {activeBonusGame === 'pastel-gradient' && (
-                  <PastelGradientHarmonyActivity
-                    key={`${id}-gradient`}
-                    sessionSolvedCount={surpriseSolvedCount}
-                    onBoardSolved={handleSurpriseBoardSolved}
-                  />
-                )}
-                {activeBonusGame === 'picture-cross' && (
-                  <MiniPictureCrossActivity
-                    key={`${id}-picture-cross`}
-                    sessionSolvedCount={surpriseSolvedCount}
-                    onBoardSolved={handleSurpriseBoardSolved}
-                  />
-                )}
-                {activeBonusGame === 'zen-pond' && (
-                  <ZenRipplePondActivity key={`${id}-zen-pond`} />
                 )}
               </div>
             )}

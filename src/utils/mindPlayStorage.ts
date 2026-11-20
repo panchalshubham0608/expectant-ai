@@ -272,16 +272,7 @@ export const saveBreathingRhythm = (profileId: string, rhythmKey: BreathingRhyth
 export type MindPlayMainTab = 'ai' | 'builtin';
 export type MindPlayPuzzleFilter = 'all' | 'connections' | 'wordScramble' | 'riddle';
 export type MindPlayBuiltInKind = 'sudoku' | 'memory' | 'mandala' | 'breathing' | 'surprise';
-export type BonusGameKind =
-  | 'starlight-paths'
-  | 'tea-pour'
-  | 'nursery-decorator'
-  | 'lullaby-chimes'
-  | 'star-constellations'
-  | 'wishes-jar'
-  | 'pastel-gradient'
-  | 'picture-cross'
-  | 'zen-pond';
+export type BonusGameKind = 'starlight-paths' | 'tea-pour' | 'lullaby-chimes';
 
 export interface SavedMindPlayNavState {
   activeTab: MindPlayMainTab;
@@ -309,13 +300,7 @@ const ALLOWED_BUILTIN_KINDS = new Set<MindPlayBuiltInKind>([
 const ALLOWED_BONUS_GAMES = new Set<BonusGameKind>([
   'starlight-paths',
   'tea-pour',
-  'nursery-decorator',
   'lullaby-chimes',
-  'star-constellations',
-  'wishes-jar',
-  'pastel-gradient',
-  'picture-cross',
-  'zen-pond',
 ]);
 
 const DEFAULT_MINDPLAY_NAV_STATE: SavedMindPlayNavState = {
