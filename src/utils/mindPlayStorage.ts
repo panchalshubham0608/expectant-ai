@@ -267,21 +267,36 @@ export const saveBreathingRhythm = (profileId: string, rhythmKey: BreathingRhyth
   writeJson(buildKey(profileId, 'breathing'), { rhythmKey });
 };
 
-/* ---------- MindPlay Navigation Category Persistence ---------- */
+/* ---------- MindPlay Navigation & Most-Played Persistence ---------- */
 
 export type MindPlayMainTab = 'ai' | 'builtin';
 export type MindPlayPuzzleFilter = 'all' | 'connections' | 'wordScramble' | 'riddle';
-export type MindPlayBuiltInKind = 'sudoku' | 'memory' | 'mandala' | 'breathing' | 'surprise';
-export type BonusGameKind = 'starlight-paths' | 'tea-pour' | 'lullaby-chimes';
+export type MindPlayBuiltInKind =
+  | 'sudoku'
+  | 'memory'
+  | 'mandala'
+  | 'breathing'
+  | 'starlight-paths'
+  | 'tea-pour'
+  | 'lullaby-chimes'
+  | 'four-in-a-row'
+  | 'dots-and-boxes'
+  | 'reversi'
+  | 'mancala'
+  | 'gomoku'
+  | 'word-duel';
+
+export type MindPlayPlayCounts = Partial<Record<MindPlayBuiltInKind, number>>;
 
 export interface SavedMindPlayNavState {
   activeTab: MindPlayMainTab;
   puzzleFilter: MindPlayPuzzleFilter;
   activeBuiltIn: MindPlayBuiltInKind;
-  activeBonusGame: BonusGameKind;
 }
 
 const NAV_STORAGE_PREFIX = 'mindPlay:nav';
+const PLAY_COUNTS_STORAGE_PREFIX = 'mindPlay:playCounts';
+const MAX_PLAY_COUNT = 99999;
 
 const ALLOWED_MAIN_TABS = new Set<MindPlayMainTab>(['ai', 'builtin']);
 const ALLOWED_PUZZLE_FILTERS = new Set<MindPlayPuzzleFilter>([
@@ -295,19 +310,21 @@ const ALLOWED_BUILTIN_KINDS = new Set<MindPlayBuiltInKind>([
   'memory',
   'mandala',
   'breathing',
-  'surprise',
-]);
-const ALLOWED_BONUS_GAMES = new Set<BonusGameKind>([
   'starlight-paths',
   'tea-pour',
   'lullaby-chimes',
+  'four-in-a-row',
+  'dots-and-boxes',
+  'reversi',
+  'mancala',
+  'gomoku',
+  'word-duel',
 ]);
 
 const DEFAULT_MINDPLAY_NAV_STATE: SavedMindPlayNavState = {
   activeTab: 'ai',
   puzzleFilter: 'all',
   activeBuiltIn: 'sudoku',
-  activeBonusGame: 'starlight-paths',
 };
 
 export const loadMindPlayNavState = (profileId: string | undefined): SavedMindPlayNavState => {
@@ -330,19 +347,19 @@ export const loadMindPlayNavState = (profileId: string | undefined): SavedMindPl
       ? (record.puzzleFilter as MindPlayPuzzleFilter)
       : DEFAULT_MINDPLAY_NAV_STATE.puzzleFilter;
 
+  // Gracefully migrate legacy { activeBuiltIn: 'surprise', activeBonusGame: '...' }
+  let candidateBuiltIn: unknown = record.activeBuiltIn;
+  if (candidateBuiltIn === 'surprise' && typeof record.activeBonusGame === 'string') {
+    candidateBuiltIn = record.activeBonusGame;
+  }
+
   const activeBuiltIn =
-    typeof record.activeBuiltIn === 'string' &&
-    ALLOWED_BUILTIN_KINDS.has(record.activeBuiltIn as MindPlayBuiltInKind)
-      ? (record.activeBuiltIn as MindPlayBuiltInKind)
+    typeof candidateBuiltIn === 'string' &&
+    ALLOWED_BUILTIN_KINDS.has(candidateBuiltIn as MindPlayBuiltInKind)
+      ? (candidateBuiltIn as MindPlayBuiltInKind)
       : DEFAULT_MINDPLAY_NAV_STATE.activeBuiltIn;
 
-  const activeBonusGame =
-    typeof record.activeBonusGame === 'string' &&
-    ALLOWED_BONUS_GAMES.has(record.activeBonusGame as BonusGameKind)
-      ? (record.activeBonusGame as BonusGameKind)
-      : DEFAULT_MINDPLAY_NAV_STATE.activeBonusGame;
-
-  return { activeTab, puzzleFilter, activeBuiltIn, activeBonusGame };
+  return { activeTab, puzzleFilter, activeBuiltIn };
 };
 
 export const saveMindPlayNavState = (
@@ -350,4 +367,45 @@ export const saveMindPlayNavState = (
   state: SavedMindPlayNavState
 ): void => {
   writeJson(`${NAV_STORAGE_PREFIX}:${profileId}`, state);
+};
+
+export const loadMindPlayPlayCounts = (
+  profileId: string | undefined
+): MindPlayPlayCounts => {
+  if (!profileId) return {};
+  const raw = readJson(`${PLAY_COUNTS_STORAGE_PREFIX}:${profileId}`);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+
+  const counts: MindPlayPlayCounts = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (
+      ALLOWED_BUILTIN_KINDS.has(key as MindPlayBuiltInKind) &&
+      typeof val === 'number' &&
+      Number.isInteger(val) &&
+      val > 0
+    ) {
+      counts[key as MindPlayBuiltInKind] = Math.min(val, MAX_PLAY_COUNT);
+    }
+  }
+  return counts;
+};
+
+export const saveMindPlayPlayCounts = (
+  profileId: string,
+  counts: MindPlayPlayCounts
+): void => {
+  const sanitized: MindPlayPlayCounts = {};
+  for (const [key, val] of Object.entries(counts)) {
+    if (
+      ALLOWED_BUILTIN_KINDS.has(key as MindPlayBuiltInKind) &&
+      typeof val === 'number' &&
+      Number.isInteger(val) &&
+      val > 0
+    ) {
+      sanitized[key as MindPlayBuiltInKind] = Math.min(val, MAX_PLAY_COUNT);
+    }
+  }
+  writeJson(`${PLAY_COUNTS_STORAGE_PREFIX}:${profileId}`, sanitized);
 };

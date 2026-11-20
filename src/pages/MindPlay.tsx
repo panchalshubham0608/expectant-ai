@@ -5,19 +5,15 @@ import {
   ArrowRight,
   CheckCircle2,
   ChevronRight,
-  Flower2,
-  Grid3X3,
   LayoutGrid,
   Lightbulb,
   Loader2,
-  Palette,
   Play,
   Puzzle,
   RefreshCw,
   Shuffle,
   Sparkles,
   Type,
-  Wind,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -41,6 +37,7 @@ import ConnectionsPuzzleCard from '../components/mindPlay/ConnectionsPuzzleCard'
 import WordScrambleCard from '../components/mindPlay/WordScrambleCard';
 import RiddlePuzzleCard from '../components/mindPlay/RiddlePuzzleCard';
 import PuzzlePlayModal from '../components/mindPlay/PuzzlePlayModal';
+import GameCollectionModal from '../components/mindPlay/GameCollectionModal';
 import CalmSudokuActivity from '../components/mindPlay/CalmSudokuActivity';
 import MemoryMatchActivity from '../components/mindPlay/MemoryMatchActivity';
 import MandalaColoringActivity from '../components/mindPlay/MandalaColoringActivity';
@@ -48,26 +45,36 @@ import CalmBreathingActivity from '../components/mindPlay/CalmBreathingActivity'
 import CalmStarlightPathsActivity from '../components/mindPlay/CalmStarlightPathsActivity';
 import HerbalTeaPourActivity from '../components/mindPlay/HerbalTeaPourActivity';
 import LullabyStarChimesActivity from '../components/mindPlay/LullabyStarChimesActivity';
+import FourInARowActivity from '../components/mindPlay/FourInARowActivity';
+import DotsAndBoxesActivity from '../components/mindPlay/DotsAndBoxesActivity';
+import ReversiActivity from '../components/mindPlay/ReversiActivity';
+import MancalaActivity from '../components/mindPlay/MancalaActivity';
+import GomokuActivity from '../components/mindPlay/GomokuActivity';
+import WordDuelActivity from '../components/mindPlay/WordDuelActivity';
+import {
+  BUILT_IN_ACTIVITIES_CATALOG,
+  BUILT_IN_ACTIVITY_BY_ID,
+  getTopPlayedActivities,
+  type BuiltInActivityId,
+} from '../utils/mindPlayCatalog';
 import {
   loadMindPlayNavState,
+  loadMindPlayPlayCounts,
   saveMindPlayNavState,
-  type BonusGameKind,
-  type MindPlayBuiltInKind,
+  saveMindPlayPlayCounts,
+  type MindPlayPlayCounts,
   type MindPlayPuzzleFilter,
   type SavedMindPlayNavState,
 } from '../utils/mindPlayStorage';
 
 type PuzzleFilter = MindPlayPuzzleFilter;
-type VisibleBuiltInActivityKind = Exclude<MindPlayBuiltInKind, 'surprise'>;
 
-const BONUS_GAMES: readonly BonusGameKind[] = [
-  'starlight-paths',
-  'tea-pour',
-  'lullaby-chimes',
-] as const;
+const ALL_BUILT_IN_IDS: readonly BuiltInActivityId[] = BUILT_IN_ACTIVITIES_CATALOG.map(
+  (item) => item.id
+);
 
-const shuffleBonusGames = (excludeFirst?: BonusGameKind): BonusGameKind[] => {
-  const arr: BonusGameKind[] = [...BONUS_GAMES];
+const shuffleBuiltInGames = (excludeFirst?: BuiltInActivityId): BuiltInActivityId[] => {
+  const arr: BuiltInActivityId[] = [...ALL_BUILT_IN_IDS];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const tmp = arr[i];
@@ -164,48 +171,6 @@ const PUZZLE_KIND_STYLES: Record<
   },
 };
 
-const BUILTIN_ACTIVITIES: {
-  key: VisibleBuiltInActivityKind;
-  label: string;
-  subtitle: string;
-  icon: typeof Grid3X3;
-  iconClass: string;
-  activeClass: string;
-}[] = [
-  {
-    key: 'sudoku',
-    label: 'Mini Sudoku',
-    subtitle: '4×4 & 6×6 calm logic',
-    icon: Grid3X3,
-    iconClass: 'text-indigo-600',
-    activeClass: 'bg-indigo-600 text-white shadow-sm',
-  },
-  {
-    key: 'memory',
-    label: 'Memory Match',
-    subtitle: 'Playful matching pairs',
-    icon: Flower2,
-    iconClass: 'text-emerald-600',
-    activeClass: 'bg-emerald-600 text-white shadow-sm',
-  },
-  {
-    key: 'mandala',
-    label: 'Mandala Art',
-    subtitle: 'Tap-to-color calm',
-    icon: Palette,
-    iconClass: 'text-violet-600',
-    activeClass: 'bg-violet-600 text-white shadow-sm',
-  },
-  {
-    key: 'breathing',
-    label: 'Calm Breathing',
-    subtitle: 'Guided 4–2–4 pacer',
-    icon: Wind,
-    iconClass: 'text-sky-600',
-    activeClass: 'bg-sky-600 text-white shadow-sm',
-  },
-];
-
 const getSolvedStorageKey = (profileId: string, dateId: string): string =>
   `mindPlaySolved:${profileId}:${dateId}`;
 
@@ -248,6 +213,10 @@ export default function MindPlay() {
   const [navOverridesByProfile, setNavOverridesByProfile] = useState<
     Record<string, Partial<SavedMindPlayNavState>>
   >({});
+  const [playCountsByProfile, setPlayCountsByProfile] = useState<
+    Record<string, MindPlayPlayCounts>
+  >({});
+  const [isCollectionOpen, setIsCollectionOpen] = useState(false);
   const [activeModalSlot, setActiveModalSlot] = useState<{
     kind: MindPuzzleKind;
     index: number;
@@ -259,7 +228,19 @@ export default function MindPlay() {
     return override ? { ...persisted, ...override } : persisted;
   }, [id, navOverridesByProfile]);
 
-  const { activeTab, puzzleFilter, activeBuiltIn, activeBonusGame } = navState;
+  const { activeTab, puzzleFilter, activeBuiltIn } = navState;
+
+  const playCounts = useMemo<MindPlayPlayCounts>(() => {
+    const persisted = loadMindPlayPlayCounts(id);
+    const override = id ? playCountsByProfile[id] : undefined;
+    return override ? { ...persisted, ...override } : persisted;
+  }, [id, playCountsByProfile]);
+
+  const topFourActivities = useMemo(() => getTopPlayedActivities(playCounts, 4), [playCounts]);
+  const hasPlayHistory = useMemo(
+    () => Object.values(playCounts).some((count) => (count ?? 0) > 0),
+    [playCounts]
+  );
 
   const updateNavState = (patch: Partial<SavedMindPlayNavState>) => {
     const next: SavedMindPlayNavState = { ...navState, ...patch };
@@ -272,8 +253,24 @@ export default function MindPlay() {
     }
   };
 
+  const handleSelectBuiltIn = (targetId: BuiltInActivityId) => {
+    const isChangingActivity = targetId !== activeBuiltIn || activeTab !== 'builtin';
+    if (isChangingActivity && id) {
+      const nextCounts: MindPlayPlayCounts = {
+        ...playCounts,
+        [targetId]: (playCounts[targetId] ?? 0) + 1,
+      };
+      saveMindPlayPlayCounts(id, nextCounts);
+      setPlayCountsByProfile((prev) => ({
+        ...prev,
+        [id]: nextCounts,
+      }));
+    }
+    updateNavState({ activeTab: 'builtin', activeBuiltIn: targetId });
+  };
+
   const [surpriseSolvedCount, setSurpriseSolvedCount] = useState(0);
-  const surpriseBagRef = useRef<BonusGameKind[]>([]);
+  const surpriseBagRef = useRef<BuiltInActivityId[]>([]);
 
   const handleSurpriseBoardSolved = useCallback(() => {
     setSurpriseSolvedCount((count) => count + 1);
@@ -291,21 +288,20 @@ export default function MindPlay() {
             : 'Level 5 · Master';
 
   const handleLaunchSurpriseGame = () => {
-    const excludeCurrent = activeBuiltIn === 'surprise' ? activeBonusGame : undefined;
     if (surpriseBagRef.current.length === 0) {
-      surpriseBagRef.current = shuffleBonusGames(excludeCurrent);
+      surpriseBagRef.current = shuffleBuiltInGames(activeBuiltIn);
     }
     let picked = surpriseBagRef.current.shift();
-    if (excludeCurrent && picked === excludeCurrent && BONUS_GAMES.length > 1) {
+    if (picked === activeBuiltIn && ALL_BUILT_IN_IDS.length > 1) {
       if (surpriseBagRef.current.length === 0) {
-        surpriseBagRef.current = shuffleBonusGames(excludeCurrent);
+        surpriseBagRef.current = shuffleBuiltInGames(activeBuiltIn);
       }
       picked = surpriseBagRef.current.shift();
     }
     if (!picked) {
-      picked = BONUS_GAMES[0];
+      picked = ALL_BUILT_IN_IDS[0];
     }
-    updateNavState({ activeBuiltIn: 'surprise', activeBonusGame: picked });
+    handleSelectBuiltIn(picked);
   };
 
   const [puzzles, setPuzzles] = useState<DailyMindPuzzles | null>(null);
@@ -690,16 +686,25 @@ export default function MindPlay() {
               )}
             </div>
           ) : (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  {hasPlayHistory ? 'Most played' : 'Quick access'}
+                </span>
+                <span className="text-[10px] font-medium text-gray-400">
+                  {BUILT_IN_ACTIVITIES_CATALOG.length} games available
+                </span>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
-                {BUILTIN_ACTIVITIES.map(
-                  ({ key, label, subtitle, icon: Icon, iconClass, activeClass }) => {
-                    const isSelected = activeBuiltIn === key;
+                {topFourActivities.map(
+                  ({ id: actId, label, subtitle, icon: Icon, iconClass, activeClass }) => {
+                    const isSelected = activeBuiltIn === actId;
                     return (
                       <button
-                        key={key}
+                        key={actId}
                         type="button"
-                        onClick={() => updateNavState({ activeBuiltIn: key })}
+                        onClick={() => handleSelectBuiltIn(actId)}
                         aria-pressed={isSelected}
                         className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
                           isSelected
@@ -732,53 +737,37 @@ export default function MindPlay() {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleLaunchSurpriseGame}
-                aria-pressed={activeBuiltIn === 'surprise'}
-                className={`flex w-full items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 text-left transition active:scale-[0.99] ${
-                  activeBuiltIn === 'surprise'
-                    ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 text-white shadow-sm'
-                    : 'bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-teal-50/90 text-indigo-950 ring-1 ring-indigo-200/70 hover:from-indigo-100/80 hover:to-teal-100/80'
-                }`}
-              >
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-                      activeBuiltIn === 'surprise'
-                        ? 'bg-white/20 text-white'
-                        : 'bg-white text-indigo-600 shadow-sm'
-                    }`}
-                  >
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCollectionOpen(true)}
+                  className="flex items-center gap-2.5 rounded-2xl bg-gray-50 px-3 py-2.5 text-left text-gray-800 ring-1 ring-gray-200/80 transition hover:bg-indigo-50/60 hover:ring-indigo-200 active:scale-[0.99]"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs">
+                    <LayoutGrid size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-gray-900">Collection</p>
+                    <p className="truncate text-[10px] text-gray-500">
+                      Browse all {BUILT_IN_ACTIVITIES_CATALOG.length}
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLaunchSurpriseGame}
+                  className="flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-indigo-50/95 via-purple-50/80 to-teal-50/95 px-3 py-2.5 text-left text-indigo-950 ring-1 ring-indigo-200/70 transition hover:from-indigo-100/80 hover:to-teal-100/80 active:scale-[0.99]"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs">
                     <Shuffle size={15} />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-bold">
-                      {activeBuiltIn === 'surprise'
-                        ? 'Surprise Game Active'
-                        : 'Surprise me with a bonus game'}
-                    </p>
-                    <p
-                      className={`truncate text-[10px] ${
-                        activeBuiltIn === 'surprise' ? 'text-white/85' : 'text-indigo-700/80'
-                      }`}
-                    >
-                      {activeBuiltIn === 'surprise'
-                        ? 'Tap anytime to jump into another hidden calm game'
-                        : 'Discover a random hidden calm game from our bonus vault'}
-                    </p>
+                    <p className="truncate text-xs font-bold">Surprise me</p>
+                    <p className="truncate text-[10px] text-indigo-700/80">Random game</p>
                   </div>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                    activeBuiltIn === 'surprise'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-white text-indigo-700 shadow-xs'
-                  }`}
-                >
-                  {activeBuiltIn === 'surprise' ? 'Shuffle' : 'Surprise'}
-                </span>
-              </button>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -928,46 +917,86 @@ export default function MindPlay() {
 
         {/* Built-In Activities View */}
         {activeTab === 'builtin' && (
-          <div>
+          <div className="space-y-2.5">
+            {BUILT_IN_ACTIVITY_BY_ID[activeBuiltIn]?.isProgressive && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
+                  <Sparkles size={12} />
+                  <span>{surpriseLevelLabel}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLaunchSurpriseGame}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-xs ring-1 ring-indigo-200/80 transition hover:bg-indigo-50 active:scale-95"
+                >
+                  <Shuffle size={12} />
+                  <span>Try another game</span>
+                </button>
+              </div>
+            )}
+
             {activeBuiltIn === 'sudoku' && <CalmSudokuActivity key={id} profileId={id} />}
             {activeBuiltIn === 'memory' && <MemoryMatchActivity key={id} profileId={id} />}
             {activeBuiltIn === 'mandala' && <MandalaColoringActivity key={id} profileId={id} />}
             {activeBuiltIn === 'breathing' && <CalmBreathingActivity key={id} profileId={id} />}
-            {activeBuiltIn === 'surprise' && (
-              <div className="space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
-                    <Sparkles size={12} />
-                    <span>{surpriseLevelLabel}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleLaunchSurpriseGame}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-xs ring-1 ring-indigo-200/80 transition hover:bg-indigo-50 active:scale-95"
-                  >
-                    <Shuffle size={12} />
-                    <span>Try another game</span>
-                  </button>
-                </div>
-
-                {activeBonusGame === 'starlight-paths' && (
-                  <CalmStarlightPathsActivity
-                    key={`${id}-starlight`}
-                    sessionSolvedCount={surpriseSolvedCount}
-                    onBoardSolved={handleSurpriseBoardSolved}
-                  />
-                )}
-                {activeBonusGame === 'tea-pour' && (
-                  <HerbalTeaPourActivity
-                    key={`${id}-teapour`}
-                    sessionSolvedCount={surpriseSolvedCount}
-                    onBoardSolved={handleSurpriseBoardSolved}
-                  />
-                )}
-                {activeBonusGame === 'lullaby-chimes' && (
-                  <LullabyStarChimesActivity key={`${id}-lullaby`} />
-                )}
-              </div>
+            {activeBuiltIn === 'starlight-paths' && (
+              <CalmStarlightPathsActivity
+                key={`${id}-starlight`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'tea-pour' && (
+              <HerbalTeaPourActivity
+                key={`${id}-teapour`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'lullaby-chimes' && (
+              <LullabyStarChimesActivity key={`${id}-lullaby`} />
+            )}
+            {activeBuiltIn === 'four-in-a-row' && (
+              <FourInARowActivity
+                key={`${id}-four-in-a-row`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'dots-and-boxes' && (
+              <DotsAndBoxesActivity
+                key={`${id}-dots-and-boxes`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'reversi' && (
+              <ReversiActivity
+                key={`${id}-reversi`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'mancala' && (
+              <MancalaActivity
+                key={`${id}-mancala`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'gomoku' && (
+              <GomokuActivity
+                key={`${id}-gomoku`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'word-duel' && (
+              <WordDuelActivity
+                key={`${id}-word-duel`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
             )}
           </div>
         )}
@@ -1037,6 +1066,16 @@ export default function MindPlay() {
           />
         )}
       </PuzzlePlayModal>
+
+      {/* Built-In Game Collection Modal */}
+      <GameCollectionModal
+        isOpen={isCollectionOpen}
+        activeActivityId={activeBuiltIn}
+        playCounts={playCounts}
+        onSelect={handleSelectBuiltIn}
+        onSurprise={handleLaunchSurpriseGame}
+        onClose={() => setIsCollectionOpen(false)}
+      />
     </div>
   );
 }
