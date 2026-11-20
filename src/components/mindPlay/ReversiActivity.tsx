@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowRight,
   Bot,
   Disc,
+  HelpCircle,
+  Info,
   RefreshCw,
   Sparkles,
   Undo2,
@@ -29,6 +32,7 @@ interface ReversiSnapshot {
   board: ReversiCell[];
   currentPlayer: ReversiPlayer;
   lastMoveIndex: number | null;
+  lastFlipped: number[];
 }
 
 const BOARD_SIZES: readonly ReversiSize[] = [6, 8] as const;
@@ -42,7 +46,9 @@ export default function ReversiActivity({
   const [board, setBoard] = useState<ReversiCell[]>(() => createInitialReversiBoard(6));
   const [currentPlayer, setCurrentPlayer] = useState<ReversiPlayer | null>(1);
   const [lastMoveIndex, setLastMoveIndex] = useState<number | null>(null);
-  const [passMessage, setPassMessage] = useState<string | null>(null);
+  const [lastFlipped, setLastFlipped] = useState<number[]>([]);
+  const [moveMessage, setMoveMessage] = useState<string | null>(null);
+  const [showGuide, setShowGuide] = useState<boolean>(true);
   const [history, setHistory] = useState<ReversiSnapshot[]>([]);
 
   const solvedReportedRef = useRef(false);
@@ -56,17 +62,21 @@ export default function ReversiActivity({
     return new Set(getValidReversiMoves(board, size, currentPlayer));
   }, [board, size, currentPlayer, isBotTurn]);
 
+  const lastFlippedSet = useMemo(() => new Set<number>(lastFlipped), [lastFlipped]);
+
   const startFresh = (nextMode: PlayMode = mode, nextSize: ReversiSize = size) => {
     setMode(nextMode);
     setSize(nextSize);
     setBoard(createInitialReversiBoard(nextSize));
     setCurrentPlayer(1);
     setLastMoveIndex(null);
-    setPassMessage(null);
+    setLastFlipped([]);
+    setMoveMessage(null);
     setHistory([]);
     solvedReportedRef.current = false;
   };
 
+  const p1Label = mode === 'solo' ? 'You' : 'Player 1';
   const p2Label = mode === 'solo' ? 'Calm Bot' : 'Player 2';
 
   const handleCellTap = (index: number) => {
@@ -74,16 +84,25 @@ export default function ReversiActivity({
     const res = applyReversiMove(board, size, index, currentPlayer);
     if (!res) return;
 
-    setHistory((prev) => [...prev.slice(-63), { board, currentPlayer, lastMoveIndex }]);
+    setHistory((prev) => [
+      ...prev.slice(-63),
+      { board, currentPlayer, lastMoveIndex, lastFlipped },
+    ]);
     setBoard(res.nextBoard);
     setLastMoveIndex(index);
+    setLastFlipped(res.flipped);
     setCurrentPlayer(res.nextTurn);
 
+    const actor = currentPlayer === 1 ? p1Label : p2Label;
+    const flippedWord = res.flipped.length === 1 ? 'stone' : 'stones';
+
     if (res.passedPlayer !== null) {
-      const skipped = res.passedPlayer === 1 ? 'Player 1' : p2Label;
-      setPassMessage(`${skipped} had no legal move — turn skipped.`);
+      const skipped = res.passedPlayer === 1 ? p1Label : p2Label;
+      setMoveMessage(
+        `${actor} flipped ${res.flipped.length} ${flippedWord}. ${skipped} had no move — turn skipped.`
+      );
     } else {
-      setPassMessage(null);
+      setMoveMessage(`${actor} flipped ${res.flipped.length} ${flippedWord}.`);
     }
 
     if (res.isGameOver && mode === 'solo' && !solvedReportedRef.current) {
@@ -103,15 +122,22 @@ export default function ReversiActivity({
       const res = applyReversiMove(board, size, move, 2);
       if (!res) return;
 
-      setHistory((prev) => [...prev.slice(-63), { board, currentPlayer: 2, lastMoveIndex }]);
+      setHistory((prev) => [
+        ...prev.slice(-63),
+        { board, currentPlayer: 2, lastMoveIndex, lastFlipped },
+      ]);
       setBoard(res.nextBoard);
       setLastMoveIndex(move);
+      setLastFlipped(res.flipped);
       setCurrentPlayer(res.nextTurn);
 
+      const flippedWord = res.flipped.length === 1 ? 'stone' : 'stones';
       if (res.passedPlayer === 1) {
-        setPassMessage('Player 1 had no legal move — Calm Bot plays again.');
+        setMoveMessage(
+          `Calm Bot flipped ${res.flipped.length} ${flippedWord}. ${p1Label} had no move — Bot plays again.`
+        );
       } else {
-        setPassMessage(null);
+        setMoveMessage(`Calm Bot flipped ${res.flipped.length} ${flippedWord}.`);
       }
 
       if (res.isGameOver && !solvedReportedRef.current) {
@@ -124,7 +150,7 @@ export default function ReversiActivity({
     }, 450);
 
     return () => window.clearTimeout(timer);
-  }, [isBotTurn, board, size, lastMoveIndex, sessionSolvedCount, onBoardSolved]);
+  }, [isBotTurn, board, size, lastMoveIndex, lastFlipped, sessionSolvedCount, onBoardSolved, p1Label]);
 
   const handleUndo = () => {
     if (history.length === 0) return;
@@ -139,14 +165,16 @@ export default function ReversiActivity({
       setBoard(snap.board);
       setCurrentPlayer(snap.currentPlayer);
       setLastMoveIndex(snap.lastMoveIndex);
-      setPassMessage(null);
+      setLastFlipped(snap.lastFlipped);
+      setMoveMessage(null);
     } else {
       const snap = history[history.length - 1];
       setHistory((prev) => prev.slice(0, -1));
       setBoard(snap.board);
       setCurrentPlayer(snap.currentPlayer);
       setLastMoveIndex(snap.lastMoveIndex);
-      setPassMessage(null);
+      setLastFlipped(snap.lastFlipped);
+      setMoveMessage(null);
     }
   };
 
@@ -162,7 +190,7 @@ export default function ReversiActivity({
         </div>
         <h2 className="text-lg font-bold text-gray-900">Reversi</h2>
         <p className="mt-0.5 text-xs text-gray-500">
-          Place a stone on a marked spot to sandwich and flip your opponent&apos;s stones.
+          Outflank your opponent&apos;s stones to flip them to your color.
         </p>
       </div>
 
@@ -196,8 +224,8 @@ export default function ReversiActivity({
         </button>
       </div>
 
-      {/* Size Selector */}
-      <div className="mt-3 flex items-center justify-between gap-2">
+      {/* Size Selector & How-to-Play Toggle */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5" role="group" aria-label="Board size">
           {BOARD_SIZES.map((sz) => (
             <button
@@ -215,13 +243,69 @@ export default function ReversiActivity({
             </button>
           ))}
         </div>
-        <span className="text-[11px] font-medium text-gray-500">
-          {counts.empty} open
-        </span>
+
+        <button
+          type="button"
+          onClick={() => setShowGuide((v) => !v)}
+          aria-expanded={showGuide}
+          className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200/80 transition hover:bg-emerald-100"
+        >
+          <HelpCircle size={12} />
+          <span>{showGuide ? 'Hide rules' : 'How to play'}</span>
+        </button>
       </div>
 
+      {/* Detailed How to Play Card */}
+      {showGuide && (
+        <div className="mt-3 rounded-2xl bg-emerald-50/75 p-3.5 ring-1 ring-emerald-200/70">
+          <div className="flex items-start gap-2.5">
+            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-xs ring-1 ring-emerald-200/70">
+              <Info size={13} />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1.5 text-xs leading-relaxed text-emerald-950">
+              <p>
+                <span className="font-bold text-emerald-900">Goal:</span> Finish with the most
+                stones of your color when the board fills (or neither player has a valid move).
+              </p>
+              <p className="text-emerald-900/90">
+                <span className="font-semibold text-emerald-900">How to flip:</span> Tap any{' '}
+                <span className="font-semibold">dotted square</span> to trap one or more opponent
+                stones in a straight line (horizontal, vertical, or diagonal) between your stones —
+                all trapped stones flip to your color!
+              </p>
+              <p className="text-emerald-900/85">
+                <span className="font-semibold text-emerald-900">Strategy tip:</span>{' '}
+                <span className="font-semibold">Corner squares</span> can never be flipped and help
+                lock down whole edges. If a player has no legal move, their turn passes
+                automatically.
+              </p>
+
+              {/* Visual Sandwich-and-Flip Example */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <div className="inline-flex items-center gap-1 rounded-xl bg-emerald-800 px-2 py-1.5 shadow-inner">
+                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-1 ring-slate-950/30" />
+                  <span className="h-4 w-4 rounded-full bg-amber-50 ring-1 ring-amber-200" />
+                  <span className="h-4 w-4 rounded-full bg-amber-50 ring-1 ring-amber-200" />
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-800 text-[9px] font-bold text-white ring-2 ring-amber-300">
+                    +
+                  </span>
+                </div>
+                <ArrowRight size={13} className="shrink-0 text-emerald-700" />
+                <div className="inline-flex items-center gap-1 rounded-xl bg-emerald-800 px-2 py-1.5 shadow-inner">
+                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-1 ring-slate-950/30" />
+                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-2 ring-emerald-200" />
+                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-2 ring-emerald-200" />
+                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-1 ring-slate-950/30" />
+                </div>
+                <span className="text-[10px] font-semibold text-emerald-800">Trapped flip!</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Disc Scoreboard */}
-      <div className="mt-2.5 grid grid-cols-2 gap-2">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <div
           className={`flex items-center justify-between rounded-2xl px-3 py-2 transition ${
             !isGameOver && currentPlayer === 1
@@ -231,7 +315,7 @@ export default function ReversiActivity({
         >
           <div className="flex items-center gap-2">
             <span className="h-4 w-4 rounded-full bg-slate-800 shadow-xs ring-1 ring-slate-900/20" />
-            <span className="text-xs font-bold text-gray-800">Player 1</span>
+            <span className="text-xs font-bold text-gray-800">{p1Label}</span>
           </div>
           <span className="text-xs font-bold text-slate-800">{counts.p1}</span>
         </div>
@@ -262,6 +346,7 @@ export default function ReversiActivity({
             {board.map((cell, idx) => {
               const isValid = validMoveSet.has(idx);
               const isLast = lastMoveIndex === idx;
+              const wasFlipped = lastFlippedSet.has(idx);
 
               return (
                 <button
@@ -288,7 +373,13 @@ export default function ReversiActivity({
                         cell === 1
                           ? 'bg-gradient-to-br from-slate-700 to-slate-900 ring-1 ring-slate-950/40'
                           : 'bg-gradient-to-br from-white to-amber-100 ring-1 ring-amber-200/80'
-                      } ${isLast ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-emerald-700' : ''}`}
+                      } ${
+                        isLast
+                          ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-emerald-700'
+                          : wasFlipped
+                            ? 'ring-2 ring-emerald-200/90'
+                            : ''
+                      }`}
                     />
                   )}
                   {cell === 0 && isValid && (
@@ -311,7 +402,7 @@ export default function ReversiActivity({
             <Sparkles size={15} className="text-emerald-600" />
             <span>
               {counts.p1 > counts.p2
-                ? `Player 1 wins (${counts.p1}–${counts.p2})!`
+                ? `${p1Label} ${mode === 'solo' ? 'win' : 'wins'} (${counts.p1}–${counts.p2})!`
                 : counts.p2 > counts.p1
                   ? `${p2Label} wins (${counts.p2}–${counts.p1})!`
                   : `Even tie (${counts.p1}–${counts.p2})!`}
@@ -327,13 +418,14 @@ export default function ReversiActivity({
           </button>
         </div>
       ) : (
-        <p className="mt-2.5 text-center text-[11px] font-medium text-gray-500">
-          {passMessage
-            ? passMessage
-            : isBotTurn
+        <div className="mt-2.5 space-y-0.5 text-center text-[11px] font-medium text-gray-500">
+          {moveMessage && <p className="text-emerald-700">{moveMessage}</p>}
+          <p>
+            {isBotTurn
               ? 'Calm Bot is choosing a stone placement…'
-              : `${currentPlayer === 1 ? 'Player 1 (Dark)' : `${p2Label} (Light)`}'s turn — tap any dotted square.`}
-        </p>
+              : `${currentPlayer === 1 ? `${p1Label} (Dark)` : `${p2Label} (Light)`}'s turn — ${validMoveSet.size} valid ${validMoveSet.size === 1 ? 'spot' : 'spots'} marked (${counts.empty} open).`}
+          </p>
+        </div>
       )}
 
       {/* Action Bar */}

@@ -33,104 +33,11 @@ interface FourSnapshot {
   lastMoveIndex: number | null;
 }
 
-function BabyTokenIcon({
-  variant,
-  className = 'h-full w-full',
-}: {
-  variant: 'girl' | 'boy';
-  className?: string;
-}) {
-  if (variant === 'girl') {
-    return (
-      <svg viewBox="0 0 40 40" className={className} aria-hidden="true">
-        {/* Soft blush-pink medallion backdrop */}
-        <circle cx="20" cy="20" r="19" fill="#fbcfe8" />
-        <circle cx="20" cy="20" r="17.5" fill="none" stroke="#f472b6" strokeWidth="1.8" />
-
-        {/* Sweet baby face */}
-        <circle cx="20" cy="22.5" r="10.2" fill="#fff7ed" stroke="#f9a8d4" strokeWidth="1" />
-        {/* Little ears */}
-        <circle cx="9.8" cy="22.5" r="2.2" fill="#fff7ed" stroke="#f9a8d4" strokeWidth="0.9" />
-        <circle cx="30.2" cy="22.5" r="2.2" fill="#fff7ed" stroke="#f9a8d4" strokeWidth="0.9" />
-
-        {/* Soft hair swoop */}
-        <path
-          d="M 11.5 18.8 C 13 13 27 13 28.5 18.8 C 25.5 16.2 14.5 16.2 11.5 18.8 Z"
-          fill="#d97757"
-          opacity="0.72"
-        />
-
-        {/* Pink ribbon bow perched on top-right */}
-        <g transform="translate(26.5, 11.5) rotate(18)">
-          <ellipse cx="-3.6" cy="0" rx="3.4" ry="2.2" fill="#ec4899" />
-          <ellipse cx="3.6" cy="0" rx="3.4" ry="2.2" fill="#ec4899" />
-          <circle cx="0" cy="0" r="1.7" fill="#fbcfe8" stroke="#db2777" strokeWidth="0.8" />
-        </g>
-
-        {/* Gentle eyes, rosy cheeks & warm smile */}
-        <circle cx="16.4" cy="22.2" r="1.25" fill="#475569" />
-        <circle cx="23.6" cy="22.2" r="1.25" fill="#475569" />
-        <ellipse cx="13.8" cy="24.4" rx="1.9" ry="1.1" fill="#f9a8d4" opacity="0.8" />
-        <ellipse cx="26.2" cy="24.4" rx="1.9" ry="1.1" fill="#f9a8d4" opacity="0.8" />
-        <path
-          d="M 17.5 25.6 Q 20 27.6 22.5 25.6"
-          fill="none"
-          stroke="#be185d"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 40 40" className={className} aria-hidden="true">
-      {/* Soft powder-blue medallion backdrop */}
-      <circle cx="20" cy="20" r="19" fill="#bae6fd" />
-      <circle cx="20" cy="20" r="17.5" fill="none" stroke="#38bdf8" strokeWidth="1.8" />
-
-      {/* Sweet baby face */}
-      <circle cx="20" cy="23.2" r="10" fill="#fff7ed" stroke="#7dd3fc" strokeWidth="1" />
-      {/* Little ears */}
-      <circle cx="10" cy="23.2" r="2.2" fill="#fff7ed" stroke="#7dd3fc" strokeWidth="0.9" />
-      <circle cx="30" cy="23.2" r="2.2" fill="#fff7ed" stroke="#7dd3fc" strokeWidth="0.9" />
-
-      {/* Cozy sky-blue baby beanie with top pom */}
-      <path
-        d="M 10.6 19.6 C 11.4 11.8 28.6 11.8 29.4 19.6 Z"
-        fill="#38bdf8"
-        stroke="#0284c7"
-        strokeWidth="0.9"
-      />
-      <rect x="9.8" y="18.2" width="20.4" height="3.2" rx="1.6" fill="#0284c7" />
-      <circle cx="20" cy="10.2" r="2.5" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="0.9" />
-
-      {/* Gentle eyes, rosy cheeks & warm smile */}
-      <circle cx="16.4" cy="23.4" r="1.25" fill="#475569" />
-      <circle cx="23.6" cy="23.4" r="1.25" fill="#475569" />
-      <ellipse cx="13.8" cy="25.5" rx="1.8" ry="1.05" fill="#fda4af" opacity="0.65" />
-      <ellipse cx="26.2" cy="25.5" rx="1.8" ry="1.05" fill="#fda4af" opacity="0.65" />
-      <path
-        d="M 17.5 26.6 Q 20 28.5 22.5 26.6"
-        fill="none"
-        stroke="#0369a1"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-type BabyVariant = 'girl' | 'boy';
-
-const pickRandomBabyVariant = (): BabyVariant => (Math.random() < 0.5 ? 'girl' : 'boy');
-
 export default function FourInARowActivity({
   sessionSolvedCount = 0,
   onBoardSolved,
 }: FourInARowActivityProps) {
   const [mode, setMode] = useState<PlayMode>('two-player');
-  const [p1Variant, setP1Variant] = useState<BabyVariant>(() => pickRandomBabyVariant());
   const [board, setBoard] = useState<FourCell[]>(() => createEmptyFourBoard());
   const [currentPlayer, setCurrentPlayer] = useState<FourPlayer>(1);
   const [lastMoveIndex, setLastMoveIndex] = useState<number | null>(null);
@@ -138,8 +45,6 @@ export default function FourInARowActivity({
   const [scores, setScores] = useState<{ p1: number; p2: number }>({ p1: 0, p2: 0 });
 
   const solvedReportedRef = useRef(false);
-
-  const p2Variant: BabyVariant = p1Variant === 'girl' ? 'boy' : 'girl';
 
   const winResult = useMemo(() => findFourWinner(board), [board]);
   const isDraw = !winResult && isFourBoardFull(board);
@@ -153,7 +58,6 @@ export default function FourInARowActivity({
 
   const resetRound = (nextMode: PlayMode = mode, resetScores = false) => {
     setMode(nextMode);
-    setP1Variant(pickRandomBabyVariant());
     setBoard(createEmptyFourBoard());
     setCurrentPlayer(1);
     setLastMoveIndex(null);
@@ -238,19 +142,8 @@ export default function FourInARowActivity({
     }
   };
 
-  const p1TokenName = p1Variant === 'girl' ? 'Baby Girl' : 'Baby Boy';
-  const p2TokenName = p2Variant === 'girl' ? 'Baby Girl' : 'Baby Boy';
-  const p1Name = mode === 'solo' ? 'You' : 'Player 1';
-  const p2Name = mode === 'solo' ? 'Calm Bot' : 'Player 2';
-
-  const getActiveCardClass = (variant: BabyVariant) =>
-    variant === 'girl' ? 'bg-pink-50 ring-2 ring-pink-300' : 'bg-sky-50 ring-2 ring-sky-300';
-  const getScoreColorClass = (variant: BabyVariant) =>
-    variant === 'girl' ? 'text-pink-600' : 'text-sky-600';
-  const getLastMoveRingClass = (variant: BabyVariant) =>
-    variant === 'girl'
-      ? 'ring-2 ring-pink-500 ring-offset-1 ring-offset-stone-100'
-      : 'ring-2 ring-sky-500 ring-offset-1 ring-offset-stone-100';
+  const p1Label = mode === 'solo' ? 'You' : 'Player 1';
+  const p2Label = mode === 'solo' ? 'Calm Bot' : 'Player 2';
 
   return (
     <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
@@ -261,7 +154,7 @@ export default function FourInARowActivity({
         </div>
         <h2 className="text-lg font-bold text-gray-900">Four in a Row</h2>
         <p className="mt-0.5 text-xs text-gray-500">
-          Tap any column to drop your baby token — connect 4 in a line to win.
+          Tap any column to drop your disc — connect 4 in a line to win.
         </p>
       </div>
 
@@ -295,52 +188,34 @@ export default function FourInARowActivity({
         </button>
       </div>
 
-      {/* Player Turn & Score Row */}
+      {/* Player Turn & Score Row (Red vs Yellow) */}
       <div className="mt-3.5 grid grid-cols-2 gap-2">
         <div
-          className={`flex items-center justify-between rounded-2xl px-2.5 py-2 transition ${
+          className={`flex items-center justify-between rounded-2xl px-3 py-2 transition ${
             !isGameOver && currentPlayer === 1
-              ? getActiveCardClass(p1Variant)
+              ? 'bg-red-50 ring-2 ring-red-400'
               : 'bg-gray-50 ring-1 ring-gray-200/70'
           }`}
         >
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="h-6 w-6 shrink-0">
-              <BabyTokenIcon variant={p1Variant} />
-            </span>
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-xs font-bold text-gray-800">{p1Name}</p>
-              <p className={`truncate text-[10px] font-semibold ${getScoreColorClass(p1Variant)}`}>
-                {p1TokenName}
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="h-4 w-4 rounded-full bg-gradient-to-br from-red-400 via-red-500 to-red-600 shadow-xs ring-2 ring-white" />
+            <span className="text-xs font-bold text-gray-800">{p1Label}</span>
           </div>
-          <span className={`ml-1 text-xs font-bold ${getScoreColorClass(p1Variant)}`}>
-            {scores.p1}
-          </span>
+          <span className="text-xs font-bold text-red-600">{scores.p1}</span>
         </div>
 
         <div
-          className={`flex items-center justify-between rounded-2xl px-2.5 py-2 transition ${
+          className={`flex items-center justify-between rounded-2xl px-3 py-2 transition ${
             !isGameOver && currentPlayer === 2
-              ? getActiveCardClass(p2Variant)
+              ? 'bg-yellow-50 ring-2 ring-amber-400'
               : 'bg-gray-50 ring-1 ring-gray-200/70'
           }`}
         >
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="h-6 w-6 shrink-0">
-              <BabyTokenIcon variant={p2Variant} />
-            </span>
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-xs font-bold text-gray-800">{p2Name}</p>
-              <p className={`truncate text-[10px] font-semibold ${getScoreColorClass(p2Variant)}`}>
-                {p2TokenName}
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="h-4 w-4 rounded-full bg-gradient-to-br from-yellow-300 via-yellow-400 to-amber-400 shadow-xs ring-2 ring-white" />
+            <span className="text-xs font-bold text-gray-800">{p2Label}</span>
           </div>
-          <span className={`ml-1 text-xs font-bold ${getScoreColorClass(p2Variant)}`}>
-            {scores.p2}
-          </span>
+          <span className="text-xs font-bold text-amber-700">{scores.p2}</span>
         </div>
       </div>
 
@@ -360,8 +235,6 @@ export default function FourInARowActivity({
               const isColumnPlayable = !isGameOver && !isBotTurn && getDropRow(board, col) !== -1;
               const isWinningCell = winningSet.has(idx);
               const isLastMove = lastMoveIndex === idx;
-              const cellVariant: BabyVariant | null =
-                cell === 1 ? p1Variant : cell === 2 ? p2Variant : null;
 
               return (
                 <button
@@ -370,27 +243,29 @@ export default function FourInARowActivity({
                   disabled={!isColumnPlayable}
                   onClick={() => playColumn(col, currentPlayer)}
                   aria-label={`Column ${col + 1}, ${
-                    cellVariant === null
-                      ? 'empty'
-                      : cellVariant === 'girl'
-                        ? 'Baby Girl token'
-                        : 'Baby Boy token'
+                    cell === 0 ? 'empty' : cell === 1 ? `${p1Label} red disc` : `${p2Label} yellow disc`
                   }`}
-                  className={`relative flex min-h-0 min-w-0 items-center justify-center rounded-full p-[1px] transition-transform focus:outline-none ${
+                  className={`relative flex min-h-0 min-w-0 items-center justify-center rounded-full transition-transform focus:outline-none ${
                     isColumnPlayable ? 'cursor-pointer active:scale-95' : 'cursor-default'
                   } ${
                     cell === 0
                       ? 'bg-white/95 shadow-inner ring-1 ring-stone-200/90'
-                      : 'bg-transparent'
+                      : cell === 1
+                        ? 'bg-gradient-to-br from-red-400 via-red-500 to-red-600 shadow-sm ring-1 ring-red-700/25'
+                        : 'bg-gradient-to-br from-yellow-300 via-yellow-400 to-amber-400 shadow-sm ring-1 ring-amber-500/35'
                   } ${
                     isWinningCell
-                      ? 'z-10 scale-105 ring-3 ring-amber-400 shadow-md'
-                      : isLastMove && cellVariant !== null
-                        ? getLastMoveRingClass(cellVariant)
+                      ? 'z-10 scale-105 ring-3 ring-emerald-500 ring-offset-1 ring-offset-stone-100 shadow-md'
+                      : isLastMove && cell !== 0
+                        ? cell === 1
+                          ? 'ring-2 ring-red-700/70 ring-offset-1 ring-offset-stone-100'
+                          : 'ring-2 ring-amber-600/80 ring-offset-1 ring-offset-stone-100'
                         : ''
                   }`}
                 >
-                  {cellVariant !== null && <BabyTokenIcon variant={cellVariant} />}
+                  {isLastMove && !isWinningCell && cell !== 0 && (
+                    <span className="h-2 w-2 rounded-full bg-white/85" aria-hidden="true" />
+                  )}
                 </button>
               );
             })}
@@ -400,14 +275,14 @@ export default function FourInARowActivity({
 
       {/* Status / Result Banner */}
       {isGameOver ? (
-        <div className="mt-4 rounded-2xl bg-gradient-to-br from-pink-50/70 via-white to-sky-50/80 p-3.5 text-center ring-1 ring-stone-200/80">
+        <div className="mt-4 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-amber-50/70 p-3.5 text-center ring-1 ring-emerald-200/70">
           <div className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-900">
             <Sparkles size={15} className="text-amber-500" />
             <span>
               {winResult
                 ? winResult.winner === 1
-                  ? `${p1Name} (${p1TokenName}) wins!`
-                  : `${p2Name} (${p2TokenName}) wins!`
+                  ? `${p1Label} ${mode === 'solo' ? 'win' : 'wins'}!`
+                  : `${p2Label} wins!`
                 : 'Friendly draw!'}
             </span>
           </div>
@@ -423,8 +298,8 @@ export default function FourInARowActivity({
       ) : (
         <p className="mt-2.5 text-center text-[11px] font-medium text-gray-500">
           {isBotTurn
-            ? `Calm Bot is dropping a ${p2TokenName} token…`
-            : `${currentPlayer === 1 ? `${p1Name} (${p1TokenName})` : `${p2Name} (${p2TokenName})`}'s turn — tap any column to drop.`}
+            ? 'Calm Bot is choosing a column…'
+            : `${currentPlayer === 1 ? p1Label : p2Label}'s turn — tap any column to drop.`}
         </p>
       )}
 

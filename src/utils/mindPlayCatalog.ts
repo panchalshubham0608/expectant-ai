@@ -117,7 +117,7 @@ export const BUILT_IN_ACTIVITIES_CATALOG: readonly BuiltInActivityMeta[] = [
     id: 'four-in-a-row',
     label: 'Four in a Row',
     subtitle: '2 Players · Solo vs Bot',
-    description: 'Drop Baby Girl & Baby Boy tokens onto the 7×6 board and connect four in any direction.',
+    description: 'Drop discs into the 7×6 tabletop board and line up four in any direction to win.',
     category: 'two-player',
     modeTag: '2P · Solo',
     icon: CircleDot,

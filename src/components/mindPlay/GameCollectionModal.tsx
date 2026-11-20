@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, LayoutGrid, Shuffle, Sparkles, X } from 'lucide-react';
+import { Check, LayoutGrid, Shuffle, Sparkles, Star, X } from 'lucide-react';
 import {
   BUILT_IN_ACTIVITIES_CATALOG,
   BUILT_IN_CATEGORIES,
@@ -44,13 +44,25 @@ export default function GameCollectionModal({
     };
   }, [isOpen, onClose]);
 
+  // Compute gentle favorite rankings (#1, #2, ...) across played games without showing raw counts
+  const rankByActivityId = useMemo(() => {
+    const played = BUILT_IN_ACTIVITIES_CATALOG.filter(
+      (item) => (playCounts[item.id] ?? 0) > 0
+    ).sort((a, b) => (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0));
+
+    const map = new Map<BuiltInActivityId, number>();
+    played.forEach((item, idx) => {
+      map.set(item.id, idx + 1);
+    });
+    return map;
+  }, [playCounts]);
+
   const filteredGames = useMemo(() => {
     const list =
       category === 'all'
         ? [...BUILT_IN_ACTIVITIES_CATALOG]
         : BUILT_IN_ACTIVITIES_CATALOG.filter((item) => item.category === category);
 
-    // Surface most played gently at the top while keeping catalog order for ties
     return list.sort((a, b) => (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0));
   }, [category, playCounts]);
 
@@ -80,7 +92,7 @@ export default function GameCollectionModal({
                 Browse all {BUILT_IN_ACTIVITIES_CATALOG.length} calm activities
               </h2>
               <p className="mt-0.5 text-[11px] text-gray-500">
-                Your 4 most-played games automatically appear in the quick bar.
+                Your top 4 favorites automatically rise into the quick-access bar.
               </p>
             </div>
 
@@ -130,7 +142,7 @@ export default function GameCollectionModal({
           {filteredGames.map((item) => {
             const Icon = item.icon;
             const isActive = item.id === activeActivityId;
-            const playedCount = playCounts[item.id] ?? 0;
+            const rank = rankByActivityId.get(item.id);
 
             return (
               <button
@@ -148,7 +160,9 @@ export default function GameCollectionModal({
               >
                 <div
                   className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
-                    isActive ? 'bg-indigo-600 text-white shadow-xs' : `bg-white ${item.iconClass} shadow-xs`
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : `bg-white ${item.iconClass} shadow-xs`
                   }`}
                 >
                   <Icon size={18} />
@@ -162,9 +176,18 @@ export default function GameCollectionModal({
                     >
                       {item.modeTag}
                     </span>
-                    {playedCount > 0 && (
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-gray-500 ring-1 ring-gray-200/80">
-                        {playedCount}× played
+                    {rank !== undefined && (
+                      <span
+                        className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          rank === 1
+                            ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/80'
+                            : rank <= 4
+                              ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/70'
+                              : 'bg-white text-gray-500 ring-1 ring-gray-200/80'
+                        }`}
+                      >
+                        {rank === 1 && <Star size={9} className="fill-amber-400 text-amber-500" />}
+                        <span>{rank === 1 ? '#1 Favorite' : `#${rank}`}</span>
                       </span>
                     )}
                   </div>

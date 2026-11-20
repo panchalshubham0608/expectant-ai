@@ -245,13 +245,15 @@ export default function GomokuActivity({
         <div
           className={`flex items-center justify-between rounded-2xl px-3 py-2 transition ${
             !isGameOver && currentPlayer === 1
-              ? 'bg-indigo-50 ring-2 ring-indigo-600'
+              ? 'bg-indigo-50 ring-2 ring-indigo-500'
               : 'bg-gray-50 ring-1 ring-gray-200/70'
           }`}
         >
           <div className="flex items-center gap-2">
-            <span className="h-4 w-4 rounded-full bg-slate-800 shadow-xs" />
-            <span className="text-xs font-bold text-gray-800">Player 1</span>
+            <span className="h-4 w-4 rounded-full bg-gradient-to-br from-indigo-700 to-slate-900 shadow-xs" />
+            <span className="text-xs font-bold text-gray-800">
+              {mode === 'solo' ? 'You' : 'Player 1'}
+            </span>
           </div>
           <span className="text-xs font-bold text-indigo-700">{scores.p1}</span>
         </div>
@@ -259,15 +261,15 @@ export default function GomokuActivity({
         <div
           className={`flex items-center justify-between rounded-2xl px-3 py-2 transition ${
             !isGameOver && currentPlayer === 2
-              ? 'bg-rose-50 ring-2 ring-rose-400'
+              ? 'bg-amber-50 ring-2 ring-amber-400'
               : 'bg-gray-50 ring-1 ring-gray-200/70'
           }`}
         >
           <div className="flex items-center gap-2">
-            <span className="h-4 w-4 rounded-full bg-rose-500 shadow-xs" />
+            <span className="h-4 w-4 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 shadow-xs" />
             <span className="text-xs font-bold text-gray-800">{p2Label}</span>
           </div>
-          <span className="text-xs font-bold text-rose-700">{scores.p2}</span>
+          <span className="text-xs font-bold text-amber-700">{scores.p2}</span>
         </div>
       </div>
 
@@ -292,7 +294,7 @@ export default function GomokuActivity({
                   disabled={!canPlay}
                   onClick={() => handleCellTap(idx)}
                   aria-label={`Cell ${idx + 1}, ${
-                    cell === 1 ? 'Player 1 stone' : cell === 2 ? `${p2Label} stone` : 'empty'
+                    cell === 1 ? 'Indigo stone' : cell === 2 ? 'Amber stone' : 'empty'
                   }`}
                   className={`relative flex min-h-0 min-w-0 items-center justify-center border border-amber-300/65 focus:outline-none ${
                     canPlay ? 'cursor-pointer hover:bg-amber-200/35' : 'cursor-default'
@@ -308,11 +310,11 @@ export default function GomokuActivity({
                     <span
                       className={`flex h-[82%] w-[82%] items-center justify-center rounded-full shadow-xs ${
                         cell === 1
-                          ? 'bg-gradient-to-br from-slate-700 to-slate-900'
-                          : 'bg-gradient-to-br from-rose-400 to-rose-600'
+                          ? 'bg-gradient-to-br from-indigo-700 to-slate-900'
+                          : 'bg-gradient-to-br from-amber-400 to-amber-500 ring-1 ring-amber-600/30'
                       } ${
                         isWinning
-                          ? 'scale-105 ring-2 ring-amber-300 ring-offset-1'
+                          ? 'scale-105 ring-2 ring-emerald-500 ring-offset-1'
                           : isLast
                             ? 'ring-2 ring-white/90'
                             : ''

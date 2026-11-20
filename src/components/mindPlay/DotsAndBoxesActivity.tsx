@@ -155,6 +155,7 @@ export default function DotsAndBoxesActivity({
     }
   };
 
+  const p1Label = mode === 'solo' ? 'You' : 'Player 1';
   const p2Label = mode === 'solo' ? 'Calm Bot' : 'Player 2';
   const padding = 28;
   const viewSize = 320;
@@ -239,7 +240,7 @@ export default function DotsAndBoxesActivity({
         >
           <div className="flex items-center gap-2">
             <span className="h-3.5 w-3.5 rounded-md bg-indigo-600" />
-            <span className="text-xs font-bold text-gray-800">Player 1</span>
+            <span className="text-xs font-bold text-gray-800">{p1Label}</span>
           </div>
           <span className="text-xs font-bold text-indigo-700">{scores.p1}</span>
         </div>
@@ -247,15 +248,15 @@ export default function DotsAndBoxesActivity({
         <div
           className={`flex items-center justify-between rounded-2xl px-3 py-2 transition ${
             !isGameOver && currentPlayer === 2
-              ? 'bg-teal-50 ring-2 ring-teal-500'
+              ? 'bg-amber-50 ring-2 ring-amber-400'
               : 'bg-gray-50 ring-1 ring-gray-200/70'
           }`}
         >
           <div className="flex items-center gap-2">
-            <span className="h-3.5 w-3.5 rounded-md bg-teal-600" />
+            <span className="h-3.5 w-3.5 rounded-md bg-amber-500" />
             <span className="text-xs font-bold text-gray-800">{p2Label}</span>
           </div>
-          <span className="text-xs font-bold text-teal-700">{scores.p2}</span>
+          <span className="text-xs font-bold text-amber-700">{scores.p2}</span>
         </div>
       </div>
 
@@ -284,7 +285,7 @@ export default function DotsAndBoxesActivity({
                       width={boxSide}
                       height={boxSide}
                       rx="8"
-                      fill={owner === 1 ? '#e0e7ff' : '#ccfbf1'}
+                      fill={owner === 1 ? '#e0e7ff' : '#fef3c7'}
                     />
                     <text
                       x={x + boxSide / 2}
@@ -292,7 +293,7 @@ export default function DotsAndBoxesActivity({
                       textAnchor="middle"
                       fontSize={gridSize === 5 ? '11' : '13'}
                       fontWeight="700"
-                      fill={owner === 1 ? '#4338ca' : '#0f766e'}
+                      fill={owner === 1 ? '#4338ca' : '#b45309'}
                     >
                       {owner === 1 ? 'P1' : mode === 'solo' ? 'B' : 'P2'}
                     </text>
@@ -327,9 +328,7 @@ export default function DotsAndBoxesActivity({
                     }}
                     style={{ cursor: owner === 0 && !isBotTurn ? 'pointer' : 'default', outline: 'none' }}
                   >
-                    {/* Generous touch target */}
                     <line x1={x1 + 8} y1={y} x2={x2 - 8} y2={y} stroke="transparent" strokeWidth="22" />
-                    {/* Visible guide or drawn line */}
                     <line
                       x1={x1 + 5}
                       y1={y}
@@ -340,7 +339,7 @@ export default function DotsAndBoxesActivity({
                           ? '#d6d3d1'
                           : owner === 1
                             ? '#4f46e5'
-                            : '#0d9488'
+                            : '#d97706'
                       }
                       strokeWidth={owner === 0 ? '3' : isLast ? '7' : '5.5'}
                       strokeDasharray={owner === 0 ? '4 5' : undefined}
@@ -388,7 +387,7 @@ export default function DotsAndBoxesActivity({
                           ? '#d6d3d1'
                           : owner === 1
                             ? '#4f46e5'
-                            : '#0d9488'
+                            : '#d97706'
                       }
                       strokeWidth={owner === 0 ? '3' : isLast ? '7' : '5.5'}
                       strokeDasharray={owner === 0 ? '4 5' : undefined}

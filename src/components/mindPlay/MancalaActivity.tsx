@@ -219,12 +219,12 @@ export default function MancalaActivity({
                 : 'bg-gray-100 text-gray-700'
             }`}
           >
-            P1 Store: {p1Store}
+            {mode === 'solo' ? 'You' : 'P1'} Store: {p1Store}
           </span>
           <span
             className={`rounded-full px-2.5 py-1 ${
               !isGameOver && currentPlayer === 2
-                ? 'bg-amber-600 text-white'
+                ? 'bg-amber-500 text-white'
                 : 'bg-gray-100 text-gray-700'
             }`}
           >
@@ -381,7 +381,7 @@ export default function MancalaActivity({
             aria-label={`Player 1 store with ${p1Store} stones`}
           >
             <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-200">
-              P1
+              {mode === 'solo' ? 'You' : 'P1'}
             </span>
             <span className="mt-0.5 text-base font-bold text-white">{p1Store}</span>
             <div className="mt-1.5 flex max-w-[30px] flex-wrap justify-center gap-0.5">
@@ -405,7 +405,7 @@ export default function MancalaActivity({
           ) : (
             <span />
           )}
-          <span>Player 1 (sows right) →</span>
+          <span>{mode === 'solo' ? 'You' : 'Player 1'} (sows right) →</span>
         </div>
       </div>
 
