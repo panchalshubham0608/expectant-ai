@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
   CircleDot,
+  HelpCircle,
   RefreshCw,
   Sparkles,
   Undo2,
@@ -41,6 +42,7 @@ export default function FourInARowActivity({
   const [board, setBoard] = useState<FourCell[]>(() => createEmptyFourBoard());
   const [currentPlayer, setCurrentPlayer] = useState<FourPlayer>(1);
   const [lastMoveIndex, setLastMoveIndex] = useState<number | null>(null);
+  const [showRules, setShowRules] = useState<boolean>(false);
   const [history, setHistory] = useState<FourSnapshot[]>([]);
   const [scores, setScores] = useState<{ p1: number; p2: number }>({ p1: 0, p2: 0 });
 
@@ -188,8 +190,39 @@ export default function FourInARowActivity({
         </button>
       </div>
 
+      {/* Info & Rules Row */}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium text-gray-500">7×6 board · Connect 4</span>
+        <button
+          type="button"
+          onClick={() => setShowRules((v) => !v)}
+          aria-expanded={showRules}
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+            showRules
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <HelpCircle size={12} />
+          <span>Rules</span>
+        </button>
+      </div>
+
+      {showRules && (
+        <div className="mt-2.5 space-y-1 rounded-2xl bg-indigo-50/70 p-3 text-xs leading-relaxed text-indigo-950 ring-1 ring-indigo-100">
+          <p>
+            <strong>Goal:</strong> Be the first to line up <strong>4 discs</strong> of your color
+            horizontally, vertically, or diagonally.
+          </p>
+          <p>
+            <strong>How:</strong> Tap any column — your disc drops to the lowest open slot in that
+            column. Block your opponent while setting up two-way threats!
+          </p>
+        </div>
+      )}
+
       {/* Player Turn & Score Row (Red vs Yellow) */}
-      <div className="mt-3.5 grid grid-cols-2 gap-2">
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
         <div
           className={`flex items-center justify-between rounded-2xl px-3 py-2 transition ${
             !isGameOver && currentPlayer === 1

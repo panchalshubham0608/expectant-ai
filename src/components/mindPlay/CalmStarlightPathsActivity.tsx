@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
+  HelpCircle,
   Lightbulb,
   RefreshCw,
   Sparkles,
@@ -81,6 +82,7 @@ export default function CalmStarlightPathsActivity({
   const [lastTierLevel, setLastTierLevel] = useState<number>(
     () => getStarlightTierForSolvedCount(sessionSolvedCount).level
   );
+  const [showRules, setShowRules] = useState(false);
 
   const isDraggingRef = useRef(false);
   const activeTokenRef = useRef<StarlightTokenId | null>(null);
@@ -361,8 +363,8 @@ export default function CalmStarlightPathsActivity({
         </p>
       </div>
 
-      {/* Size Selector */}
-      <div className="mt-4 flex justify-center">
+      {/* Size Selector & Rules */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex rounded-2xl bg-gray-100 p-1" role="group" aria-label="Grid size">
           {GRID_SIZES.map((option) => (
             <button
@@ -381,14 +383,34 @@ export default function CalmStarlightPathsActivity({
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowRules((v) => !v)}
+          aria-expanded={showRules}
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+            showRules
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <HelpCircle size={12} />
+          <span>Rules</span>
+        </button>
       </div>
 
-      {/* How to play */}
-      <div className="mt-3 rounded-2xl bg-indigo-50/60 px-3.5 py-2.5 text-[11px] leading-relaxed text-indigo-900/90 ring-1 ring-indigo-100">
-        <span className="font-bold text-indigo-950">How to play: </span>
-        Drag (or tap cell by cell) from any icon to its matching pair. Drag backward or tap an icon
-        to adjust a line — no timers, take your time.
-      </div>
+      {showRules && (
+        <div className="mt-2.5 space-y-1 rounded-2xl bg-indigo-50/75 p-3 text-xs leading-relaxed text-indigo-950 ring-1 ring-indigo-100">
+          <p>
+            <strong>Goal:</strong> Connect every pair of matching icons with a continuous path
+            without crossing or overlapping lines.
+          </p>
+          <p>
+            <strong>How:</strong> Drag (or tap cell by cell) from any icon to its matching pair.
+            Drag backward or tap an icon to adjust a line — no timers, take your time.
+          </p>
+        </div>
+      )}
 
       {/* Pair Progress Dots */}
       <div className="mt-3 flex items-center justify-between px-1 text-xs">

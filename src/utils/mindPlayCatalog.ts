@@ -245,14 +245,42 @@ const DEFAULT_ORDER_INDEX: Record<BuiltInActivityId, number> = Object.fromEntrie
   BUILT_IN_ACTIVITIES_CATALOG.map((item, idx) => [item.id, idx])
 ) as Record<BuiltInActivityId, number>;
 
-export const getTopPlayedActivities = (
+export const PINNED_QUICK_BAR_ACTIVITY_ID: BuiltInActivityId = 'breathing';
+
+export const getTopRankedGameIds = (
   playCounts: Partial<Record<BuiltInActivityId, number>>,
-  count = 4
-): BuiltInActivityMeta[] => {
-  const sorted = [...BUILT_IN_ACTIVITIES_CATALOG].sort((a, b) => {
+  limit = 3
+): Map<BuiltInActivityId, number> => {
+  const played = BUILT_IN_ACTIVITIES_CATALOG.filter(
+    (item) => item.id !== PINNED_QUICK_BAR_ACTIVITY_ID && (playCounts[item.id] ?? 0) > 0
+  ).sort((a, b) => {
     const countDiff = (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0);
     if (countDiff !== 0) return countDiff;
     return DEFAULT_ORDER_INDEX[a.id] - DEFAULT_ORDER_INDEX[b.id];
   });
-  return sorted.slice(0, count);
+
+  const ranks = new Map<BuiltInActivityId, number>();
+  played.slice(0, limit).forEach((item, idx) => {
+    ranks.set(item.id, idx + 1);
+  });
+  return ranks;
+};
+
+export const getTopPlayedActivities = (
+  playCounts: Partial<Record<BuiltInActivityId, number>>,
+  count = 4
+): BuiltInActivityMeta[] => {
+  const topSlotCount = Math.max(0, count - 1);
+  const candidates = BUILT_IN_ACTIVITIES_CATALOG.filter(
+    (item) => item.id !== PINNED_QUICK_BAR_ACTIVITY_ID
+  ).sort((a, b) => {
+    const countDiff = (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0);
+    if (countDiff !== 0) return countDiff;
+    return DEFAULT_ORDER_INDEX[a.id] - DEFAULT_ORDER_INDEX[b.id];
+  });
+
+  return [
+    ...candidates.slice(0, topSlotCount),
+    BUILT_IN_ACTIVITY_BY_ID[PINNED_QUICK_BAR_ACTIVITY_ID],
+  ];
 };

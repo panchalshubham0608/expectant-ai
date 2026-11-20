@@ -238,7 +238,10 @@ export default function MindPlay() {
 
   const topFourActivities = useMemo(() => getTopPlayedActivities(playCounts, 4), [playCounts]);
   const hasPlayHistory = useMemo(
-    () => Object.values(playCounts).some((count) => (count ?? 0) > 0),
+    () =>
+      Object.entries(playCounts).some(
+        ([key, count]) => key !== 'breathing' && (count ?? 0) > 0
+      ),
     [playCounts]
   );
 
@@ -255,7 +258,7 @@ export default function MindPlay() {
 
   const handleSelectBuiltIn = (targetId: BuiltInActivityId) => {
     const isChangingActivity = targetId !== activeBuiltIn || activeTab !== 'builtin';
-    if (isChangingActivity && id) {
+    if (isChangingActivity && targetId !== 'breathing' && id) {
       const nextCounts: MindPlayPlayCounts = {
         ...playCounts,
         [targetId]: (playCounts[targetId] ?? 0) + 1,

@@ -48,7 +48,7 @@ export default function ReversiActivity({
   const [lastMoveIndex, setLastMoveIndex] = useState<number | null>(null);
   const [lastFlipped, setLastFlipped] = useState<number[]>([]);
   const [moveMessage, setMoveMessage] = useState<string | null>(null);
-  const [showGuide, setShowGuide] = useState<boolean>(true);
+  const [showGuide, setShowGuide] = useState<boolean>(false);
   const [history, setHistory] = useState<ReversiSnapshot[]>([]);
 
   const solvedReportedRef = useRef(false);
@@ -224,7 +224,7 @@ export default function ReversiActivity({
         </button>
       </div>
 
-      {/* Size Selector & How-to-Play Toggle */}
+      {/* Size Selector & Rules Toggle */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5" role="group" aria-label="Board size">
           {BOARD_SIZES.map((sz) => (
@@ -248,10 +248,14 @@ export default function ReversiActivity({
           type="button"
           onClick={() => setShowGuide((v) => !v)}
           aria-expanded={showGuide}
-          className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200/80 transition hover:bg-emerald-100"
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+            showGuide
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
         >
           <HelpCircle size={12} />
-          <span>{showGuide ? 'Hide rules' : 'How to play'}</span>
+          <span>Rules</span>
         </button>
       </div>
 

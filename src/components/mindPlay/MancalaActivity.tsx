@@ -236,7 +236,11 @@ export default function MancalaActivity({
           type="button"
           onClick={() => setShowHelp((v) => !v)}
           aria-expanded={showHelp}
-          className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-200"
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+            showHelp
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
         >
           <HelpCircle size={12} />
           <span>Rules</span>

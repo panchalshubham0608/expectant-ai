@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Check,
+  HelpCircle,
   Lightbulb,
   RefreshCw,
   RotateCcw,
@@ -57,6 +58,7 @@ export default function HerbalTeaPourActivity({
   const [lastTierLevel, setLastTierLevel] = useState<number>(
     () => getTeaPourTierForSolvedCount(sessionSolvedCount).level
   );
+  const [showRules, setShowRules] = useState(false);
 
   const solvedReportedRef = useRef(false);
 
@@ -194,8 +196,8 @@ export default function HerbalTeaPourActivity({
         </p>
       </div>
 
-      {/* Difficulty Selector (4 to 8 shades) + Optional Restart */}
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+      {/* Difficulty Selector (4 to 8 shades) + Optional Restart & Rules */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex rounded-2xl bg-gray-100 p-1" role="group" aria-label="Number of shades">
           {DIFFICULTY_OPTIONS.map((option) => (
             <button
@@ -215,23 +217,45 @@ export default function HerbalTeaPourActivity({
           ))}
         </div>
 
-        {isChangedFromInitial && !isSolved && (
+        <div className="flex items-center gap-1.5">
+          {isChangedFromInitial && !isSolved && (
+            <button
+              type="button"
+              onClick={handleRestartCurrent}
+              className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-200 hover:text-gray-900"
+            >
+              <RotateCcw size={12} />
+              <span>Restart</span>
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={handleRestartCurrent}
-            className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-200 hover:text-gray-900"
+            onClick={() => setShowRules((v) => !v)}
+            aria-expanded={showRules}
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+              showRules
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
           >
-            <RotateCcw size={12} />
-            <span>Restart</span>
+            <HelpCircle size={12} />
+            <span>Rules</span>
           </button>
-        )}
+        </div>
       </div>
 
-      {/* How to play */}
-      <div className="mt-3 rounded-2xl bg-teal-50/70 px-3.5 py-2.5 text-[11px] leading-relaxed text-teal-900/90 ring-1 ring-teal-100">
-        <span className="font-bold text-teal-950">How to play: </span>
-        Tap a glass to lift it, then tap another glass to pour matching top shades into open space.
-      </div>
+      {showRules && (
+        <div className="mt-2.5 space-y-1 rounded-2xl bg-teal-50/75 p-3 text-xs leading-relaxed text-teal-950 ring-1 ring-teal-100">
+          <p>
+            <strong>Goal:</strong> Sort the layers until every filled glass holds one pure shade.
+          </p>
+          <p>
+            <strong>How:</strong> Tap a glass to lift it, then tap another glass to pour matching
+            top shades into open space or an empty glass.
+          </p>
+        </div>
+      )}
 
       {/* Calm Progress Dots */}
       <div className="mt-3 flex items-center justify-between px-1 text-xs">

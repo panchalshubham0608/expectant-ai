@@ -4,6 +4,8 @@ import { Check, LayoutGrid, Shuffle, Sparkles, Star, X } from 'lucide-react';
 import {
   BUILT_IN_ACTIVITIES_CATALOG,
   BUILT_IN_CATEGORIES,
+  PINNED_QUICK_BAR_ACTIVITY_ID,
+  getTopRankedGameIds,
   type BuiltInActivityId,
   type BuiltInCategoryKey,
 } from '../../utils/mindPlayCatalog';
@@ -44,18 +46,11 @@ export default function GameCollectionModal({
     };
   }, [isOpen, onClose]);
 
-  // Compute gentle favorite rankings (#1, #2, ...) across played games without showing raw counts
-  const rankByActivityId = useMemo(() => {
-    const played = BUILT_IN_ACTIVITIES_CATALOG.filter(
-      (item) => (playCounts[item.id] ?? 0) > 0
-    ).sort((a, b) => (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0));
-
-    const map = new Map<BuiltInActivityId, number>();
-    played.forEach((item, idx) => {
-      map.set(item.id, idx + 1);
-    });
-    return map;
-  }, [playCounts]);
+  // Show only #1, #2, #3 favorites (excluding pinned Calm Breathing) with zero play counts
+  const rankByActivityId = useMemo(
+    () => getTopRankedGameIds(playCounts, 3),
+    [playCounts]
+  );
 
   const filteredGames = useMemo(() => {
     const list =
@@ -63,8 +58,15 @@ export default function GameCollectionModal({
         ? [...BUILT_IN_ACTIVITIES_CATALOG]
         : BUILT_IN_ACTIVITIES_CATALOG.filter((item) => item.category === category);
 
-    return list.sort((a, b) => (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0));
-  }, [category, playCounts]);
+    return list.sort((a, b) => {
+      const aRank = rankByActivityId.get(a.id);
+      const bRank = rankByActivityId.get(b.id);
+      if (aRank !== undefined && bRank !== undefined) return aRank - bRank;
+      if (aRank !== undefined) return -1;
+      if (bRank !== undefined) return 1;
+      return 0;
+    });
+  }, [category, rankByActivityId]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -92,7 +94,7 @@ export default function GameCollectionModal({
                 Browse all {BUILT_IN_ACTIVITIES_CATALOG.length} calm activities
               </h2>
               <p className="mt-0.5 text-[11px] text-gray-500">
-                Your top 4 favorites automatically rise into the quick-access bar.
+                Your #1, #2, and #3 favorites appear in the quick bar alongside Calm Breathing.
               </p>
             </div>
 
@@ -143,6 +145,7 @@ export default function GameCollectionModal({
             const Icon = item.icon;
             const isActive = item.id === activeActivityId;
             const rank = rankByActivityId.get(item.id);
+            const isPinned = item.id === PINNED_QUICK_BAR_ACTIVITY_ID;
 
             return (
               <button
@@ -181,13 +184,16 @@ export default function GameCollectionModal({
                         className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                           rank === 1
                             ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/80'
-                            : rank <= 4
-                              ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/70'
-                              : 'bg-white text-gray-500 ring-1 ring-gray-200/80'
+                            : 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/70'
                         }`}
                       >
                         {rank === 1 && <Star size={9} className="fill-amber-400 text-amber-500" />}
                         <span>{rank === 1 ? '#1 Favorite' : `#${rank}`}</span>
+                      </span>
+                    )}
+                    {isPinned && (
+                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-sky-200/70">
+                        Always pinned
                       </span>
                     )}
                   </div>

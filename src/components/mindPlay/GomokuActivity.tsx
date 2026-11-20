@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
   Grid3X3,
+  HelpCircle,
   RefreshCw,
   Sparkles,
   Undo2,
@@ -61,6 +62,7 @@ export default function GomokuActivity({
   const [board, setBoard] = useState<GomokuCell[]>(() => createGomokuBoard(9));
   const [currentPlayer, setCurrentPlayer] = useState<GomokuPlayer>(1);
   const [lastMoveIndex, setLastMoveIndex] = useState<number | null>(null);
+  const [showRules, setShowRules] = useState<boolean>(false);
   const [history, setHistory] = useState<GomokuSnapshot[]>([]);
   const [scores, setScores] = useState<{ p1: number; p2: number }>({ p1: 0, p2: 0 });
 
@@ -217,7 +219,7 @@ export default function GomokuActivity({
         </button>
       </div>
 
-      {/* Board Size Selector */}
+      {/* Board Size Selector & Rules */}
       <div className="mt-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5" role="group" aria-label="Board size">
           {BOARD_SIZES.map((sz) => (
@@ -237,8 +239,33 @@ export default function GomokuActivity({
           ))}
         </div>
 
-        <span className="text-[11px] font-medium text-gray-500">Align 5 to win</span>
+        <button
+          type="button"
+          onClick={() => setShowRules((v) => !v)}
+          aria-expanded={showRules}
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+            showRules
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <HelpCircle size={12} />
+          <span>Rules</span>
+        </button>
       </div>
+
+      {showRules && (
+        <div className="mt-2.5 space-y-1 rounded-2xl bg-amber-50/80 p-3 text-xs leading-relaxed text-amber-950 ring-1 ring-amber-200/70">
+          <p>
+            <strong>Goal:</strong> Be the first to form an unbroken line of{' '}
+            <strong>5 stones</strong> horizontally, vertically, or diagonally.
+          </p>
+          <p>
+            <strong>How:</strong> Tap any empty square to place your stone. Unlike Four in a Row,
+            stones stay wherever you place them — watch out for open lines of 3 and 4!
+          </p>
+        </div>
+      )}
 
       {/* Player Turn & Score Row */}
       <div className="mt-2.5 grid grid-cols-2 gap-2">

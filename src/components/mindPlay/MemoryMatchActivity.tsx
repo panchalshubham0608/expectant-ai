@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, CheckCircle2, RefreshCw } from 'lucide-react';
+import { ArrowRight, CheckCircle2, HelpCircle, RefreshCw } from 'lucide-react';
 import {
   MEMORY_MATCH_ALLOWED_IDS,
   MEMORY_MATCH_ITEMS,
@@ -68,6 +68,7 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
   const [flippedUids, setFlippedUids] = useState<number[]>([]);
   const [matchedPairIds, setMatchedPairIds] = useState<string[]>(initialState.matchedPairIds);
   const [isChecking, setIsChecking] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -142,7 +143,7 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
         </button>
       </div>
 
-      {/* Mode & progress bar */}
+      {/* Mode, progress & Rules toggle */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex rounded-2xl bg-gray-100 p-1">
           {([6, 8] as const).map((count) => (
@@ -162,10 +163,38 @@ export default function MemoryMatchActivity({ profileId }: MemoryMatchActivityPr
             </button>
           ))}
         </div>
-        <div className="text-xs font-medium text-gray-500">
-          Pairs: <strong className="text-gray-800">{matchedPairIds.length}/{pairCount}</strong>
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-medium text-gray-500">
+            Pairs: <strong className="text-gray-800">{matchedPairIds.length}/{pairCount}</strong>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowRules((v) => !v)}
+            aria-expanded={showRules}
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+              showRules
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <HelpCircle size={12} />
+            <span>Rules</span>
+          </button>
         </div>
       </div>
+
+      {showRules && (
+        <div className="mt-2.5 space-y-1 rounded-2xl bg-emerald-50/75 p-3 text-xs leading-relaxed text-emerald-950 ring-1 ring-emerald-200/70">
+          <p>
+            <strong>Goal:</strong> Uncover and match all <strong>{pairCount} pairs</strong> on the
+            board.
+          </p>
+          <p>
+            <strong>How:</strong> Tap two cards to flip them over. Matching pairs stay revealed,
+            while non-matches gently turn back over — no timer or move limit.
+          </p>
+        </div>
+      )}
 
       {/* Card Grid */}
       <div className="mt-4 grid grid-cols-4 gap-2.5">
