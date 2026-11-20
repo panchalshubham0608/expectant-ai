@@ -1,5 +1,15 @@
-import { useState } from 'react';
-import { CheckCircle2, Eye, HelpCircle, Lightbulb } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  CheckCircle2,
+  Delete,
+  Eye,
+  HelpCircle,
+  Keyboard,
+  Lightbulb,
+  ListChecks,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react';
 import type { RebusColorToken, RebusPuzzle, RebusVisualSpec } from '../../models/mindPuzzle';
 
 interface RebusPuzzleCardProps {
@@ -9,6 +19,12 @@ interface RebusPuzzleCardProps {
 }
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
+
+const KEYBOARD_ROWS: readonly (readonly string[])[] = [
+  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+  ['CLEAR', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACK'],
+] as const;
 
 const COLOR_STYLES: Record<
   RebusColorToken,
@@ -50,6 +66,39 @@ const COLOR_STYLES: Record<
     dot: 'bg-pink-400',
     label: 'Rose',
   },
+};
+
+type PhraseToken =
+  | { type: 'letter'; slotIndex: number; char: string }
+  | { type: 'punct'; char: string };
+
+interface ParsedPhrasePattern {
+  words: PhraseToken[][];
+  targetLetters: string[];
+}
+
+const parseAnswerPhrase = (phrase: string): ParsedPhrasePattern => {
+  const rawWords = phrase.trim().split(/\s+/).filter(Boolean);
+  const words: PhraseToken[][] = [];
+  const targetLetters: string[] = [];
+
+  for (const rawWord of rawWords) {
+    const tokens: PhraseToken[] = [];
+    for (const ch of rawWord) {
+      const upper = ch.toUpperCase();
+      if (/^[A-Z]$/.test(upper)) {
+        tokens.push({ type: 'letter', slotIndex: targetLetters.length, char: upper });
+        targetLetters.push(upper);
+      } else {
+        tokens.push({ type: 'punct', char: ch });
+      }
+    }
+    if (tokens.length > 0) {
+      words.push(tokens);
+    }
+  }
+
+  return { words, targetLetters };
 };
 
 function RebusVisualStage({ visual }: { visual: RebusVisualSpec }) {
@@ -157,7 +206,6 @@ function RebusVisualStage({ visual }: { visual: RebusVisualSpec }) {
           );
         }
 
-        // 'rising' or 'falling' diagonal stepped letters
         const letters = Array.from(visual.primary).slice(0, 14);
         const stepPx = letters.length > 7 ? 5 : 8;
         const mid = (letters.length - 1) / 2;
@@ -259,7 +307,7 @@ function RebusVisualStage({ visual }: { visual: RebusVisualSpec }) {
 
   return (
     <div
-      className="relative mt-4 flex min-h-[164px] items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-slate-50 via-white to-sky-50/70 px-5 py-6 ring-1 ring-slate-200/80 shadow-inner"
+      className="relative mt-3.5 flex min-h-[152px] items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-slate-50 via-white to-sky-50/70 px-5 py-5 ring-1 ring-slate-200/80 shadow-inner"
       role="img"
       aria-label="Typographic visual word puzzle"
     >
@@ -291,21 +339,111 @@ export default function RebusPuzzleCard({
   onSolved,
   embedded = false,
 }: RebusPuzzleCardProps) {
+  const answerPhrase = puzzle.options[puzzle.correctIndex] ?? '';
+  const { words, targetLetters } = useMemo(() => parseAnswerPhrase(answerPhrase), [answerPhrase]);
+  const canSpellAnswer = targetLetters.length > 0 && targetLetters.length <= 28;
+
+  const [typedLetters, setTypedLetters] = useState<string[]>([]);
+  const [showChoices, setShowChoices] = useState(!canSpellAnswer);
   const [triedWrongIndices, setTriedWrongIndices] = useState<number[]>([]);
   const [isSolved, setIsSolved] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const isCompactSlots = targetLetters.length > 13;
+
+  const commitTypedLetters = useCallback(
+    (next: string[]) => {
+      setTypedLetters(next);
+      if (next.length === targetLetters.length && targetLetters.length > 0) {
+        const matches = next.every((ch, idx) => ch === targetLetters[idx]);
+        if (matches) {
+          setIsSolved(true);
+          setFeedback(null);
+          onSolved?.();
+        } else {
+          setFeedback('Almost there — tap any letter slot above to edit, or try a reveal.');
+        }
+      } else {
+        setFeedback(null);
+      }
+    },
+    [targetLetters, onSolved]
+  );
+
+  const handleKeyPress = useCallback(
+    (key: string) => {
+      if (isSolved || showChoices || !canSpellAnswer) return;
+
+      if (key === 'CLEAR') {
+        commitTypedLetters([]);
+        return;
+      }
+      if (key === 'BACK') {
+        if (typedLetters.length > 0) {
+          commitTypedLetters(typedLetters.slice(0, -1));
+        }
+        return;
+      }
+      if (/^[A-Z]$/.test(key) && typedLetters.length < targetLetters.length) {
+        commitTypedLetters([...typedLetters, key]);
+      }
+    },
+    [isSolved, showChoices, canSpellAnswer, typedLetters, targetLetters.length, commitTypedLetters]
+  );
+
+  useEffect(() => {
+    if (isSolved || showChoices || !canSpellAnswer) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleKeyPress('BACK');
+      } else if (/^[a-zA-Z]$/.test(e.key)) {
+        e.preventDefault();
+        handleKeyPress(e.key.toUpperCase());
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isSolved, showChoices, canSpellAnswer, handleKeyPress]);
+
+  const handleRevealLetter = () => {
+    if (isSolved || !canSpellAnswer) return;
+    let prefixLen = 0;
+    while (
+      prefixLen < typedLetters.length &&
+      typedLetters[prefixLen] === targetLetters[prefixLen]
+    ) {
+      prefixLen++;
+    }
+    if (prefixLen >= targetLetters.length) return;
+    const nextLetters = [...typedLetters.slice(0, prefixLen), targetLetters[prefixLen]];
+    commitTypedLetters(nextLetters);
+  };
+
+  const handleTrimToSlot = (slotIndex: number) => {
+    if (isSolved || slotIndex >= typedLetters.length) return;
+    commitTypedLetters(typedLetters.slice(0, slotIndex));
+  };
 
   const handleChooseOption = (index: number) => {
     if (isSolved || triedWrongIndices.includes(index)) return;
 
     if (index === puzzle.correctIndex) {
+      setTypedLetters([...targetLetters]);
       setIsSolved(true);
+      setFeedback(null);
       onSolved?.();
     } else {
       setTriedWrongIndices((prev) => [...prev, index]);
     }
   };
+
+  const displayedLetters = isSolved ? targetLetters : typedLetters;
+  const activeSlotIndex = !isSolved && !showChoices ? typedLetters.length : -1;
 
   return (
     <div className={embedded ? '' : 'rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100'}>
@@ -339,8 +477,9 @@ export default function RebusPuzzleCard({
             <strong>Goal:</strong> Decode the familiar phrase hidden in the visual word arrangement.
           </p>
           <p>
-            <strong>How:</strong> Look closely at position (over/under/between), size, color,
-            direction, breaks, or repetition — then pick the matching phrase below.
+            <strong>How:</strong> Look closely at position, size, color, direction, breaks, or
+            repetition, then spell the phrase using the letter pad below (spaces are added for you).
+            Need a hand? Reveal a letter, peek at a hint, or switch to 4 choices anytime.
           </p>
         </div>
       )}
@@ -348,76 +487,219 @@ export default function RebusPuzzleCard({
       {/* Editorial Typographic Visual Stage */}
       <RebusVisualStage visual={puzzle.visual} />
 
-      {/* Optional gentle hint */}
+      {/* Word-Grouped Blank Phrase Pattern */}
+      {canSpellAnswer && (
+        <div className="mt-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-3.5 gap-y-2">
+            {words.map((wordTokens, wIdx) => (
+              <div key={wIdx} className="inline-flex items-center gap-1">
+                {wordTokens.map((token, tIdx) => {
+                  if (token.type === 'punct') {
+                    return (
+                      <span
+                        key={`p-${wIdx}-${tIdx}`}
+                        className="px-0.5 text-sm font-bold text-slate-400"
+                        aria-hidden="true"
+                      >
+                        {token.char}
+                      </span>
+                    );
+                  }
+
+                  const ch = displayedLetters[token.slotIndex];
+                  const isActiveSlot = token.slotIndex === activeSlotIndex;
+
+                  return (
+                    <button
+                      key={`l-${token.slotIndex}`}
+                      type="button"
+                      disabled={isSolved || showChoices || !ch}
+                      onClick={() => handleTrimToSlot(token.slotIndex)}
+                      aria-label={
+                        ch ? `Letter ${ch}, tap to edit from here` : 'Empty answer letter slot'
+                      }
+                      className={`flex items-center justify-center rounded-lg font-bold uppercase transition ${
+                        isCompactSlots ? 'h-8 w-6 text-xs' : 'h-9 w-8 text-sm'
+                      } ${
+                        isSolved
+                          ? 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300'
+                          : ch
+                            ? 'bg-sky-600 text-white shadow-xs hover:bg-sky-700'
+                            : isActiveSlot
+                              ? 'border-2 border-sky-400 bg-sky-50/70 text-transparent ring-2 ring-sky-200/70'
+                              : 'border border-dashed border-slate-300 bg-slate-50/80 text-transparent'
+                      }`}
+                    >
+                      {ch || '_'}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          {!isSolved && !showChoices && (
+            <p className="mt-2 text-center text-[11px] text-gray-400">
+              {words.length === 1
+                ? `1 word · ${targetLetters.length} letters`
+                : `${words.length} words · tap letters below (spaces filled automatically)`}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Calm Helper Chips (Reveal letter · Hint · Show 4 choices / Keyboard) */}
       {!isSolved && (
-        <div className="mt-3">
-          {showHint ? (
-            <div className="flex items-start gap-2 rounded-2xl bg-amber-50/80 px-3.5 py-2.5 text-xs text-amber-900 ring-1 ring-amber-200/70">
-              <Lightbulb size={14} className="mt-0.5 shrink-0 text-amber-600" />
-              <p className="leading-relaxed">{puzzle.hint}</p>
-            </div>
-          ) : (
+        <div className="mt-3.5 flex flex-wrap items-center justify-center gap-1.5">
+          {canSpellAnswer && !showChoices && (
+            <button
+              type="button"
+              onClick={handleRevealLetter}
+              className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200/80 transition hover:bg-sky-100 active:scale-95"
+            >
+              <Sparkles size={12} />
+              <span>Reveal letter</span>
+            </button>
+          )}
+
+          {!showHint && (
             <button
               type="button"
               onClick={() => setShowHint(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200/70 transition hover:bg-amber-100"
+              className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200/70 transition hover:bg-amber-100 active:scale-95"
             >
-              <Lightbulb size={13} />
-              <span>Need a gentle hint?</span>
+              <Lightbulb size={12} />
+              <span>Hint</span>
+            </button>
+          )}
+
+          {canSpellAnswer && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowChoices((v) => !v);
+                setFeedback(null);
+              }}
+              className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1.5 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-200 active:scale-95"
+            >
+              {showChoices ? (
+                <>
+                  <Keyboard size={12} />
+                  <span>Use letter pad</span>
+                </>
+              ) : (
+                <>
+                  <ListChecks size={12} />
+                  <span>Show 4 choices</span>
+                </>
+              )}
             </button>
           )}
         </div>
       )}
 
-      {/* 4 Answer Choices */}
-      <div className="mt-4 space-y-2">
-        {puzzle.options.map((option, idx) => {
-          const isCorrectChoice = isSolved && idx === puzzle.correctIndex;
-          const isTriedWrong = triedWrongIndices.includes(idx);
+      {/* Revealed Hint Banner */}
+      {!isSolved && showHint && (
+        <div className="mt-2.5 flex items-start gap-2 rounded-2xl bg-amber-50/80 px-3.5 py-2.5 text-xs text-amber-900 ring-1 ring-amber-200/70">
+          <Lightbulb size={14} className="mt-0.5 shrink-0 text-amber-600" />
+          <p className="leading-relaxed">{puzzle.hint}</p>
+        </div>
+      )}
 
-          return (
-            <button
-              key={`${option}-${idx}`}
-              type="button"
-              disabled={isSolved || isTriedWrong}
-              onClick={() => handleChooseOption(idx)}
-              className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-                isCorrectChoice
-                  ? 'bg-emerald-50 text-emerald-950 ring-2 ring-emerald-400'
-                  : isTriedWrong
+      {/* Gentle spelling feedback */}
+      {!isSolved && !showChoices && feedback && (
+        <p className="mt-2.5 text-center text-xs font-medium text-amber-800" role="status">
+          {feedback}
+        </p>
+      )}
+
+      {/* Built-in In-App QWERTY Letter Pad (No OS Keyboard Popup!) */}
+      {!isSolved && canSpellAnswer && !showChoices && (
+        <div className="mt-3.5 space-y-1.5 select-none">
+          {KEYBOARD_ROWS.map((row, rIdx) => (
+            <div key={rIdx} className="flex justify-center gap-1">
+              {row.map((key) => {
+                const isClear = key === 'CLEAR';
+                const isBack = key === 'BACK';
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleKeyPress(key)}
+                    disabled={(isClear || isBack) && typedLetters.length === 0}
+                    aria-label={isBack ? 'Backspace' : isClear ? 'Clear letters' : key}
+                    className={`flex h-10 items-center justify-center rounded-xl text-xs font-bold transition active:scale-95 ${
+                      isClear
+                        ? 'px-2.5 text-[10px] bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40'
+                        : isBack
+                          ? 'px-2.5 bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40'
+                          : 'min-w-0 flex-1 bg-slate-100/95 text-slate-800 ring-1 ring-slate-200/70 hover:bg-sky-50 hover:text-sky-800 hover:ring-sky-200'
+                    }`}
+                  >
+                    {isBack ? (
+                      <Delete size={14} />
+                    ) : isClear ? (
+                      <RotateCcw size={13} />
+                    ) : (
+                      key
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Optional 4-Choice Lifeline */}
+      {!isSolved && showChoices && (
+        <div className="mt-4 space-y-2">
+          {puzzle.options.map((option, idx) => {
+            const isTriedWrong = triedWrongIndices.includes(idx);
+
+            return (
+              <button
+                key={`${option}-${idx}`}
+                type="button"
+                disabled={isTriedWrong}
+                onClick={() => handleChooseOption(idx)}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+                  isTriedWrong
                     ? 'bg-gray-50 text-gray-400 line-through ring-1 ring-gray-100'
                     : 'bg-gray-50/80 text-gray-800 ring-1 ring-gray-200/80 hover:bg-sky-50/60 hover:ring-sky-300'
-              }`}
-            >
-              <span
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                  isCorrectChoice
-                    ? 'bg-emerald-600 text-white'
-                    : isTriedWrong
-                      ? 'bg-gray-200 text-gray-400'
-                      : 'bg-white text-sky-700 shadow-sm ring-1 ring-sky-100'
                 }`}
               >
-                {isCorrectChoice ? <CheckCircle2 size={14} /> : OPTION_LABELS[idx]}
-              </span>
-              <span className="flex-1">{option}</span>
-            </button>
-          );
-        })}
-      </div>
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    isTriedWrong
+                      ? 'bg-gray-200 text-gray-400'
+                      : 'bg-white text-sky-700 shadow-sm ring-1 ring-sky-100'
+                  }`}
+                >
+                  {OPTION_LABELS[idx]}
+                </span>
+                <span className="flex-1">{option}</span>
+              </button>
+            );
+          })}
 
-      {/* Gentle retry prompt */}
-      {!isSolved && triedWrongIndices.length > 0 && (
-        <p className="mt-3 text-xs font-medium text-gray-500" role="status">
-          Not quite that one — look again at how the words are arranged and try another choice.
-        </p>
+          {triedWrongIndices.length > 0 && (
+            <p className="pt-1 text-xs font-medium text-gray-500" role="status">
+              Not quite that one — look again at how the words are arranged and try another choice.
+            </p>
+          )}
+        </div>
       )}
 
       {/* Explanation on completion */}
       {isSolved && (
         <div className="mt-4 rounded-2xl bg-emerald-50/90 p-4 ring-1 ring-emerald-200/70">
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">Clever eye!</p>
-          <p className="mt-1 text-xs leading-relaxed text-emerald-950">{puzzle.explanation}</p>
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-800">
+            <CheckCircle2 size={14} className="text-emerald-600" />
+            <span>Clever eye! &ldquo;{answerPhrase}&rdquo;</span>
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-emerald-950">{puzzle.explanation}</p>
         </div>
       )}
     </div>

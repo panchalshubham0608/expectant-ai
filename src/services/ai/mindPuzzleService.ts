@@ -116,7 +116,8 @@ export const REBUS_PUZZLE_SCHEMA = {
     },
     options: {
       type: 'ARRAY',
-      description: 'Exactly 4 distinct common phrases or idiomatic choices.',
+      description:
+        'Exactly 4 distinct, close look-alike common phrases (1-4 words, <=24 letters each) sharing similar key words so the choice is genuinely tricky.',
       items: { type: 'STRING' },
     },
     correctIndex: {
