@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, Eraser, Info, Lightbulb, RefreshCw } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Eraser, HelpCircle, Lightbulb, RefreshCw } from 'lucide-react';
 import { generateCalmSudoku, type SudokuBoard, type SudokuSize } from '../../utils/sudokuGenerator';
 import { loadSudokuState, saveSudokuState } from '../../utils/mindPlayStorage';
 
@@ -35,6 +35,7 @@ export default function CalmSudokuActivity({ profileId }: CalmSudokuActivityProp
       ? 'Beautifully done! Every row, column, and box is in calm harmony.'
       : null
   );
+  const [showRules, setShowRules] = useState(false);
 
   useEffect(() => {
     saveSudokuState(profileId, { size, board, values });
@@ -132,35 +133,10 @@ export default function CalmSudokuActivity({ profileId }: CalmSudokuActivityProp
         <p className="mt-0.5 text-xs text-gray-500">No timer, no rush — solve at your own pace.</p>
       </div>
 
-      {/* Clear How to Play card */}
-      <div className="mt-3.5 rounded-2xl bg-indigo-50/70 p-3.5 ring-1 ring-indigo-100">
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100">
-            <Info size={13} />
-          </div>
-          <div className="space-y-1 text-xs leading-relaxed text-indigo-950">
-            <p>
-              <span className="font-bold text-indigo-800">Goal:</span> Place numbers{' '}
-              <span className="font-semibold">1 to {size}</span> once in every{' '}
-              <span className="font-semibold">row</span>,{' '}
-              <span className="font-semibold">column</span>, and{' '}
-              <span className="font-semibold">
-                {board.boxRows}×{board.boxCols} box
-              </span>{' '}
-              without repeating.
-            </p>
-            <p className="text-indigo-900/80">
-              <span className="font-semibold text-indigo-800">How:</span> Tap any empty square on
-              the grid, then tap a number below to fill it in.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Centered size selector */}
-      <div className="mt-4 flex justify-center">
+      {/* Size selector & Rules toggle */}
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2">
         <div
-          className="grid w-full max-w-[272px] grid-cols-2 gap-1 rounded-2xl bg-gray-100/90 p-1"
+          className="inline-flex gap-1 rounded-2xl bg-gray-100/90 p-1"
           role="group"
           aria-label="Sudoku board size"
         >
@@ -172,7 +148,7 @@ export default function CalmSudokuActivity({ profileId }: CalmSudokuActivityProp
                 if (optionSize !== size) startNewBoard(optionSize);
               }}
               aria-pressed={size === optionSize}
-              className={`rounded-xl py-2 text-xs font-semibold transition ${
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
                 size === optionSize
                   ? 'bg-white text-indigo-700 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -182,7 +158,38 @@ export default function CalmSudokuActivity({ profileId }: CalmSudokuActivityProp
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowRules((v) => !v)}
+          aria-expanded={showRules}
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+            showRules
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <HelpCircle size={12} />
+          <span>Rules</span>
+        </button>
       </div>
+
+      {showRules && (
+        <div className="mt-2.5 space-y-1 rounded-2xl bg-indigo-50/75 p-3 text-xs leading-relaxed text-indigo-950 ring-1 ring-indigo-100">
+          <p>
+            <strong>Goal:</strong> Place numbers <strong>1 to {size}</strong> once in every{' '}
+            <strong>row</strong>, <strong>column</strong>, and{' '}
+            <strong>
+              {board.boxRows}×{board.boxCols} box
+            </strong>{' '}
+            without repeating.
+          </p>
+          <p>
+            <strong>How:</strong> Tap any empty square on the grid, then tap a number below to fill
+            it in.
+          </p>
+        </div>
+      )}
 
       {/* Sudoku grid */}
       <div className="mt-4 flex justify-center">

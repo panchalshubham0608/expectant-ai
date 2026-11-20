@@ -1,56 +1,139 @@
 import { MIND_PUZZLES_SYSTEM_PROMPT } from '../../prompts/mind_puzzles';
 import {
-  PUZZLES_PER_KIND,
-  sanitizeConnectionsPuzzle,
+  DEFAULT_DAILY_MIX_ALLOCATION,
   sanitizeDailyMindPuzzles,
+  sanitizeFiveCluesPuzzle,
+  sanitizeRebusPuzzle,
   sanitizeRiddlePuzzle,
   sanitizeWordScramblePuzzle,
-  type ConnectionsPuzzle,
   type DailyMindPuzzles,
+  type DailyMixAllocation,
+  type FiveCluesPuzzle,
   type MindPuzzleKind,
+  type RebusPuzzle,
   type RiddlePuzzle,
   type WordScramblePuzzle,
 } from '../../models/mindPuzzle';
 import {
-  getFallbackConnectionsPuzzles,
+  getFallbackFiveCluesPuzzles,
+  getFallbackRebusPuzzles,
   getFallbackRiddlePuzzles,
   getFallbackWordScramblePuzzles,
 } from '../../utils/fallbackMindPuzzles';
 import { DEFAULT_GEMINI_MODEL, getGeminiClient } from './geminiCore';
 
-export const CONNECTIONS_PUZZLE_SCHEMA = {
+export const FIVE_CLUES_PUZZLE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     title: {
       type: 'STRING',
-      description: 'Short, warm title for this 4x4 word connections puzzle.',
+      description: 'Short, warm non-spoiler title for this 5-Clue Mystery.',
     },
-    themeHint: {
+    category: {
       type: 'STRING',
-      description:
-        'One inviting sentence hinting at the vibe of the puzzle without giving away exact categories.',
+      description: 'Short category label like "World Place", "Kitchen Wonder", "Nature Gem", or "Everyday Invention".',
     },
-    groups: {
+    clues: {
       type: 'ARRAY',
-      description: 'Exactly 4 groups of 4 unique words each (16 completely unique words total).',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          category: { type: 'STRING' },
-          difficulty: {
-            type: 'STRING',
-            enum: ['gentle', 'cozy', 'clever', 'tricky'],
-          },
-          words: {
-            type: 'ARRAY',
-            items: { type: 'STRING' },
-          },
-        },
-        required: ['category', 'difficulty', 'words'],
-      },
+      description:
+        'Exactly 5 progressive clues ordered from subtle/poetic (index 0) to unmistakable (index 4). Never state the answer word in clues 1-4.',
+      items: { type: 'STRING' },
+    },
+    options: {
+      type: 'ARRAY',
+      description: 'Exactly 4 distinct, plausible short answer choices.',
+      items: { type: 'STRING' },
+    },
+    correctIndex: {
+      type: 'INTEGER',
+      description: '0-based index (0, 1, 2, or 3) of the single unambiguously correct option.',
+    },
+    explanation: {
+      type: 'STRING',
+      description: 'Warm 1-2 sentence reveal tying the clues back to the answer.',
     },
   },
-  required: ['title', 'themeHint', 'groups'],
+  required: ['title', 'category', 'clues', 'options', 'correctIndex', 'explanation'],
+} as const;
+
+export const REBUS_PUZZLE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    title: {
+      type: 'STRING',
+      description: 'Short inviting non-spoiler title for this Word Picture (typographic rebus).',
+    },
+    category: {
+      type: 'STRING',
+      description: 'Short label like "Word Picture", "Visual Idiom", or "Phrase Play".',
+    },
+    visual: {
+      type: 'OBJECT',
+      description: 'Structured typographic arrangement rendered as a clean visual card.',
+      properties: {
+        layout: {
+          type: 'STRING',
+          enum: ['stack', 'between', 'repeat', 'size', 'direction', 'split', 'box', 'colorWord'],
+        },
+        primary: {
+          type: 'STRING',
+          description: 'Primary word or letters (concise, <= 24 chars).',
+        },
+        secondary: {
+          type: 'STRING',
+          description: 'Secondary word (bottom word for stack, middle word for between, right half for split, or box label).',
+        },
+        accent: {
+          type: 'STRING',
+          description: 'Right-hand word for "between" layout (e.g. "LINE" or "ME").',
+        },
+        repeatCount: {
+          type: 'INTEGER',
+          description: 'How many times to repeat primary (2, 3, or 4) for "repeat" layout.',
+        },
+        sizeVariant: {
+          type: 'STRING',
+          enum: ['tiny', 'giant'],
+          description: 'Visual scale for "size" layout.',
+        },
+        direction: {
+          type: 'STRING',
+          enum: ['upsideDown', 'backwards', 'rising', 'falling'],
+          description: 'Visual orientation for "direction" layout.',
+        },
+        boxPlacement: {
+          type: 'STRING',
+          enum: ['inside', 'outside'],
+          description: 'Placement relative to the drawn box for "box" layout.',
+        },
+        color: {
+          type: 'STRING',
+          enum: ['blue', 'green', 'gold', 'silver', 'red', 'rose'],
+          description: 'Color token for "colorWord" layout.',
+        },
+      },
+      required: ['layout', 'primary'],
+    },
+    options: {
+      type: 'ARRAY',
+      description:
+        'Exactly 4 distinct, close look-alike common phrases (1-4 words, <=24 letters each) sharing similar key words so the choice is genuinely tricky.',
+      items: { type: 'STRING' },
+    },
+    correctIndex: {
+      type: 'INTEGER',
+      description: '0-based index (0, 1, 2, or 3) of the single correct phrase.',
+    },
+    hint: {
+      type: 'STRING',
+      description: 'Gentle nudge pointing at the visual trick without giving away the answer.',
+    },
+    explanation: {
+      type: 'STRING',
+      description: 'Warm 1-2 sentence explanation of how the visual arrangement spells the phrase.',
+    },
+  },
+  required: ['title', 'category', 'visual', 'options', 'correctIndex', 'hint', 'explanation'],
 } as const;
 
 export const WORD_SCRAMBLE_PUZZLE_SCHEMA = {
@@ -123,27 +206,48 @@ export const RIDDLE_PUZZLE_SCHEMA = {
   required: ['title', 'category', 'question', 'options', 'correctIndex', 'hint', 'explanation'],
 } as const;
 
-export const DAILY_MIND_PUZZLES_SCHEMA = {
+export const buildDailyMindPuzzlesSchema = (
+  allocation: DailyMixAllocation = DEFAULT_DAILY_MIX_ALLOCATION
+) => ({
   type: 'OBJECT',
   properties: {
-    connections: {
+    fiveClues: {
       type: 'ARRAY',
-      description: `Exactly ${PUZZLES_PER_KIND} distinct Calm Word Connections puzzles with varied themes.`,
-      items: CONNECTIONS_PUZZLE_SCHEMA,
+      description:
+        allocation.fiveClues > 0
+          ? `Exactly ${allocation.fiveClues} distinct 5-Clue Mystery puzzles on varied topics.`
+          : 'Return an empty array [] (0 puzzles requested).',
+      items: FIVE_CLUES_PUZZLE_SCHEMA,
+    },
+    rebus: {
+      type: 'ARRAY',
+      description:
+        allocation.rebus > 0
+          ? `Exactly ${allocation.rebus} distinct Word Picture (typographic rebus) puzzles using varied visual layouts.`
+          : 'Return an empty array [] (0 puzzles requested).',
+      items: REBUS_PUZZLE_SCHEMA,
     },
     wordScramble: {
       type: 'ARRAY',
-      description: `Exactly ${PUZZLES_PER_KIND} distinct Cozy Word Unscrambler puzzles with varied themes.`,
+      description:
+        allocation.wordScramble > 0
+          ? `Exactly ${allocation.wordScramble} distinct Cozy Word Unscrambler puzzles with varied themes.`
+          : 'Return an empty array [] (0 puzzles requested).',
       items: WORD_SCRAMBLE_PUZZLE_SCHEMA,
     },
     riddle: {
       type: 'ARRAY',
-      description: `Exactly ${PUZZLES_PER_KIND} distinct Gentle Brain Teasers mixing riddles, wordplay, and patterns.`,
+      description:
+        allocation.riddle > 0
+          ? `Exactly ${allocation.riddle} distinct Gentle Brain Teasers mixing riddles, wordplay, and patterns.`
+          : 'Return an empty array [] (0 puzzles requested).',
       items: RIDDLE_PUZZLE_SCHEMA,
     },
   },
-  required: ['connections', 'wordScramble', 'riddle'],
-} as const;
+  required: ['fiveClues', 'rebus', 'wordScramble', 'riddle'],
+});
+
+export const DAILY_MIND_PUZZLES_SCHEMA = buildDailyMindPuzzlesSchema(DEFAULT_DAILY_MIX_ALLOCATION);
 
 const getModelName = (): string => {
   const env = typeof process !== 'undefined' && process.env ? process.env : import.meta.env;
@@ -152,20 +256,21 @@ const getModelName = (): string => {
 
 const pickThemeInspiration = (): string => {
   const themes = [
-    'botanical gardens, morning light, and nature',
+    'botanical gardens, morning light, and nature wonders',
     'music, lullabies, melodies, and cozy sounds',
-    'comforting kitchens, fruits, spices, and herbal teas',
-    'stars, seasons, clouds, and calm skies',
-    'art, colors, textiles, and handmade crafts',
+    'comforting kitchens, world cuisines, fruits, spices, and herbal teas',
+    'stars, seasons, weather phenomena, and calm skies',
+    'art, colors, textiles, architecture, and handmade crafts',
     'world landmarks, peaceful rivers, and gentle travel',
-    'stories, fairy tales, books, and warm family traditions',
-    'cozy nursery essentials, soft fabrics, and gentle beginnings',
+    'stories, literature, everyday inventions, and warm family traditions',
+    'cozy home comforts, gentle idioms, and everyday discoveries',
   ];
   return themes[Math.floor(Math.random() * themes.length)];
 };
 
 export interface SinglePuzzleResultMap {
-  connections: ConnectionsPuzzle;
+  fiveClues: FiveCluesPuzzle;
+  rebus: RebusPuzzle;
   wordScramble: WordScramblePuzzle;
   riddle: RiddlePuzzle;
 }
@@ -175,6 +280,7 @@ const topUpList = <T extends { title: string }>(
   fallbacks: T[],
   targetCount: number
 ): T[] => {
+  if (targetCount <= 0) return [];
   const result = items.slice(0, targetCount);
   if (result.length >= targetCount) return result;
 
@@ -207,14 +313,17 @@ export const generateSingleMindPuzzle = async <K extends MindPuzzleKind>(
   const inspiration = pickThemeInspiration();
 
   const schemaByKind = {
-    connections: CONNECTIONS_PUZZLE_SCHEMA,
+    fiveClues: FIVE_CLUES_PUZZLE_SCHEMA,
+    rebus: REBUS_PUZZLE_SCHEMA,
     wordScramble: WORD_SCRAMBLE_PUZZLE_SCHEMA,
     riddle: RIDDLE_PUZZLE_SCHEMA,
   } as const;
 
   const promptByKind: Record<MindPuzzleKind, string> = {
-    connections:
-      'Create ONE fresh "Calm Word Connections" puzzle (4 groups of 4 completely unique words = 16 unique words total).',
+    fiveClues:
+      'Create ONE fresh "5-Clue Mystery" puzzle with 5 progressive clues ordered from subtle/poetic to unmistakable, 4 distinct options, an unambiguous correctIndex (0–3), and a warm explanation.',
+    rebus:
+      'Create ONE fresh "Word Picture" (typographic rebus) puzzle using one of the 8 structured visual layouts, 4 distinct phrase options, an unambiguous correctIndex (0–3), a helpful hint, and a clear explanation.',
     wordScramble:
       'Create ONE fresh "Cozy Word Unscrambler" puzzle with 4 uppercase A-Z single English words (4–9 letters each) and warm clues.',
     riddle:
@@ -239,8 +348,11 @@ export const generateSingleMindPuzzle = async <K extends MindPuzzleKind>(
 
   const parseAndValidate = (rawText: string): SinglePuzzleResultMap[K] | null => {
     const parsed: unknown = JSON.parse(rawText);
-    if (kind === 'connections') {
-      return sanitizeConnectionsPuzzle(parsed) as SinglePuzzleResultMap[K] | null;
+    if (kind === 'fiveClues') {
+      return sanitizeFiveCluesPuzzle(parsed) as SinglePuzzleResultMap[K] | null;
+    }
+    if (kind === 'rebus') {
+      return sanitizeRebusPuzzle(parsed) as SinglePuzzleResultMap[K] | null;
     }
     if (kind === 'wordScramble') {
       return sanitizeWordScramblePuzzle(parsed) as SinglePuzzleResultMap[K] | null;
@@ -287,24 +399,57 @@ export const generateSingleMindPuzzle = async <K extends MindPuzzleKind>(
 };
 
 /**
- * Generates a full set of 12 daily mind puzzles (4 Connections, 4 Word Scrambles, 4 Brain Teasers)
+ * Generates a personalized daily set of mind puzzles matching the requested allocation
  * via Gemini without regenerating the rest of the daily digest.
  */
 export const generateMindPuzzlesSet = async (
-  options: { pregnancyWeek?: number } = {},
+  options: { pregnancyWeek?: number; allocation?: DailyMixAllocation } = {},
   userApiKey?: string
 ): Promise<DailyMindPuzzles> => {
   const ai = getGeminiClient(userApiKey);
   const model = getModelName();
-  const totalCount = PUZZLES_PER_KIND * 3;
+  const allocation = options.allocation ?? DEFAULT_DAILY_MIX_ALLOCATION;
+  const totalCount =
+    allocation.fiveClues + allocation.rebus + allocation.wordScramble + allocation.riddle;
+
+  const requestLines: string[] = [];
+  if (allocation.fiveClues > 0) {
+    requestLines.push(
+      `- ${allocation.fiveClues} distinct "fiveClues" mysteries (each with 5 progressive clues from subtle to clear + 4 options)`
+    );
+  } else {
+    requestLines.push('- 0 "fiveClues" puzzles (return an empty array [])');
+  }
+
+  if (allocation.rebus > 0) {
+    requestLines.push(
+      `- ${allocation.rebus} distinct "rebus" word pictures (using varied visual layouts from the 8 layout types + 4 phrase options)`
+    );
+  } else {
+    requestLines.push('- 0 "rebus" puzzles (return an empty array [])');
+  }
+
+  if (allocation.wordScramble > 0) {
+    requestLines.push(
+      `- ${allocation.wordScramble} distinct "wordScramble" puzzles (each having 4 single uppercase A-Z words with clues)`
+    );
+  } else {
+    requestLines.push('- 0 "wordScramble" puzzles (return an empty array [])');
+  }
+
+  if (allocation.riddle > 0) {
+    requestLines.push(
+      `- ${allocation.riddle} distinct "riddle" brain teasers (mixing cozy riddles, light wordplay, and gentle pattern/number puzzles)`
+    );
+  } else {
+    requestLines.push('- 0 "riddle" puzzles (return an empty array [])');
+  }
 
   const userPrompt = [
     `Create a calm, varied set of ${totalCount} mind puzzles for today so an expectant parent can play anytime throughout the day:`,
-    `- ${PUZZLES_PER_KIND} distinct "connections" puzzles (each having 4 groups of 4 completely unique words)`,
-    `- ${PUZZLES_PER_KIND} distinct "wordScramble" puzzles (each having 4 single uppercase A-Z words with clues)`,
-    `- ${PUZZLES_PER_KIND} distinct "riddle" brain teasers (mixing cozy riddles, light wordplay, and gentle pattern/number puzzles)`,
+    ...requestLines,
     options.pregnancyWeek ? `Context: Expectant parent in pregnancy week ${options.pregnancyWeek}.` : '',
-    'Use diverse, uplifting themes across all 12 puzzles (nature, music, food & tea, skies, seasons, art, travel, stories, cozy nursery, everyday wonders).',
+    'Use diverse, uplifting themes across all puzzles (nature, music, world places, food & tea, skies, seasons, art, inventions, stories, everyday wonders).',
   ]
     .filter(Boolean)
     .join('\n');
@@ -316,7 +461,7 @@ export const generateMindPuzzlesSet = async (
       config: {
         systemInstruction: MIND_PUZZLES_SYSTEM_PROMPT.trim(),
         responseMimeType: 'application/json',
-        responseSchema: DAILY_MIND_PUZZLES_SCHEMA,
+        responseSchema: buildDailyMindPuzzlesSchema(allocation),
       },
     });
 
@@ -328,20 +473,25 @@ export const generateMindPuzzlesSet = async (
     const sanitized = sanitizeDailyMindPuzzles(parsed);
 
     return {
-      connections: topUpList(
-        sanitized?.connections ?? [],
-        getFallbackConnectionsPuzzles(PUZZLES_PER_KIND),
-        PUZZLES_PER_KIND
+      fiveClues: topUpList(
+        sanitized?.fiveClues ?? [],
+        getFallbackFiveCluesPuzzles(allocation.fiveClues),
+        allocation.fiveClues
+      ),
+      rebus: topUpList(
+        sanitized?.rebus ?? [],
+        getFallbackRebusPuzzles(allocation.rebus),
+        allocation.rebus
       ),
       wordScramble: topUpList(
         sanitized?.wordScramble ?? [],
-        getFallbackWordScramblePuzzles(PUZZLES_PER_KIND),
-        PUZZLES_PER_KIND
+        getFallbackWordScramblePuzzles(allocation.wordScramble),
+        allocation.wordScramble
       ),
       riddle: topUpList(
         sanitized?.riddle ?? [],
-        getFallbackRiddlePuzzles(PUZZLES_PER_KIND),
-        PUZZLES_PER_KIND
+        getFallbackRiddlePuzzles(allocation.riddle),
+        allocation.riddle
       ),
       updatedAt: Date.now(),
     };

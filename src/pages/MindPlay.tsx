@@ -1,23 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
   ChevronRight,
-  Flower2,
-  Grid3X3,
+  Eye,
   LayoutGrid,
   Lightbulb,
   Loader2,
-  Palette,
   Play,
   Puzzle,
   RefreshCw,
+  Search,
   Shuffle,
+  SlidersHorizontal,
   Sparkles,
   Type,
-  Wind,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -37,24 +36,76 @@ import {
   regenerateAllMindPuzzles,
 } from '../services/dailyDigests/mindPuzzlesGeneratorService';
 import { getFallbackDailyMindPuzzles } from '../utils/fallbackMindPuzzles';
-import ConnectionsPuzzleCard from '../components/mindPlay/ConnectionsPuzzleCard';
+import FiveCluesPuzzleCard from '../components/mindPlay/FiveCluesPuzzleCard';
+import RebusPuzzleCard from '../components/mindPlay/RebusPuzzleCard';
 import WordScrambleCard from '../components/mindPlay/WordScrambleCard';
 import RiddlePuzzleCard from '../components/mindPlay/RiddlePuzzleCard';
 import PuzzlePlayModal from '../components/mindPlay/PuzzlePlayModal';
+import PuzzleMixModal from '../components/mindPlay/PuzzleMixModal';
+import GameCollectionModal from '../components/mindPlay/GameCollectionModal';
 import CalmSudokuActivity from '../components/mindPlay/CalmSudokuActivity';
 import MemoryMatchActivity from '../components/mindPlay/MemoryMatchActivity';
 import MandalaColoringActivity from '../components/mindPlay/MandalaColoringActivity';
 import CalmBreathingActivity from '../components/mindPlay/CalmBreathingActivity';
+import CalmStarlightPathsActivity from '../components/mindPlay/CalmStarlightPathsActivity';
+import HerbalTeaPourActivity from '../components/mindPlay/HerbalTeaPourActivity';
+import LullabyStarChimesActivity from '../components/mindPlay/LullabyStarChimesActivity';
+import FourInARowActivity from '../components/mindPlay/FourInARowActivity';
+import DotsAndBoxesActivity from '../components/mindPlay/DotsAndBoxesActivity';
+import ReversiActivity from '../components/mindPlay/ReversiActivity';
+import MancalaActivity from '../components/mindPlay/MancalaActivity';
+import GomokuActivity from '../components/mindPlay/GomokuActivity';
+import WordDuelActivity from '../components/mindPlay/WordDuelActivity';
+import {
+  BUILT_IN_ACTIVITIES_CATALOG,
+  BUILT_IN_ACTIVITY_BY_ID,
+  getTopPlayedActivities,
+  type BuiltInActivityId,
+} from '../utils/mindPlayCatalog';
 import {
   loadMindPlayNavState,
+  loadMindPlayPlayCounts,
   saveMindPlayNavState,
-  type MindPlayBuiltInKind,
+  saveMindPlayPlayCounts,
+  type MindPlayPlayCounts,
   type MindPlayPuzzleFilter,
   type SavedMindPlayNavState,
 } from '../utils/mindPlayStorage';
+import {
+  computeDailyMixAllocation,
+  hasPersonalizedMix,
+  loadMindPuzzlePreferences,
+  recordPuzzleFilterInterestSignal,
+  recordPuzzleSkippedSignal,
+  recordPuzzleSolvedSignal,
+  resetMindPuzzlePreferences,
+  saveMindPuzzlePreferences,
+  type MindPuzzlePreferences,
+  type PuzzleKindPreferenceMode,
+} from '../utils/mindPuzzlePreferences';
 
 type PuzzleFilter = MindPlayPuzzleFilter;
-type BuiltInActivityKind = MindPlayBuiltInKind;
+
+const ALL_BUILT_IN_IDS: readonly BuiltInActivityId[] = BUILT_IN_ACTIVITIES_CATALOG.map(
+  (item) => item.id
+);
+
+const shuffleBuiltInGames = (excludeFirst?: BuiltInActivityId): BuiltInActivityId[] => {
+  const arr: BuiltInActivityId[] = [...ALL_BUILT_IN_IDS];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  if (excludeFirst && arr.length > 1 && arr[0] === excludeFirst) {
+    const swapIdx = 1 + Math.floor(Math.random() * (arr.length - 1));
+    const tmp = arr[0];
+    arr[0] = arr[swapIdx];
+    arr[swapIdx] = tmp;
+  }
+  return arr;
+};
 
 interface PuzzleCardEntry {
   kind: MindPuzzleKind;
@@ -66,29 +117,29 @@ interface PuzzleCardEntry {
   isSolved: boolean;
 }
 
-const PUZZLE_FILTERS: {
-  key: PuzzleFilter;
+const PUZZLE_VARIETY_FILTERS: {
+  key: MindPuzzleKind;
   label: string;
   subtitle: string;
-  icon: typeof LayoutGrid;
+  icon: typeof Search;
   iconClass: string;
   activeClass: string;
 }[] = [
   {
-    key: 'all',
-    label: 'All Puzzles',
-    subtitle: 'Calm daily mix',
-    icon: LayoutGrid,
-    iconClass: 'text-indigo-600',
-    activeClass: 'bg-indigo-600 text-white shadow-sm',
+    key: 'fiveClues',
+    label: '5-Clue Mystery',
+    subtitle: 'Progressive clues',
+    icon: Search,
+    iconClass: 'text-amber-700',
+    activeClass: 'bg-amber-600 text-white shadow-sm',
   },
   {
-    key: 'connections',
-    label: 'Connections',
-    subtitle: 'Group 4 related words',
-    icon: Puzzle,
-    iconClass: 'text-blue-600',
-    activeClass: 'bg-blue-600 text-white shadow-sm',
+    key: 'rebus',
+    label: 'Word Picture',
+    subtitle: 'Visual wordplay',
+    icon: Eye,
+    iconClass: 'text-sky-600',
+    activeClass: 'bg-sky-600 text-white shadow-sm',
   },
   {
     key: 'wordScramble',
@@ -111,17 +162,23 @@ const PUZZLE_FILTERS: {
 const PUZZLE_KIND_STYLES: Record<
   MindPuzzleKind,
   {
-    icon: typeof Puzzle;
+    icon: typeof Search;
     iconBox: string;
     badge: string;
     accentRing: string;
   }
 > = {
-  connections: {
-    icon: Puzzle,
-    iconBox: 'bg-blue-50 text-blue-600 ring-1 ring-blue-100',
-    badge: 'bg-blue-50 text-blue-700',
-    accentRing: 'hover:ring-blue-200',
+  fiveClues: {
+    icon: Search,
+    iconBox: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200/70',
+    badge: 'bg-amber-50 text-amber-800',
+    accentRing: 'hover:ring-amber-200',
+  },
+  rebus: {
+    icon: Eye,
+    iconBox: 'bg-sky-50 text-sky-600 ring-1 ring-sky-100',
+    badge: 'bg-sky-50 text-sky-700',
+    accentRing: 'hover:ring-sky-200',
   },
   wordScramble: {
     icon: Type,
@@ -137,50 +194,27 @@ const PUZZLE_KIND_STYLES: Record<
   },
 };
 
-const BUILTIN_ACTIVITIES: {
-  key: BuiltInActivityKind;
-  label: string;
-  subtitle: string;
-  icon: typeof Grid3X3;
-  iconClass: string;
-  activeClass: string;
-}[] = [
-  {
-    key: 'sudoku',
-    label: 'Mini Sudoku',
-    subtitle: '4×4 & 6×6 calm logic',
-    icon: Grid3X3,
-    iconClass: 'text-indigo-600',
-    activeClass: 'bg-indigo-600 text-white shadow-sm',
-  },
-  {
-    key: 'memory',
-    label: 'Memory Match',
-    subtitle: 'Playful matching pairs',
-    icon: Flower2,
-    iconClass: 'text-emerald-600',
-    activeClass: 'bg-emerald-600 text-white shadow-sm',
-  },
-  {
-    key: 'mandala',
-    label: 'Mandala Art',
-    subtitle: 'Tap-to-color calm',
-    icon: Palette,
-    iconClass: 'text-violet-600',
-    activeClass: 'bg-violet-600 text-white shadow-sm',
-  },
-  {
-    key: 'breathing',
-    label: 'Calm Breathing',
-    subtitle: 'Guided 4–2–4 pacer',
-    icon: Wind,
-    iconClass: 'text-sky-600',
-    activeClass: 'bg-sky-600 text-white shadow-sm',
-  },
-];
-
 const getSolvedStorageKey = (profileId: string, dateId: string): string =>
   `mindPlaySolved:${profileId}:${dateId}`;
+
+const pruneOldSolvedIds = (profileId: string, todayDateId: string): void => {
+  try {
+    const prefix = `mindPlaySolved:${profileId}:`;
+    const todayKey = `${prefix}${todayDateId}`;
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix) && k !== todayKey) {
+        keysToRemove.push(k);
+      }
+    }
+    for (const k of keysToRemove) {
+      localStorage.removeItem(k);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+};
 
 const loadSolvedIds = (profileId: string | undefined, dateId: string): Record<string, boolean> => {
   if (!profileId) return {};
@@ -221,9 +255,23 @@ export default function MindPlay() {
   const [navOverridesByProfile, setNavOverridesByProfile] = useState<
     Record<string, Partial<SavedMindPlayNavState>>
   >({});
+  const [playCountsByProfile, setPlayCountsByProfile] = useState<
+    Record<string, MindPlayPlayCounts>
+  >({});
+  const [puzzlePrefsByProfile, setPuzzlePrefsByProfile] = useState<
+    Record<string, MindPuzzlePreferences>
+  >({});
+  const [isCollectionOpen, setIsCollectionOpen] = useState(false);
+  const [isMixModalOpen, setIsMixModalOpen] = useState(false);
   const [activeModalSlot, setActiveModalSlot] = useState<{
     kind: MindPuzzleKind;
     index: number;
+  } | null>(null);
+  const openedPuzzleRef = useRef<{
+    id: string;
+    kind: MindPuzzleKind;
+    wasSolvedOnOpen: boolean;
+    solvedDuringOpen: boolean;
   } | null>(null);
 
   const navState = useMemo<SavedMindPlayNavState>(() => {
@@ -234,6 +282,38 @@ export default function MindPlay() {
 
   const { activeTab, puzzleFilter, activeBuiltIn } = navState;
 
+  const puzzlePrefs = useMemo<MindPuzzlePreferences>(() => {
+    const override = id ? puzzlePrefsByProfile[id] : undefined;
+    return override ?? loadMindPuzzlePreferences(id);
+  }, [id, puzzlePrefsByProfile]);
+
+  const isMixPersonalized = useMemo(() => hasPersonalizedMix(puzzlePrefs), [puzzlePrefs]);
+
+  const visibleVarietyFilters = useMemo(
+    () => PUZZLE_VARIETY_FILTERS.filter((f) => puzzlePrefs.overrides[f.key] !== 'hidden'),
+    [puzzlePrefs]
+  );
+
+  const effectivePuzzleFilter: PuzzleFilter =
+    puzzleFilter !== 'all' && puzzlePrefs.overrides[puzzleFilter] === 'hidden'
+      ? 'all'
+      : puzzleFilter;
+
+  const playCounts = useMemo<MindPlayPlayCounts>(() => {
+    const persisted = loadMindPlayPlayCounts(id);
+    const override = id ? playCountsByProfile[id] : undefined;
+    return override ? { ...persisted, ...override } : persisted;
+  }, [id, playCountsByProfile]);
+
+  const topFourActivities = useMemo(() => getTopPlayedActivities(playCounts, 4), [playCounts]);
+  const hasPlayHistory = useMemo(
+    () =>
+      Object.entries(playCounts).some(
+        ([key, count]) => key !== 'breathing' && (count ?? 0) > 0
+      ),
+    [playCounts]
+  );
+
   const updateNavState = (patch: Partial<SavedMindPlayNavState>) => {
     const next: SavedMindPlayNavState = { ...navState, ...patch };
     if (id) {
@@ -243,6 +323,67 @@ export default function MindPlay() {
         [id]: { ...(prev[id] ?? {}), ...patch },
       }));
     }
+  };
+
+  const handleSelectPuzzleFilter = (nextFilter: PuzzleFilter) => {
+    const resolved: PuzzleFilter =
+      nextFilter !== 'all' && effectivePuzzleFilter === nextFilter ? 'all' : nextFilter;
+    if (resolved !== 'all' && resolved !== effectivePuzzleFilter && id) {
+      const updated = recordPuzzleFilterInterestSignal(id, resolved);
+      setPuzzlePrefsByProfile((prev) => ({ ...prev, [id]: updated }));
+    }
+    updateNavState({ puzzleFilter: resolved });
+  };
+
+  const handleSelectBuiltIn = (targetId: BuiltInActivityId) => {
+    const isChangingActivity = targetId !== activeBuiltIn || activeTab !== 'builtin';
+    if (isChangingActivity && targetId !== 'breathing' && id) {
+      const nextCounts: MindPlayPlayCounts = {
+        ...playCounts,
+        [targetId]: (playCounts[targetId] ?? 0) + 1,
+      };
+      saveMindPlayPlayCounts(id, nextCounts);
+      setPlayCountsByProfile((prev) => ({
+        ...prev,
+        [id]: nextCounts,
+      }));
+    }
+    updateNavState({ activeTab: 'builtin', activeBuiltIn: targetId });
+  };
+
+  const [surpriseSolvedCount, setSurpriseSolvedCount] = useState(0);
+  const surpriseBagRef = useRef<BuiltInActivityId[]>([]);
+
+  const handleSurpriseBoardSolved = useCallback(() => {
+    setSurpriseSolvedCount((count) => count + 1);
+  }, []);
+
+  const surpriseLevelLabel =
+    surpriseSolvedCount < 2
+      ? 'Level 1 · Gentle'
+      : surpriseSolvedCount < 4
+        ? 'Level 2 · Soft'
+        : surpriseSolvedCount < 6
+          ? 'Level 3 · Cozy'
+          : surpriseSolvedCount < 9
+            ? 'Level 4 · Deep'
+            : 'Level 5 · Master';
+
+  const handleLaunchSurpriseGame = () => {
+    if (surpriseBagRef.current.length === 0) {
+      surpriseBagRef.current = shuffleBuiltInGames(activeBuiltIn);
+    }
+    let picked = surpriseBagRef.current.shift();
+    if (picked === activeBuiltIn && ALL_BUILT_IN_IDS.length > 1) {
+      if (surpriseBagRef.current.length === 0) {
+        surpriseBagRef.current = shuffleBuiltInGames(activeBuiltIn);
+      }
+      picked = surpriseBagRef.current.shift();
+    }
+    if (!picked) {
+      picked = ALL_BUILT_IN_IDS[0];
+    }
+    handleSelectBuiltIn(picked);
   };
 
   const [puzzles, setPuzzles] = useState<DailyMindPuzzles | null>(null);
@@ -256,6 +397,12 @@ export default function MindPlay() {
   >({});
 
   const solvedStorageKey = id ? getSolvedStorageKey(id, todayId) : '';
+
+  useEffect(() => {
+    if (id) {
+      pruneOldSolvedIds(id, todayId);
+    }
+  }, [id, todayId]);
 
   const solvedPuzzleIds = useMemo(() => {
     const persisted = loadSolvedIds(id, todayId);
@@ -330,15 +477,48 @@ export default function MindPlay() {
     };
   }, [userId, id, hasProfile]);
 
-  const handleRegenerateAll = async () => {
+  const recordSkipIfUnsolved = () => {
+    const opened = openedPuzzleRef.current;
+    openedPuzzleRef.current = null;
+    if (!opened || !id) return;
+    if (!opened.wasSolvedOnOpen && !opened.solvedDuringOpen && !solvedPuzzleIds[opened.id]) {
+      const updated = recordPuzzleSkippedSignal(id, opened.kind);
+      setPuzzlePrefsByProfile((prev) => ({ ...prev, [id]: updated }));
+    }
+  };
+
+  const handleOpenPuzzleCard = (card: PuzzleCardEntry) => {
+    setAiError(null);
+    openedPuzzleRef.current = {
+      id: card.id,
+      kind: card.kind,
+      wasSolvedOnOpen: card.isSolved,
+      solvedDuringOpen: false,
+    };
+    setActiveModalSlot({ kind: card.kind, index: card.index });
+  };
+
+  const handleClosePuzzleModal = () => {
+    recordSkipIfUnsolved();
+    setActiveModalSlot(null);
+  };
+
+  const handleRegenerateAll = async (prefsOverride?: MindPuzzlePreferences) => {
     if (!userId || !id || regeneratingTarget !== null) return;
     setRegeneratingTarget('all');
     setAiError(null);
 
     try {
       const apiKey = await getGeminiApiKey(userId, id).catch(() => undefined);
-      const refreshed = await regenerateAllMindPuzzles(userId, id, apiKey || undefined);
+      const allocation = computeDailyMixAllocation(prefsOverride ?? puzzlePrefs);
+      const refreshed = await regenerateAllMindPuzzles(
+        userId,
+        id,
+        apiKey || undefined,
+        allocation
+      );
       setPuzzles(refreshed);
+      openedPuzzleRef.current = null;
       setActiveModalSlot(null);
       setIsUsingOfflineFallback(false);
     } catch (err: unknown) {
@@ -353,14 +533,49 @@ export default function MindPlay() {
   };
 
   const handleUseOfflineSamples = () => {
-    setPuzzles(getFallbackDailyMindPuzzles());
+    const allocation = computeDailyMixAllocation(puzzlePrefs);
+    setPuzzles(getFallbackDailyMindPuzzles(allocation));
+    openedPuzzleRef.current = null;
     setActiveModalSlot(null);
     setIsUsingOfflineFallback(true);
     setAiError(null);
   };
 
-  const markSolved = (puzzleId?: string) => {
+  const handleSavePuzzleMix = async (
+    nextOverrides: Record<MindPuzzleKind, PuzzleKindPreferenceMode>,
+    refreshToday: boolean
+  ) => {
+    if (!id) return;
+    const saved = saveMindPuzzlePreferences(id, {
+      ...puzzlePrefs,
+      overrides: nextOverrides,
+    });
+    setPuzzlePrefsByProfile((prev) => ({ ...prev, [id]: saved }));
+    if (puzzleFilter !== 'all' && saved.overrides[puzzleFilter] === 'hidden') {
+      updateNavState({ puzzleFilter: 'all' });
+    }
+    setIsMixModalOpen(false);
+
+    if (refreshToday) {
+      if (isUsingOfflineFallback) {
+        setPuzzles(getFallbackDailyMindPuzzles(computeDailyMixAllocation(saved)));
+      } else {
+        await handleRegenerateAll(saved);
+      }
+    }
+  };
+
+  const handleResetPuzzleMix = () => {
+    if (!id) return;
+    const reset = resetMindPuzzlePreferences(id);
+    setPuzzlePrefsByProfile((prev) => ({ ...prev, [id]: reset }));
+  };
+
+  const markSolved = (puzzleId: string | undefined, kind: MindPuzzleKind) => {
     if (!puzzleId || !id || !solvedStorageKey) return;
+    if (openedPuzzleRef.current?.id === puzzleId) {
+      openedPuzzleRef.current.solvedDuringOpen = true;
+    }
     if (solvedPuzzleIds[puzzleId]) return;
     const nextForDay = { ...solvedPuzzleIds, [puzzleId]: true };
     saveSolvedIds(id, todayId, nextForDay);
@@ -371,9 +586,11 @@ export default function MindPlay() {
         [puzzleId]: true,
       },
     }));
+    const updatedPrefs = recordPuzzleSolvedSignal(id, kind);
+    setPuzzlePrefsByProfile((prev) => ({ ...prev, [id]: updatedPrefs }));
   };
 
-  // Interleave categories when viewing All so the feed stays lively and varied
+  // Interleave enabled varieties when viewing All so the feed stays lively and varied
   const { allEntries, allUnsolvedCards, unsolvedCards, solvedCards } = useMemo(() => {
     if (!puzzles) {
       return {
@@ -386,54 +603,78 @@ export default function MindPlay() {
 
     const entries: PuzzleCardEntry[] = [];
     const maxLen = Math.max(
-      puzzles.connections.length,
+      puzzles.fiveClues.length,
+      puzzles.rebus.length,
       puzzles.wordScramble.length,
       puzzles.riddle.length
     );
 
     for (let i = 0; i < maxLen; i++) {
-      const conn = puzzles.connections[i];
-      if (conn) {
-        entries.push({
-          kind: 'connections',
-          index: i,
-          id: conn.id,
-          title: conn.title,
-          subtitle: conn.themeHint,
-          badgeLabel: 'Word Connections',
-          isSolved: Boolean(solvedPuzzleIds[conn.id]),
-        });
+      if (puzzlePrefs.overrides.fiveClues !== 'hidden') {
+        const mystery = puzzles.fiveClues[i];
+        if (mystery) {
+          entries.push({
+            kind: 'fiveClues',
+            index: i,
+            id: mystery.id,
+            title: mystery.title,
+            subtitle: mystery.clues[0],
+            badgeLabel: mystery.category || '5-Clue Mystery',
+            isSolved: Boolean(solvedPuzzleIds[mystery.id]),
+          });
+        }
       }
 
-      const scramble = puzzles.wordScramble[i];
-      if (scramble) {
-        entries.push({
-          kind: 'wordScramble',
-          index: i,
-          id: scramble.id,
-          title: scramble.title,
-          subtitle: `Theme: ${scramble.theme}`,
-          badgeLabel: 'Word Scramble',
-          isSolved: Boolean(solvedPuzzleIds[scramble.id]),
-        });
+      if (puzzlePrefs.overrides.rebus !== 'hidden') {
+        const rebus = puzzles.rebus[i];
+        if (rebus) {
+          entries.push({
+            kind: 'rebus',
+            index: i,
+            id: rebus.id,
+            title: rebus.title,
+            subtitle: 'Decode the visual word arrangement to spot the hidden phrase.',
+            badgeLabel: rebus.category || 'Word Picture',
+            isSolved: Boolean(solvedPuzzleIds[rebus.id]),
+          });
+        }
       }
 
-      const riddle = puzzles.riddle[i];
-      if (riddle) {
-        entries.push({
-          kind: 'riddle',
-          index: i,
-          id: riddle.id,
-          title: riddle.title,
-          subtitle: riddle.question,
-          badgeLabel: riddle.category || 'Brain Teaser',
-          isSolved: Boolean(solvedPuzzleIds[riddle.id]),
-        });
+      if (puzzlePrefs.overrides.wordScramble !== 'hidden') {
+        const scramble = puzzles.wordScramble[i];
+        if (scramble) {
+          entries.push({
+            kind: 'wordScramble',
+            index: i,
+            id: scramble.id,
+            title: scramble.title,
+            subtitle: `Theme: ${scramble.theme}`,
+            badgeLabel: 'Word Scramble',
+            isSolved: Boolean(solvedPuzzleIds[scramble.id]),
+          });
+        }
+      }
+
+      if (puzzlePrefs.overrides.riddle !== 'hidden') {
+        const riddle = puzzles.riddle[i];
+        if (riddle) {
+          entries.push({
+            kind: 'riddle',
+            index: i,
+            id: riddle.id,
+            title: riddle.title,
+            subtitle: riddle.question,
+            badgeLabel: riddle.category || 'Brain Teaser',
+            isSolved: Boolean(solvedPuzzleIds[riddle.id]),
+          });
+        }
       }
     }
 
     const filtered =
-      puzzleFilter === 'all' ? entries : entries.filter((e) => e.kind === puzzleFilter);
+      effectivePuzzleFilter === 'all'
+        ? entries
+        : entries.filter((e) => e.kind === effectivePuzzleFilter);
 
     return {
       allEntries: entries,
@@ -441,7 +682,7 @@ export default function MindPlay() {
       unsolvedCards: filtered.filter((e) => !e.isSolved),
       solvedCards: filtered.filter((e) => e.isSolved),
     };
-  }, [puzzles, puzzleFilter, solvedPuzzleIds]);
+  }, [puzzles, effectivePuzzleFilter, puzzlePrefs.overrides, solvedPuzzleIds]);
 
   const totalAiPuzzles = countDailyMindPuzzles(puzzles);
 
@@ -472,10 +713,12 @@ export default function MindPlay() {
 
   const isBusyLoadingAi = (isLoadingInitial || isEnsuringAi) && totalAiPuzzles === 0;
 
-  const modalConnections =
-    activeModalSlot?.kind === 'connections'
-      ? puzzles?.connections[activeModalSlot.index]
+  const modalFiveClues =
+    activeModalSlot?.kind === 'fiveClues'
+      ? puzzles?.fiveClues[activeModalSlot.index]
       : undefined;
+  const modalRebus =
+    activeModalSlot?.kind === 'rebus' ? puzzles?.rebus[activeModalSlot.index] : undefined;
   const modalWordScramble =
     activeModalSlot?.kind === 'wordScramble'
       ? puzzles?.wordScramble[activeModalSlot.index]
@@ -483,11 +726,16 @@ export default function MindPlay() {
   const modalRiddle =
     activeModalSlot?.kind === 'riddle' ? puzzles?.riddle[activeModalSlot.index] : undefined;
 
-  const modalPuzzleId = modalConnections?.id || modalWordScramble?.id || modalRiddle?.id;
+  const modalPuzzleId =
+    modalFiveClues?.id || modalRebus?.id || modalWordScramble?.id || modalRiddle?.id;
   const modalTitle =
-    modalConnections?.title || modalWordScramble?.title || modalRiddle?.title || 'Play puzzle';
+    modalFiveClues?.title ||
+    modalRebus?.title ||
+    modalWordScramble?.title ||
+    modalRiddle?.title ||
+    'Play puzzle';
 
-  const isModalOpen = Boolean(modalConnections || modalWordScramble || modalRiddle);
+  const isModalOpen = Boolean(modalFiveClues || modalRebus || modalWordScramble || modalRiddle);
   const isModalPuzzleSolved = Boolean(modalPuzzleId && solvedPuzzleIds[modalPuzzleId]);
 
   const filteredUnsolvedOthers = unsolvedCards.filter((card) => card.id !== modalPuzzleId);
@@ -498,9 +746,9 @@ export default function MindPlay() {
 
   const handlePlayNext = () => {
     if (!hasNextUnsolved) return;
+    recordSkipIfUnsolved();
     const picked = nextUnsolvedPool[Math.floor(Math.random() * nextUnsolvedPool.length)];
-    setAiError(null);
-    setActiveModalSlot({ kind: picked.kind, index: picked.index });
+    handleOpenPuzzleCard(picked);
   };
 
   const handleSurpriseMe = () => {
@@ -513,8 +761,7 @@ export default function MindPlay() {
 
     if (pool.length === 0) return;
     const picked = pool[Math.floor(Math.random() * pool.length)];
-    setAiError(null);
-    setActiveModalSlot({ kind: picked.kind, index: picked.index });
+    handleOpenPuzzleCard(picked);
   };
 
   return (
@@ -540,7 +787,7 @@ export default function MindPlay() {
           {activeTab === 'ai' && (
             <button
               type="button"
-              onClick={handleRegenerateAll}
+              onClick={() => handleRegenerateAll()}
               disabled={regeneratingTarget !== null || isEnsuringAi}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md transition hover:bg-white/30 disabled:opacity-60"
             >
@@ -588,82 +835,159 @@ export default function MindPlay() {
 
           {/* Sub-filters */}
           {activeTab === 'ai' ? (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {PUZZLE_FILTERS.map(
-                ({ key, label, subtitle, icon: Icon, iconClass, activeClass }) => {
-                  const isSelected = puzzleFilter === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => updateNavState({ puzzleFilter: key })}
-                      aria-pressed={isSelected}
-                      className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
-                        isSelected
-                          ? activeClass
-                          : 'bg-gray-50 text-gray-700 ring-1 ring-gray-200/70 hover:bg-gray-100'
-                      }`}
-                    >
-                      <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-                          isSelected ? 'bg-white/20 text-white' : `bg-white ${iconClass} shadow-sm`
+            <div className="mt-3 space-y-2.5">
+              <div className="flex items-center justify-between gap-2 px-0.5">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPuzzleFilter('all')}
+                    aria-pressed={effectivePuzzleFilter === 'all'}
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                      effectivePuzzleFilter === 'all'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <LayoutGrid size={11} />
+                    <span>All</span>
+                  </button>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                    {isMixPersonalized ? 'Personalized mix' : "Today's mix"}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMixModalOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-200/70 transition hover:bg-indigo-100 active:scale-95"
+                >
+                  <SlidersHorizontal size={11} />
+                  <span>Customize mix</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {visibleVarietyFilters.map(
+                  ({ key, label, subtitle, icon: Icon, iconClass, activeClass }) => {
+                    const isSelected = effectivePuzzleFilter === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleSelectPuzzleFilter(key)}
+                        aria-pressed={isSelected}
+                        className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
+                          isSelected
+                            ? activeClass
+                            : 'bg-gray-50 text-gray-700 ring-1 ring-gray-200/70 hover:bg-gray-100'
                         }`}
                       >
-                        <Icon size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-bold">{label}</p>
-                        <p
-                          className={`truncate text-[10px] ${
-                            isSelected ? 'text-white/85' : 'text-gray-500'
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                            isSelected ? 'bg-white/20 text-white' : `bg-white ${iconClass} shadow-sm`
                           }`}
                         >
-                          {subtitle}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                }
-              )}
+                          <Icon size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold">{label}</p>
+                          <p
+                            className={`truncate text-[10px] ${
+                              isSelected ? 'text-white/85' : 'text-gray-500'
+                            }`}
+                          >
+                            {subtitle}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  }
+                )}
+              </div>
             </div>
           ) : (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {BUILTIN_ACTIVITIES.map(
-                ({ key, label, subtitle, icon: Icon, iconClass, activeClass }) => {
-                  const isSelected = activeBuiltIn === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => updateNavState({ activeBuiltIn: key })}
-                      aria-pressed={isSelected}
-                      className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
-                        isSelected
-                          ? activeClass
-                          : 'bg-gray-50 text-gray-700 ring-1 ring-gray-200/70 hover:bg-gray-100'
-                      }`}
-                    >
-                      <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-                          isSelected ? 'bg-white/20 text-white' : `bg-white ${iconClass} shadow-sm`
+            <div className="mt-3 space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  {hasPlayHistory ? 'Most played' : 'Quick access'}
+                </span>
+                <span className="text-[10px] font-medium text-gray-400">
+                  {BUILT_IN_ACTIVITIES_CATALOG.length} games available
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {topFourActivities.map(
+                  ({ id: actId, label, subtitle, icon: Icon, iconClass, activeClass }) => {
+                    const isSelected = activeBuiltIn === actId;
+                    return (
+                      <button
+                        key={actId}
+                        type="button"
+                        onClick={() => handleSelectBuiltIn(actId)}
+                        aria-pressed={isSelected}
+                        className={`flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
+                          isSelected
+                            ? activeClass
+                            : 'bg-gray-50 text-gray-700 ring-1 ring-gray-200/70 hover:bg-gray-100'
                         }`}
                       >
-                        <Icon size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-bold">{label}</p>
-                        <p
-                          className={`truncate text-[10px] ${
-                            isSelected ? 'text-white/85' : 'text-gray-500'
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                            isSelected
+                              ? 'bg-white/20 text-white'
+                              : `bg-white ${iconClass} shadow-sm`
                           }`}
                         >
-                          {subtitle}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                }
-              )}
+                          <Icon size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold">{label}</p>
+                          <p
+                            className={`truncate text-[10px] ${
+                              isSelected ? 'text-white/85' : 'text-gray-500'
+                            }`}
+                          >
+                            {subtitle}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCollectionOpen(true)}
+                  className="flex items-center gap-2.5 rounded-2xl bg-gray-50 px-3 py-2.5 text-left text-gray-800 ring-1 ring-gray-200/80 transition hover:bg-indigo-50/60 hover:ring-indigo-200 active:scale-[0.99]"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs">
+                    <LayoutGrid size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-gray-900">Collection</p>
+                    <p className="truncate text-[10px] text-gray-500">
+                      Browse all {BUILT_IN_ACTIVITIES_CATALOG.length}
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLaunchSurpriseGame}
+                  className="flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-indigo-50/95 via-purple-50/80 to-teal-50/95 px-3 py-2.5 text-left text-indigo-950 ring-1 ring-indigo-200/70 transition hover:from-indigo-100/80 hover:to-teal-100/80 active:scale-[0.99]"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-xs">
+                    <Shuffle size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold">Surprise me</p>
+                    <p className="truncate text-[10px] text-indigo-700/80">Random game</p>
+                  </div>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -681,7 +1005,7 @@ export default function MindPlay() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={handleRegenerateAll}
+                        onClick={() => handleRegenerateAll()}
                         disabled={regeneratingTarget !== null}
                         className="rounded-full bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
                       >
@@ -750,9 +1074,7 @@ export default function MindPlay() {
                         <PuzzleMetadataCard
                           key={card.id}
                           card={card}
-                          onOpen={() =>
-                            setActiveModalSlot({ kind: card.kind, index: card.index })
-                          }
+                          onOpen={() => handleOpenPuzzleCard(card)}
                         />
                       ))}
                     </div>
@@ -768,7 +1090,7 @@ export default function MindPlay() {
                       </p>
                       <button
                         type="button"
-                        onClick={handleRegenerateAll}
+                        onClick={() => handleRegenerateAll()}
                         disabled={regeneratingTarget !== null}
                         className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
                       >
@@ -798,9 +1120,7 @@ export default function MindPlay() {
                         <PuzzleMetadataCard
                           key={card.id}
                           card={card}
-                          onOpen={() =>
-                            setActiveModalSlot({ kind: card.kind, index: card.index })
-                          }
+                          onOpen={() => handleOpenPuzzleCard(card)}
                         />
                       ))}
                     </div>
@@ -813,11 +1133,87 @@ export default function MindPlay() {
 
         {/* Built-In Activities View */}
         {activeTab === 'builtin' && (
-          <div>
+          <div className="space-y-2.5">
+            {BUILT_IN_ACTIVITY_BY_ID[activeBuiltIn]?.isProgressive && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
+                  <Sparkles size={12} />
+                  <span>{surpriseLevelLabel}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLaunchSurpriseGame}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-xs ring-1 ring-indigo-200/80 transition hover:bg-indigo-50 active:scale-95"
+                >
+                  <Shuffle size={12} />
+                  <span>Try another game</span>
+                </button>
+              </div>
+            )}
+
             {activeBuiltIn === 'sudoku' && <CalmSudokuActivity key={id} profileId={id} />}
             {activeBuiltIn === 'memory' && <MemoryMatchActivity key={id} profileId={id} />}
             {activeBuiltIn === 'mandala' && <MandalaColoringActivity key={id} profileId={id} />}
             {activeBuiltIn === 'breathing' && <CalmBreathingActivity key={id} profileId={id} />}
+            {activeBuiltIn === 'starlight-paths' && (
+              <CalmStarlightPathsActivity
+                key={`${id}-starlight`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'tea-pour' && (
+              <HerbalTeaPourActivity
+                key={`${id}-teapour`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'lullaby-chimes' && (
+              <LullabyStarChimesActivity key={`${id}-lullaby`} />
+            )}
+            {activeBuiltIn === 'four-in-a-row' && (
+              <FourInARowActivity
+                key={`${id}-four-in-a-row`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'dots-and-boxes' && (
+              <DotsAndBoxesActivity
+                key={`${id}-dots-and-boxes`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'reversi' && (
+              <ReversiActivity
+                key={`${id}-reversi`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'mancala' && (
+              <MancalaActivity
+                key={`${id}-mancala`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'gomoku' && (
+              <GomokuActivity
+                key={`${id}-gomoku`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
+            {activeBuiltIn === 'word-duel' && (
+              <WordDuelActivity
+                key={`${id}-word-duel`}
+                sessionSolvedCount={surpriseSolvedCount}
+                onBoardSolved={handleSurpriseBoardSolved}
+              />
+            )}
           </div>
         )}
 
@@ -831,7 +1227,7 @@ export default function MindPlay() {
       {/* Interactive Puzzle Modal */}
       <PuzzlePlayModal
         isOpen={isModalOpen}
-        onClose={() => setActiveModalSlot(null)}
+        onClose={handleClosePuzzleModal}
         ariaLabel={modalTitle}
         scrollResetKey={modalPuzzleId}
         footer={
@@ -859,12 +1255,21 @@ export default function MindPlay() {
           </div>
         )}
 
-        {modalConnections && (
-          <ConnectionsPuzzleCard
-            key={modalConnections.id}
-            puzzle={modalConnections}
+        {modalFiveClues && (
+          <FiveCluesPuzzleCard
+            key={modalFiveClues.id}
+            puzzle={modalFiveClues}
             embedded
-            onSolved={() => markSolved(modalConnections.id)}
+            onSolved={() => markSolved(modalFiveClues.id, 'fiveClues')}
+          />
+        )}
+
+        {modalRebus && (
+          <RebusPuzzleCard
+            key={modalRebus.id}
+            puzzle={modalRebus}
+            embedded
+            onSolved={() => markSolved(modalRebus.id, 'rebus')}
           />
         )}
 
@@ -873,7 +1278,7 @@ export default function MindPlay() {
             key={modalWordScramble.id}
             puzzle={modalWordScramble}
             embedded
-            onSolved={() => markSolved(modalWordScramble.id)}
+            onSolved={() => markSolved(modalWordScramble.id, 'wordScramble')}
           />
         )}
 
@@ -882,10 +1287,32 @@ export default function MindPlay() {
             key={modalRiddle.id}
             puzzle={modalRiddle}
             embedded
-            onSolved={() => markSolved(modalRiddle.id)}
+            onSolved={() => markSolved(modalRiddle.id, 'riddle')}
           />
         )}
       </PuzzlePlayModal>
+
+      {/* Customize Daily Puzzle Mix Modal */}
+      {isMixModalOpen && (
+        <PuzzleMixModal
+          isOpen={isMixModalOpen}
+          preferences={puzzlePrefs}
+          isRefreshing={regeneratingTarget === 'all'}
+          onSave={handleSavePuzzleMix}
+          onReset={handleResetPuzzleMix}
+          onClose={() => setIsMixModalOpen(false)}
+        />
+      )}
+
+      {/* Built-In Game Collection Modal */}
+      <GameCollectionModal
+        isOpen={isCollectionOpen}
+        activeActivityId={activeBuiltIn}
+        playCounts={playCounts}
+        onSelect={handleSelectBuiltIn}
+        onSurprise={handleLaunchSurpriseGame}
+        onClose={() => setIsCollectionOpen(false)}
+      />
     </div>
   );
 }

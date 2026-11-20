@@ -4,3 +4,31 @@ body {
   margin: 0;
   font-family: Inter, system-ui, sans-serif;
 }
+
+@keyframes mindplay-halo {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(2.15);
+    opacity: 0;
+  }
+}
+
+@keyframes mindplay-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mindplay-motion-safe {
+    animation: none !important;
+  }
+}
+
