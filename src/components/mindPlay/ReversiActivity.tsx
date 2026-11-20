@@ -257,24 +257,24 @@ export default function ReversiActivity({
 
       {/* Detailed How to Play Card */}
       {showGuide && (
-        <div className="mt-3 rounded-2xl bg-emerald-50/75 p-3.5 ring-1 ring-emerald-200/70">
+        <div className="mt-3 rounded-2xl bg-[#f3f7f4] p-3.5 ring-1 ring-[#d7e5dc]">
           <div className="flex items-start gap-2.5">
-            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-xs ring-1 ring-emerald-200/70">
+            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[#4f705e] shadow-xs ring-1 ring-[#d7e5dc]">
               <Info size={13} />
             </div>
-            <div className="min-w-0 flex-1 space-y-1.5 text-xs leading-relaxed text-emerald-950">
+            <div className="min-w-0 flex-1 space-y-1.5 text-xs leading-relaxed text-[#24382d]">
               <p>
-                <span className="font-bold text-emerald-900">Goal:</span> Finish with the most
-                stones of your color when the board fills (or neither player has a valid move).
+                <span className="font-bold text-[#1f3328]">Goal:</span> Finish with the most stones
+                of your color when the board fills (or neither player has a valid move).
               </p>
-              <p className="text-emerald-900/90">
-                <span className="font-semibold text-emerald-900">How to flip:</span> Tap any{' '}
+              <p className="text-[#2f473a]">
+                <span className="font-semibold text-[#1f3328]">How to flip:</span> Tap any{' '}
                 <span className="font-semibold">dotted square</span> to trap one or more opponent
                 stones in a straight line (horizontal, vertical, or diagonal) between your stones —
                 all trapped stones flip to your color!
               </p>
-              <p className="text-emerald-900/85">
-                <span className="font-semibold text-emerald-900">Strategy tip:</span>{' '}
+              <p className="text-[#395445]">
+                <span className="font-semibold text-[#1f3328]">Strategy tip:</span>{' '}
                 <span className="font-semibold">Corner squares</span> can never be flipped and help
                 lock down whole edges. If a player has no legal move, their turn passes
                 automatically.
@@ -282,22 +282,22 @@ export default function ReversiActivity({
 
               {/* Visual Sandwich-and-Flip Example */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <div className="inline-flex items-center gap-1 rounded-xl bg-emerald-800 px-2 py-1.5 shadow-inner">
+                <div className="inline-flex items-center gap-1 rounded-xl bg-[#5e7f6d] px-2 py-1.5 shadow-inner">
                   <span className="h-4 w-4 rounded-full bg-slate-800 ring-1 ring-slate-950/30" />
-                  <span className="h-4 w-4 rounded-full bg-amber-50 ring-1 ring-amber-200" />
-                  <span className="h-4 w-4 rounded-full bg-amber-50 ring-1 ring-amber-200" />
+                  <span className="h-4 w-4 rounded-full bg-stone-50 ring-1 ring-stone-200" />
+                  <span className="h-4 w-4 rounded-full bg-stone-50 ring-1 ring-stone-200" />
                   <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-800 text-[9px] font-bold text-white ring-2 ring-amber-300">
                     +
                   </span>
                 </div>
-                <ArrowRight size={13} className="shrink-0 text-emerald-700" />
-                <div className="inline-flex items-center gap-1 rounded-xl bg-emerald-800 px-2 py-1.5 shadow-inner">
+                <ArrowRight size={13} className="shrink-0 text-[#4f705e]" />
+                <div className="inline-flex items-center gap-1 rounded-xl bg-[#5e7f6d] px-2 py-1.5 shadow-inner">
                   <span className="h-4 w-4 rounded-full bg-slate-800 ring-1 ring-slate-950/30" />
-                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-2 ring-emerald-200" />
-                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-2 ring-emerald-200" />
+                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-2 ring-[#d7e5dc]" />
+                  <span className="h-4 w-4 rounded-full bg-slate-800 ring-2 ring-[#d7e5dc]" />
                   <span className="h-4 w-4 rounded-full bg-slate-800 ring-1 ring-slate-950/30" />
                 </div>
-                <span className="text-[10px] font-semibold text-emerald-800">Trapped flip!</span>
+                <span className="text-[10px] font-semibold text-[#3f5e4d]">Trapped flip!</span>
               </div>
             </div>
           </div>
@@ -323,22 +323,22 @@ export default function ReversiActivity({
         <div
           className={`flex items-center justify-between rounded-2xl px-3 py-2 transition ${
             !isGameOver && currentPlayer === 2
-              ? 'bg-amber-50 ring-2 ring-amber-400'
+              ? 'bg-stone-100 ring-2 ring-[#6c8f7b]'
               : 'bg-gray-50 ring-1 ring-gray-200/70'
           }`}
         >
           <div className="flex items-center gap-2">
-            <span className="h-4 w-4 rounded-full bg-amber-50 shadow-xs ring-1 ring-gray-300" />
+            <span className="h-4 w-4 rounded-full bg-stone-50 shadow-xs ring-1 ring-stone-300" />
             <span className="text-xs font-bold text-gray-800">{p2Label}</span>
           </div>
-          <span className="text-xs font-bold text-amber-800">{counts.p2}</span>
+          <span className="text-xs font-bold text-stone-700">{counts.p2}</span>
         </div>
       </div>
 
-      {/* Emerald Felt Board */}
+      {/* Soft Botanical Sage Board */}
       <div className="mt-4 flex justify-center">
         <div
-          className="aspect-square w-full max-w-[324px] rounded-3xl bg-emerald-800 p-2 shadow-md ring-1 ring-emerald-900/30"
+          className="aspect-square w-full max-w-[324px] rounded-3xl bg-[#5e7f6d] p-2 shadow-md ring-1 ring-black/10"
           role="grid"
           aria-label={`Reversi ${size} by ${size} board`}
         >
@@ -363,8 +363,8 @@ export default function ReversiActivity({
                           ? 'Valid move'
                           : 'Empty'
                   }`}
-                  className={`relative flex min-h-0 min-w-0 items-center justify-center rounded-lg bg-emerald-700/90 transition focus:outline-none ${
-                    isValid ? 'cursor-pointer hover:bg-emerald-600 active:scale-95' : 'cursor-default'
+                  className={`relative flex min-h-0 min-w-0 items-center justify-center rounded-lg bg-[#7b9e8b] transition focus:outline-none ${
+                    isValid ? 'cursor-pointer hover:bg-[#6e917e] active:scale-95' : 'cursor-default'
                   }`}
                 >
                   {cell !== 0 && (
@@ -372,19 +372,19 @@ export default function ReversiActivity({
                       className={`h-[78%] w-[78%] rounded-full shadow-sm transition-all duration-200 ${
                         cell === 1
                           ? 'bg-gradient-to-br from-slate-700 to-slate-900 ring-1 ring-slate-950/40'
-                          : 'bg-gradient-to-br from-white to-amber-100 ring-1 ring-amber-200/80'
+                          : 'bg-gradient-to-br from-white to-stone-100 ring-1 ring-stone-300/80'
                       } ${
                         isLast
-                          ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-emerald-700'
+                          ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-[#7b9e8b]'
                           : wasFlipped
-                            ? 'ring-2 ring-emerald-200/90'
+                            ? 'ring-2 ring-[#e2efe7]'
                             : ''
                       }`}
                     />
                   )}
                   {cell === 0 && isValid && (
                     <span
-                      className="h-2.5 w-2.5 rounded-full bg-white/45 ring-1 ring-white/50"
+                      className="h-2.5 w-2.5 rounded-full bg-white/55 ring-1 ring-white/70"
                       aria-hidden="true"
                     />
                   )}
