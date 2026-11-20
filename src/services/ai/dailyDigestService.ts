@@ -1,9 +1,11 @@
 import { DAILY_DIGEST_PROMPT } from '../../prompts/daily_digest';
 import {
+  DEFAULT_DAILY_MIX_ALLOCATION,
   sanitizeDailyMindPuzzles,
   type DailyMindPuzzles,
+  type DailyMixAllocation,
 } from '../../models/mindPuzzle';
-import { DAILY_MIND_PUZZLES_SCHEMA } from './mindPuzzleService';
+import { buildDailyMindPuzzlesSchema } from './mindPuzzleService';
 import { getGeminiClient, DEFAULT_GEMINI_MODEL } from './geminiCore';
 
 export type DailyDigestCategory =
@@ -52,6 +54,7 @@ export interface DailyDigestRequest {
   babyTalkEnabled?: boolean;
   babyTalkContext?: string;
   recentBabyTalks?: string[];
+  mindPuzzleAllocation?: DailyMixAllocation;
 }
 
 export interface DailyDigestResponse {
@@ -74,14 +77,20 @@ export const generateDailyDigest = async (
   userApiKey?: string
 ): Promise<DailyDigestResponse> => {
   const ai = getGeminiClient(userApiKey);
-  const env = typeof process !== 'undefined' && process.env ? process.env : (import.meta as any).env;
-  const model = env?.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const env = typeof process !== 'undefined' && process.env ? process.env : import.meta.env;
+  const model = (env?.VITE_GEMINI_MODEL as string | undefined) || DEFAULT_GEMINI_MODEL;
 
   const shouldGenerateBabyNames = Boolean(
     request.babyNameContext?.trim() && request.babyNameCount && request.babyNameCount > 0
   );
   const shouldGenerateSpiritualSloka = Boolean(request.spiritualSlokaContext?.trim());
   const shouldGenerateBabyTalk = Boolean(request.babyTalkEnabled);
+  const puzzleAllocation = request.mindPuzzleAllocation ?? DEFAULT_DAILY_MIX_ALLOCATION;
+  const puzzleTotal =
+    puzzleAllocation.fiveClues +
+    puzzleAllocation.rebus +
+    puzzleAllocation.wordScramble +
+    puzzleAllocation.riddle;
 
   const userPrompt = `Please generate a daily pregnancy digest for the following specifics:
 - Pregnancy Week: ${request.pregnancyWeek}
@@ -115,7 +124,7 @@ ${request.recentSlokas && request.recentSlokas.length > 0 ? `- Previously Sugges
       : ''
   }
 
-Also include a calm, varied "mindPuzzles" object with 12 puzzles (4 "connections", 4 "wordScramble", and 4 "riddle" brain teasers) for today's Mindful Play.
+Also include a calm, varied "mindPuzzles" object with ${puzzleTotal} puzzles (${puzzleAllocation.fiveClues} "fiveClues" mysteries, ${puzzleAllocation.rebus} "rebus" word pictures, ${puzzleAllocation.wordScramble} "wordScramble", and ${puzzleAllocation.riddle} "riddle" brain teasers) for today's Mindful Play. For any variety with count 0, return an empty array [].
 `;
 
   try {
@@ -196,7 +205,7 @@ Also include a calm, varied "mindPuzzles" object with 12 puzzles (4 "connections
               },
               required: ['title', 'prompt', 'script', 'nativeScript', 'nativeLanguage'],
             },
-            mindPuzzles: DAILY_MIND_PUZZLES_SCHEMA,
+            mindPuzzles: buildDailyMindPuzzlesSchema(puzzleAllocation),
           },
           required: [
             'category',
@@ -221,9 +230,17 @@ Also include a calm, varied "mindPuzzles" object with 12 puzzles (4 "connections
 
     return {
       ...parsed,
-      ...(sanitizedMindPuzzles ? { mindPuzzles: sanitizedMindPuzzles } : { mindPuzzles: undefined }),
+      ...(sanitizedMindPuzzles
+        ? {
+            mindPuzzles: {
+              ...sanitizedMindPuzzles,
+              updatedAt: sanitizedMindPuzzles.updatedAt ?? Date.now(),
+            },
+          }
+        : { mindPuzzles: undefined }),
     };
-  } catch (error: any) {
-    throw new Error(`Failed to generate daily digest: ${error.message || 'Unknown error'}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to generate daily digest: ${message}`, { cause: error });
   }
 };

@@ -10,6 +10,10 @@ import { getGeneratedBabyNames, saveGeneratedBabyNames } from './generatedBabyNa
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
 import type { DailyDigest } from '../../models/dailyDigest';
 import { countDailyMindPuzzles, sanitizeDailyMindPuzzles } from '../../models/mindPuzzle';
+import {
+  computeDailyMixAllocation,
+  loadMindPuzzlePreferences,
+} from '../../utils/mindPuzzlePreferences';
 
 const CATEGORIES: DailyDigestCategory[] = [
   'baby-fact',
@@ -125,7 +129,8 @@ export const generateAndSaveDailyDigestForToday = async (
       .filter(d => d.babyTalk?.title)
       .map(d => `${d.babyTalk!.title}: ${d.babyTalk!.prompt}`);
 
-    // 6. Generate digest (moment, baby names, spiritual sloka, and baby talk if configured) using the AI Service
+    // 6. Generate digest (moment, baby names, spiritual sloka, baby talk, and personalized puzzles) using the AI Service
+    const mindPuzzleAllocation = computeDailyMixAllocation(loadMindPuzzlePreferences(profileId));
     const aiResponse = await generateDailyDigest(
       {
         pregnancyWeek,
@@ -133,6 +138,7 @@ export const generateAndSaveDailyDigestForToday = async (
         category,
         date: dateId,
         recentMoments,
+        mindPuzzleAllocation,
         ...(wantsBabyNames
           ? {
               babyNameContext,
@@ -172,7 +178,13 @@ export const generateAndSaveDailyDigestForToday = async (
 
     const resolvedSpiritualSloka = resolveField('spiritualSloka');
     const resolvedBabyTalk = resolveField('babyTalk');
-    const resolvedMindPuzzles = sanitizeDailyMindPuzzles(resolveField('mindPuzzles'));
+    const rawResolvedPuzzles = sanitizeDailyMindPuzzles(resolveField('mindPuzzles'));
+    const resolvedMindPuzzles = rawResolvedPuzzles
+      ? {
+          ...rawResolvedPuzzles,
+          updatedAt: rawResolvedPuzzles.updatedAt ?? Date.now(),
+        }
+      : null;
 
     const dailyDigest: DailyDigest = {
       category: resolveField('category'),

@@ -160,7 +160,7 @@ If the user prompt requests a daily "Talking to the Womb" (babyTalk) idea:
 
 DAILY MIND PUZZLES (ALWAYS INCLUDE)
 
-Also include a "mindPuzzles" object containing 12 varied, gentle daily puzzles (4 "connections", 4 "wordScramble", and 4 "riddle" puzzles) so the expectant parent can play anytime throughout the day.
+Also include a "mindPuzzles" object containing 12 varied, gentle daily puzzles (3 "fiveClues" mysteries, 3 "rebus" word pictures, 3 "wordScramble" puzzles, and 3 "riddle" brain teasers) so the expectant parent can play anytime throughout the day.
 ${MIND_PUZZLE_SHARED_RULES}
 
 OUTPUT

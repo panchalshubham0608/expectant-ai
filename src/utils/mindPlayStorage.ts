@@ -270,7 +270,7 @@ export const saveBreathingRhythm = (profileId: string, rhythmKey: BreathingRhyth
 /* ---------- MindPlay Navigation & Most-Played Persistence ---------- */
 
 export type MindPlayMainTab = 'ai' | 'builtin';
-export type MindPlayPuzzleFilter = 'all' | 'connections' | 'wordScramble' | 'riddle';
+export type MindPlayPuzzleFilter = 'all' | 'fiveClues' | 'rebus' | 'wordScramble' | 'riddle';
 export type MindPlayBuiltInKind =
   | 'sudoku'
   | 'memory'
@@ -301,7 +301,8 @@ const MAX_PLAY_COUNT = 99999;
 const ALLOWED_MAIN_TABS = new Set<MindPlayMainTab>(['ai', 'builtin']);
 const ALLOWED_PUZZLE_FILTERS = new Set<MindPlayPuzzleFilter>([
   'all',
-  'connections',
+  'fiveClues',
+  'rebus',
   'wordScramble',
   'riddle',
 ]);

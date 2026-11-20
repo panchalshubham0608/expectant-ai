@@ -1,12 +1,17 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { getProfilesCollection } from '../../lib/collections';
 import {
-  PUZZLES_PER_KIND,
+  DEFAULT_DAILY_MIX_ALLOCATION,
   sanitizeDailyMindPuzzles,
   type DailyMindPuzzles,
+  type DailyMixAllocation,
   type MindPuzzleKind,
 } from '../../models/mindPuzzle';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
+import {
+  computeDailyMixAllocation,
+  loadMindPuzzlePreferences,
+} from '../../utils/mindPuzzlePreferences';
 import {
   generateMindPuzzlesSet,
   generateSingleMindPuzzle,
@@ -36,28 +41,47 @@ const getPregnancyWeekForProfile = async (
   }
 };
 
-const hasFullDailyPuzzleSet = (puzzles: DailyMindPuzzles | undefined): boolean =>
+const resolveTargetAllocation = (
+  profileId: string,
+  overrideAllocation?: DailyMixAllocation
+): DailyMixAllocation => {
+  if (overrideAllocation) return overrideAllocation;
+  try {
+    const prefs = loadMindPuzzlePreferences(profileId);
+    return computeDailyMixAllocation(prefs);
+  } catch {
+    return DEFAULT_DAILY_MIX_ALLOCATION;
+  }
+};
+
+const hasFullDailyPuzzleSet = (
+  puzzles: DailyMindPuzzles | undefined,
+  allocation: DailyMixAllocation
+): boolean =>
   Boolean(
     puzzles &&
-      puzzles.connections.length >= PUZZLES_PER_KIND &&
-      puzzles.wordScramble.length >= PUZZLES_PER_KIND &&
-      puzzles.riddle.length >= PUZZLES_PER_KIND
+      puzzles.fiveClues.length >= allocation.fiveClues &&
+      puzzles.rebus.length >= allocation.rebus &&
+      puzzles.wordScramble.length >= allocation.wordScramble &&
+      puzzles.riddle.length >= allocation.riddle
   );
 
 const mergePuzzleArrays = <T,>(existing: T[], generated: T[], targetCount: number): T[] => {
+  if (targetCount <= 0) return existing;
   if (existing.length >= targetCount) return existing;
   return [...existing, ...generated].slice(0, targetCount);
 };
 
 /**
- * Ensures today's digest document has a full set of 12 AI mind puzzles populated (4 per category).
- * If missing or partial, generates ONLY the mindPuzzles (never regenerating the rest of the daily digest)
- * and merges them into Firestore.
+ * Ensures today's digest document has today's personalized AI mind puzzles populated.
+ * If missing or partial (e.g. upgrading from an older schema), generates ONLY the missing
+ * mindPuzzles (never regenerating the rest of the daily digest) and merges them into Firestore.
  */
 export const ensureTodayMindPuzzles = async (
   userId: string,
   profileId: string,
-  userApiKey?: string
+  userApiKey?: string,
+  allocationOverride?: DailyMixAllocation
 ): Promise<DailyMindPuzzles> => {
   const dateId = getTodayDateId();
   const inFlightKey = `${userId}:${profileId}:${dateId}`;
@@ -67,31 +91,51 @@ export const ensureTodayMindPuzzles = async (
   }
 
   const run = async (): Promise<DailyMindPuzzles> => {
+    const targetAllocation = resolveTargetAllocation(profileId, allocationOverride);
     const existingDigest = await getDailyDigest(userId, profileId, dateId);
     const existingPuzzles = sanitizeDailyMindPuzzles(existingDigest?.mindPuzzles);
 
-    if (existingPuzzles && hasFullDailyPuzzleSet(existingPuzzles)) {
+    if (existingPuzzles && hasFullDailyPuzzleSet(existingPuzzles, targetAllocation)) {
       return existingPuzzles;
     }
 
+    // Request only the missing puzzle slots per variety so we avoid redundant tokens
+    const neededAllocation: DailyMixAllocation = {
+      fiveClues: Math.max(0, targetAllocation.fiveClues - (existingPuzzles?.fiveClues.length ?? 0)),
+      rebus: Math.max(0, targetAllocation.rebus - (existingPuzzles?.rebus.length ?? 0)),
+      wordScramble: Math.max(
+        0,
+        targetAllocation.wordScramble - (existingPuzzles?.wordScramble.length ?? 0)
+      ),
+      riddle: Math.max(0, targetAllocation.riddle - (existingPuzzles?.riddle.length ?? 0)),
+    };
+
     const pregnancyWeek = await getPregnancyWeekForProfile(userId, profileId);
-    const generated = await generateMindPuzzlesSet({ pregnancyWeek }, userApiKey);
+    const generated = await generateMindPuzzlesSet(
+      { pregnancyWeek, allocation: neededAllocation },
+      userApiKey
+    );
 
     const merged: DailyMindPuzzles = {
-      connections: mergePuzzleArrays(
-        existingPuzzles?.connections ?? [],
-        generated.connections,
-        PUZZLES_PER_KIND
+      fiveClues: mergePuzzleArrays(
+        existingPuzzles?.fiveClues ?? [],
+        generated.fiveClues,
+        targetAllocation.fiveClues
+      ),
+      rebus: mergePuzzleArrays(
+        existingPuzzles?.rebus ?? [],
+        generated.rebus,
+        targetAllocation.rebus
       ),
       wordScramble: mergePuzzleArrays(
         existingPuzzles?.wordScramble ?? [],
         generated.wordScramble,
-        PUZZLES_PER_KIND
+        targetAllocation.wordScramble
       ),
       riddle: mergePuzzleArrays(
         existingPuzzles?.riddle ?? [],
         generated.riddle,
-        PUZZLES_PER_KIND
+        targetAllocation.riddle
       ),
       updatedAt: Date.now(),
     };
@@ -132,7 +176,8 @@ export const regenerateMindPuzzleAt = async (
   const existingPuzzles: DailyMindPuzzles = sanitizeDailyMindPuzzles(
     existingDigest?.mindPuzzles
   ) ?? {
-    connections: [],
+    fiveClues: [],
+    rebus: [],
     wordScramble: [],
     riddle: [],
   };
@@ -154,13 +199,21 @@ export const regenerateMindPuzzleAt = async (
   };
 
   const nextPuzzles: DailyMindPuzzles = {
-    connections:
-      kind === 'connections'
-        ? replaceAt(existingPuzzles.connections, freshPuzzle as DailyMindPuzzles['connections'][number], index)
-        : existingPuzzles.connections,
+    fiveClues:
+      kind === 'fiveClues'
+        ? replaceAt(existingPuzzles.fiveClues, freshPuzzle as DailyMindPuzzles['fiveClues'][number], index)
+        : existingPuzzles.fiveClues,
+    rebus:
+      kind === 'rebus'
+        ? replaceAt(existingPuzzles.rebus, freshPuzzle as DailyMindPuzzles['rebus'][number], index)
+        : existingPuzzles.rebus,
     wordScramble:
       kind === 'wordScramble'
-        ? replaceAt(existingPuzzles.wordScramble, freshPuzzle as DailyMindPuzzles['wordScramble'][number], index)
+        ? replaceAt(
+            existingPuzzles.wordScramble,
+            freshPuzzle as DailyMindPuzzles['wordScramble'][number],
+            index
+          )
         : existingPuzzles.wordScramble,
     riddle:
       kind === 'riddle'
@@ -174,17 +227,22 @@ export const regenerateMindPuzzleAt = async (
 };
 
 /**
- * Regenerates a fresh full batch of 12 AI mind puzzles on demand
+ * Regenerates a fresh personalized batch of AI mind puzzles on demand
  * without regenerating the rest of the daily digest.
  */
 export const regenerateAllMindPuzzles = async (
   userId: string,
   profileId: string,
-  userApiKey?: string
+  userApiKey?: string,
+  allocationOverride?: DailyMixAllocation
 ): Promise<DailyMindPuzzles> => {
   const dateId = getTodayDateId();
+  const targetAllocation = resolveTargetAllocation(profileId, allocationOverride);
   const pregnancyWeek = await getPregnancyWeekForProfile(userId, profileId);
-  const freshSet = await generateMindPuzzlesSet({ pregnancyWeek }, userApiKey);
+  const freshSet = await generateMindPuzzlesSet(
+    { pregnancyWeek, allocation: targetAllocation },
+    userApiKey
+  );
 
   await updateDailyDigestMindPuzzles(userId, profileId, dateId, freshSet);
   return freshSet;
