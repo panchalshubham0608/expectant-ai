@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Check,
   CheckCircle2,
   Delete,
   Eye,
@@ -17,6 +18,8 @@ interface RebusPuzzleCardProps {
   onSolved?: () => void;
   embedded?: boolean;
 }
+
+type SlotCheckStatus = 'correct' | 'wrong';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
 
@@ -99,6 +102,22 @@ const parseAnswerPhrase = (phrase: string): ParsedPhrasePattern => {
   }
 
   return { words, targetLetters };
+};
+
+const findNextCursorIndex = (values: string[], fromIndex: number): number => {
+  const len = values.length;
+  if (len === 0) return 0;
+
+  // Prefer the next empty box after the current box
+  for (let i = fromIndex + 1; i < len; i++) {
+    if (!values[i]) return i;
+  }
+  // Wrap around to the earliest empty box if we reached the end
+  for (let i = 0; i < fromIndex; i++) {
+    if (!values[i]) return i;
+  }
+  // If every box is filled, gently advance by one (clamped to end)
+  return Math.min(len - 1, fromIndex + 1);
 };
 
 function RebusVisualStage({ visual }: { visual: RebusVisualSpec }) {
@@ -343,28 +362,59 @@ export default function RebusPuzzleCard({
   const { words, targetLetters } = useMemo(() => parseAnswerPhrase(answerPhrase), [answerPhrase]);
   const canSpellAnswer = targetLetters.length > 0 && targetLetters.length <= 28;
 
-  const [typedLetters, setTypedLetters] = useState<string[]>([]);
+  const [slotValues, setSlotValues] = useState<string[]>(() =>
+    Array.from({ length: targetLetters.length }, () => '')
+  );
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number>(0);
+  const [checkedStatus, setCheckedStatus] = useState<Record<number, SlotCheckStatus>>({});
   const [showChoices, setShowChoices] = useState(!canSpellAnswer);
   const [triedWrongIndices, setTriedWrongIndices] = useState<number[]>([]);
   const [isSolved, setIsSolved] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showRules, setShowRules] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: 'good' | 'nudge'; text: string } | null>(null);
 
   const isCompactSlots = targetLetters.length > 13;
+  const hasAnyTypedLetter = slotValues.some((ch) => ch !== '');
 
-  const commitTypedLetters = useCallback(
-    (next: string[]) => {
-      setTypedLetters(next);
-      if (next.length === targetLetters.length && targetLetters.length > 0) {
-        const matches = next.every((ch, idx) => ch === targetLetters[idx]);
+  const applySlotUpdate = useCallback(
+    (
+      nextValues: string[],
+      nextCursor: number,
+      clearedIndices: number[] | 'all',
+      forcedStatus?: Record<number, SlotCheckStatus>
+    ) => {
+      setSlotValues(nextValues);
+      setSelectedSlotIndex(nextCursor);
+
+      if (forcedStatus) {
+        setCheckedStatus(forcedStatus);
+      } else if (clearedIndices === 'all') {
+        setCheckedStatus({});
+      } else if (clearedIndices.length > 0) {
+        setCheckedStatus((prev) => {
+          const next = { ...prev };
+          for (const idx of clearedIndices) {
+            delete next[idx];
+          }
+          return next;
+        });
+      }
+
+      const allFilled = nextValues.length === targetLetters.length && nextValues.every(Boolean);
+      if (allFilled && targetLetters.length > 0) {
+        const matches = nextValues.every((ch, idx) => ch === targetLetters[idx]);
         if (matches) {
           setIsSolved(true);
           setFeedback(null);
+          setCheckedStatus({});
           onSolved?.();
-        } else {
-          setFeedback('Almost there — tap any letter slot above to edit, or try a reveal.');
+          return;
         }
+        setFeedback({
+          tone: 'nudge',
+          text: 'All boxes filled — tap Check to see which letters fit, or tap any box to edit.',
+        });
       } else {
         setFeedback(null);
       }
@@ -377,20 +427,44 @@ export default function RebusPuzzleCard({
       if (isSolved || showChoices || !canSpellAnswer) return;
 
       if (key === 'CLEAR') {
-        commitTypedLetters([]);
+        applySlotUpdate(
+          Array.from({ length: targetLetters.length }, () => ''),
+          0,
+          'all'
+        );
         return;
       }
+
       if (key === 'BACK') {
-        if (typedLetters.length > 0) {
-          commitTypedLetters(typedLetters.slice(0, -1));
+        const nextValues = [...slotValues];
+        if (nextValues[selectedSlotIndex]) {
+          nextValues[selectedSlotIndex] = '';
+          applySlotUpdate(nextValues, selectedSlotIndex, [selectedSlotIndex]);
+        } else if (selectedSlotIndex > 0) {
+          const prevIdx = selectedSlotIndex - 1;
+          nextValues[prevIdx] = '';
+          applySlotUpdate(nextValues, prevIdx, [prevIdx]);
         }
         return;
       }
-      if (/^[A-Z]$/.test(key) && typedLetters.length < targetLetters.length) {
-        commitTypedLetters([...typedLetters, key]);
+
+      if (/^[A-Z]$/.test(key)) {
+        const targetIdx = Math.max(0, Math.min(targetLetters.length - 1, selectedSlotIndex));
+        const nextValues = [...slotValues];
+        nextValues[targetIdx] = key;
+        const nextCursor = findNextCursorIndex(nextValues, targetIdx);
+        applySlotUpdate(nextValues, nextCursor, [targetIdx]);
       }
     },
-    [isSolved, showChoices, canSpellAnswer, typedLetters, targetLetters.length, commitTypedLetters]
+    [
+      isSolved,
+      showChoices,
+      canSpellAnswer,
+      slotValues,
+      selectedSlotIndex,
+      targetLetters.length,
+      applySlotUpdate,
+    ]
   );
 
   useEffect(() => {
@@ -400,6 +474,12 @@ export default function RebusPuzzleCard({
       if (e.key === 'Backspace') {
         e.preventDefault();
         handleKeyPress('BACK');
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setSelectedSlotIndex((idx) => Math.max(0, idx - 1));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setSelectedSlotIndex((idx) => Math.min(targetLetters.length - 1, idx + 1));
       } else if (/^[a-zA-Z]$/.test(e.key)) {
         e.preventDefault();
         handleKeyPress(e.key.toUpperCase());
@@ -408,32 +488,71 @@ export default function RebusPuzzleCard({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isSolved, showChoices, canSpellAnswer, handleKeyPress]);
+  }, [isSolved, showChoices, canSpellAnswer, targetLetters.length, handleKeyPress]);
 
   const handleRevealLetter = () => {
     if (isSolved || !canSpellAnswer) return;
-    let prefixLen = 0;
-    while (
-      prefixLen < typedLetters.length &&
-      typedLetters[prefixLen] === targetLetters[prefixLen]
-    ) {
-      prefixLen++;
-    }
-    if (prefixLen >= targetLetters.length) return;
-    const nextLetters = [...typedLetters.slice(0, prefixLen), targetLetters[prefixLen]];
-    commitTypedLetters(nextLetters);
+
+    // Prefer the currently selected box if it's empty or wrong; otherwise pick the first empty/wrong box
+    const targetIdx =
+      selectedSlotIndex >= 0 &&
+      selectedSlotIndex < targetLetters.length &&
+      slotValues[selectedSlotIndex] !== targetLetters[selectedSlotIndex]
+        ? selectedSlotIndex
+        : slotValues.findIndex((val, idx) => val !== targetLetters[idx]);
+
+    if (targetIdx === -1) return;
+
+    const nextValues = [...slotValues];
+    nextValues[targetIdx] = targetLetters[targetIdx];
+    const nextCursor = findNextCursorIndex(nextValues, targetIdx);
+    const nextStatus: Record<number, SlotCheckStatus> = {
+      ...checkedStatus,
+      [targetIdx]: 'correct',
+    };
+    applySlotUpdate(nextValues, nextCursor, [], nextStatus);
   };
 
-  const handleTrimToSlot = (slotIndex: number) => {
-    if (isSolved || slotIndex >= typedLetters.length) return;
-    commitTypedLetters(typedLetters.slice(0, slotIndex));
+  const handleCheckProgress = () => {
+    if (isSolved || !hasAnyTypedLetter) return;
+
+    const nextStatus: Record<number, SlotCheckStatus> = {};
+    let wrongCount = 0;
+    let firstWrongIdx = -1;
+
+    slotValues.forEach((val, idx) => {
+      if (!val) return;
+      if (val === targetLetters[idx]) {
+        nextStatus[idx] = 'correct';
+      } else {
+        nextStatus[idx] = 'wrong';
+        wrongCount += 1;
+        if (firstWrongIdx === -1) firstWrongIdx = idx;
+      }
+    });
+
+    setCheckedStatus(nextStatus);
+
+    if (wrongCount === 0) {
+      setFeedback({
+        tone: 'good',
+        text: 'Everything entered so far is spot-on — keep going!',
+      });
+    } else {
+      setSelectedSlotIndex(firstWrongIdx);
+      setFeedback({
+        tone: 'nudge',
+        text: `${wrongCount} ${wrongCount === 1 ? 'letter needs' : 'letters need'} another look (highlighted softly in amber).`,
+      });
+    }
   };
 
   const handleChooseOption = (index: number) => {
     if (isSolved || triedWrongIndices.includes(index)) return;
 
     if (index === puzzle.correctIndex) {
-      setTypedLetters([...targetLetters]);
+      setSlotValues([...targetLetters]);
+      setCheckedStatus({});
       setIsSolved(true);
       setFeedback(null);
       onSolved?.();
@@ -442,8 +561,7 @@ export default function RebusPuzzleCard({
     }
   };
 
-  const displayedLetters = isSolved ? targetLetters : typedLetters;
-  const activeSlotIndex = !isSolved && !showChoices ? typedLetters.length : -1;
+  const displayedLetters = isSolved ? targetLetters : slotValues;
 
   return (
     <div className={embedded ? '' : 'rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100'}>
@@ -477,9 +595,10 @@ export default function RebusPuzzleCard({
             <strong>Goal:</strong> Decode the familiar phrase hidden in the visual word arrangement.
           </p>
           <p>
-            <strong>How:</strong> Look closely at position, size, color, direction, breaks, or
-            repetition, then spell the phrase using the letter pad below (spaces are added for you).
-            Need a hand? Reveal a letter, peek at a hint, or switch to 4 choices anytime.
+            <strong>How:</strong> Tap any box to fill letters in any order using the pad below
+            (spaces are added for you). Tap <strong>Check</strong> anytime to validate letters
+            you&apos;ve entered, use <strong>Reveal</strong> or <strong>Hint</strong>, or switch to{' '}
+            <strong>4 choices</strong>.
           </p>
         </div>
       )}
@@ -487,7 +606,7 @@ export default function RebusPuzzleCard({
       {/* Editorial Typographic Visual Stage */}
       <RebusVisualStage visual={puzzle.visual} />
 
-      {/* Word-Grouped Blank Phrase Pattern */}
+      {/* Word-Grouped Selectable Letter Boxes */}
       {canSpellAnswer && (
         <div className="mt-4">
           <div className="flex flex-wrap items-center justify-center gap-x-3.5 gap-y-2">
@@ -507,28 +626,45 @@ export default function RebusPuzzleCard({
                   }
 
                   const ch = displayedLetters[token.slotIndex];
-                  const isActiveSlot = token.slotIndex === activeSlotIndex;
+                  const isSelected = !isSolved && !showChoices && token.slotIndex === selectedSlotIndex;
+                  const status = !isSolved ? checkedStatus[token.slotIndex] : undefined;
+
+                  let slotClass: string;
+                  if (isSolved) {
+                    slotClass = 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300';
+                  } else if (status === 'wrong') {
+                    slotClass = isSelected
+                      ? 'bg-amber-100 text-amber-950 ring-2 ring-indigo-500 scale-105'
+                      : 'bg-amber-100 text-amber-900 ring-1 ring-amber-400';
+                  } else if (status === 'correct') {
+                    slotClass = isSelected
+                      ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-indigo-500 ring-offset-1 scale-105'
+                      : 'bg-emerald-600 text-white shadow-xs';
+                  } else if (ch) {
+                    slotClass = isSelected
+                      ? 'bg-sky-600 text-white shadow-xs ring-2 ring-indigo-500 ring-offset-1 scale-105'
+                      : 'bg-sky-600 text-white shadow-xs hover:bg-sky-700';
+                  } else {
+                    slotClass = isSelected
+                      ? 'border-2 border-indigo-500 bg-indigo-50/70 text-transparent ring-2 ring-indigo-200/80 scale-105'
+                      : 'border border-dashed border-slate-300 bg-slate-50/80 text-transparent hover:border-sky-300 hover:bg-sky-50/40';
+                  }
 
                   return (
                     <button
                       key={`l-${token.slotIndex}`}
                       type="button"
-                      disabled={isSolved || showChoices || !ch}
-                      onClick={() => handleTrimToSlot(token.slotIndex)}
+                      disabled={isSolved || showChoices}
+                      onClick={() => setSelectedSlotIndex(token.slotIndex)}
+                      aria-pressed={isSelected}
                       aria-label={
-                        ch ? `Letter ${ch}, tap to edit from here` : 'Empty answer letter slot'
+                        ch
+                          ? `Box ${token.slotIndex + 1}, letter ${ch}. Tap to select`
+                          : `Empty box ${token.slotIndex + 1}. Tap to select`
                       }
                       className={`flex items-center justify-center rounded-lg font-bold uppercase transition ${
                         isCompactSlots ? 'h-8 w-6 text-xs' : 'h-9 w-8 text-sm'
-                      } ${
-                        isSolved
-                          ? 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300'
-                          : ch
-                            ? 'bg-sky-600 text-white shadow-xs hover:bg-sky-700'
-                            : isActiveSlot
-                              ? 'border-2 border-sky-400 bg-sky-50/70 text-transparent ring-2 ring-sky-200/70'
-                              : 'border border-dashed border-slate-300 bg-slate-50/80 text-transparent'
-                      }`}
+                      } ${slotClass}`}
                     >
                       {ch || '_'}
                     </button>
@@ -541,25 +677,37 @@ export default function RebusPuzzleCard({
           {!isSolved && !showChoices && (
             <p className="mt-2 text-center text-[11px] text-gray-400">
               {words.length === 1
-                ? `1 word · ${targetLetters.length} letters`
-                : `${words.length} words · tap letters below (spaces filled automatically)`}
+                ? `1 word · ${targetLetters.length} letters · tap any box to seed a letter`
+                : `${words.length} words · tap any box to seed a letter`}
             </p>
           )}
         </div>
       )}
 
-      {/* Calm Helper Chips (Reveal letter · Hint · Show 4 choices / Keyboard) */}
+      {/* Calm Helper Chips (Check · Reveal · Hint · 4 choices / Letter pad) */}
       {!isSolved && (
         <div className="mt-3.5 flex flex-wrap items-center justify-center gap-1.5">
           {canSpellAnswer && !showChoices && (
-            <button
-              type="button"
-              onClick={handleRevealLetter}
-              className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200/80 transition hover:bg-sky-100 active:scale-95"
-            >
-              <Sparkles size={12} />
-              <span>Reveal letter</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleCheckProgress}
+                disabled={!hasAnyTypedLetter}
+                className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200/80 transition hover:bg-emerald-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <Check size={12} />
+                <span>Check</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRevealLetter}
+                className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200/80 transition hover:bg-sky-100 active:scale-95"
+              >
+                <Sparkles size={12} />
+                <span>Reveal</span>
+              </button>
+            </>
           )}
 
           {!showHint && (
@@ -585,12 +733,12 @@ export default function RebusPuzzleCard({
               {showChoices ? (
                 <>
                   <Keyboard size={12} />
-                  <span>Use letter pad</span>
+                  <span>Letter pad</span>
                 </>
               ) : (
                 <>
                   <ListChecks size={12} />
-                  <span>Show 4 choices</span>
+                  <span>4 choices</span>
                 </>
               )}
             </button>
@@ -606,10 +754,15 @@ export default function RebusPuzzleCard({
         </div>
       )}
 
-      {/* Gentle spelling feedback */}
+      {/* Gentle check / validation feedback */}
       {!isSolved && !showChoices && feedback && (
-        <p className="mt-2.5 text-center text-xs font-medium text-amber-800" role="status">
-          {feedback}
+        <p
+          className={`mt-2.5 text-center text-xs font-medium ${
+            feedback.tone === 'good' ? 'text-emerald-700' : 'text-amber-800'
+          }`}
+          role="status"
+        >
+          {feedback.text}
         </p>
       )}
 
@@ -627,8 +780,8 @@ export default function RebusPuzzleCard({
                     key={key}
                     type="button"
                     onClick={() => handleKeyPress(key)}
-                    disabled={(isClear || isBack) && typedLetters.length === 0}
-                    aria-label={isBack ? 'Backspace' : isClear ? 'Clear letters' : key}
+                    disabled={(isClear || isBack) && !hasAnyTypedLetter}
+                    aria-label={isBack ? 'Backspace' : isClear ? 'Clear all letters' : key}
                     className={`flex h-10 items-center justify-center rounded-xl text-xs font-bold transition active:scale-95 ${
                       isClear
                         ? 'px-2.5 text-[10px] bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40'
