@@ -1,6 +1,6 @@
 import { endOfWeek, formatISO, startOfWeek } from 'date-fns';
 import { WEEKLY_UPDATE_PROMPT } from '../../prompts/weekly_update_prompt';
-import { DEFAULT_GEMINI_MODEL, getGeminiClient } from './geminiCore';
+import { getGeminiClient, getGeminiModel } from './geminiCore';
 
 export interface WeeklyUpdateRequest {
   pregnancyWeek: number;
@@ -64,8 +64,7 @@ async function generateWeeklyUpdateContent(
   userApiKey?: string,
 ): Promise<WeeklyUpdateResponse> {
   const ai = getGeminiClient(userApiKey);
-  const env = typeof process !== 'undefined' && process.env ? process.env : (import.meta as any).env;
-  const model = env?.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const model = getGeminiModel();
 
   const userPrompt = `Please generate a weekly update for the following specifics:
 - Pregnancy Week: ${request.pregnancyWeek}

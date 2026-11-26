@@ -162,6 +162,12 @@ async function cleanupDailyDigests() {
           continue;
         }
 
+        // Preserve puzzles for today's or pre-generated future digests
+        const digestEndOfDayUtcMs = parseEndOfDateUtcMs(data.date);
+        if (digestEndOfDayUtcMs !== null && digestEndOfDayUtcMs >= nowMs) {
+          continue;
+        }
+
         const puzzleTimestampMs = getMindPuzzlesTimestampMs(data);
         if (puzzleTimestampMs !== null && puzzleTimestampMs < puzzleCutoffMs) {
           if (hasOtherDigestContent(data)) {

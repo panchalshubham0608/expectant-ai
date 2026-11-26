@@ -10,7 +10,7 @@ import type { Medication } from '../../models/medication';
 import type { ExpectantProfile } from '../../models/profile';
 import { HEALTH_INSIGHTS_PROMPT } from '../../prompts/health_insights';
 import { getPregnancyAge } from '../../utils/pregnancyUtils';
-import { DEFAULT_GEMINI_MODEL, getGeminiClient } from './geminiCore';
+import { getGeminiClient, getGeminiModel } from './geminiCore';
 
 export interface GenerateHealthInsightInput {
   profile: ExpectantProfile;
@@ -65,9 +65,7 @@ export const generateHealthActivityInsight = async (
   userApiKey?: string,
 ): Promise<AIHealthActivityInsight> => {
   const ai = getGeminiClient(userApiKey);
-  const env =
-    typeof process !== 'undefined' && process.env ? process.env : (import.meta as any).env;
-  const model = env?.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const model = getGeminiModel();
 
   const { profile, recentDailyLogs, measurements = [], medications = [] } = input;
   const todayKey = toLocalDateKey();

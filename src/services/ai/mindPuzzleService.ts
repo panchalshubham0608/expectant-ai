@@ -20,7 +20,7 @@ import {
   getFallbackRiddlePuzzles,
   getFallbackWordScramblePuzzles,
 } from '../../utils/fallbackMindPuzzles';
-import { DEFAULT_GEMINI_MODEL, getGeminiClient } from './geminiCore';
+import { getGeminiClient, getGeminiModel } from './geminiCore';
 
 export const FIVE_CLUES_PUZZLE_SCHEMA = {
   type: 'OBJECT',
@@ -249,10 +249,7 @@ export const buildDailyMindPuzzlesSchema = (
 
 export const DAILY_MIND_PUZZLES_SCHEMA = buildDailyMindPuzzlesSchema(DEFAULT_DAILY_MIX_ALLOCATION);
 
-const getModelName = (): string => {
-  const env = typeof process !== 'undefined' && process.env ? process.env : import.meta.env;
-  return (env?.VITE_GEMINI_MODEL as string | undefined) || DEFAULT_GEMINI_MODEL;
-};
+const getModelName = (): string => getGeminiModel();
 
 const pickThemeInspiration = (): string => {
   const themes = [
