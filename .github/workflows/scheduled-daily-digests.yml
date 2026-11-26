@@ -1,0 +1,60 @@
+name: Generate Daily Digests
+
+on:
+  schedule:
+    # Runs every 4 hours (00:05, 04:05, 08:05, 12:05, 16:05, 20:05 IST)
+    - cron: '35 2,6,10,14,18,22 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Check profiles without calling Gemini or writing to Firestore'
+        required: false
+        type: boolean
+        default: false
+      force:
+        description: 'Regenerate daily digests even if already complete for the target date'
+        required: false
+        type: boolean
+        default: false
+      date:
+        description: 'Optional target date override (YYYY-MM-DD)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-daily-digests
+  cancel-in-progress: false
+
+jobs:
+  generate-daily-digests:
+    runs-on: ubuntu-latest
+    environment: github-actions
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Missing Daily Digests
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          VITE_GEMINI_MODEL: ${{ vars.VITE_GEMINI_MODEL }}
+          DIGEST_TIMEZONE: ${{ vars.DIGEST_TIMEZONE || 'Asia/Kolkata' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          FORCE_REGENERATE: ${{ inputs.force || 'false' }}
+          DIGEST_DATE: ${{ inputs.date || '' }}
+        run: npx tsx scripts/generate-daily-digests.ts
