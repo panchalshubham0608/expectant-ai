@@ -10,7 +10,7 @@ import {
   type DayOfWeek,
   type ReminderFrequency,
 } from '../../models/reminder';
-import { DEFAULT_GEMINI_MODEL, getGeminiClient } from './geminiCore';
+import { getGeminiClient, getGeminiModel } from './geminiCore';
 import {
   buildJournalChatContext,
   type JournalChatContextInput,
@@ -1531,11 +1531,7 @@ export const generateJournalChatReply = async (
   abortSignal?: AbortSignal
 ): Promise<JournalChatTurnResult> => {
   const ai = getGeminiClient(userApiKey);
-  const env =
-    typeof process !== 'undefined' && process.env
-      ? process.env
-      : (import.meta as any).env;
-  const model = env?.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const model = getGeminiModel();
 
   const context = buildJournalChatContext(contextInput);
   const contextJson = JSON.stringify(context, null, 2);

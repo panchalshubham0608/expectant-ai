@@ -1,4 +1,4 @@
-import { getGeminiClient, DEFAULT_GEMINI_IMAGE_MODEL } from './geminiCore';
+import { getGeminiClient, getGeminiImageModel } from './geminiCore';
 
 export interface GeneratedImage {
   data: string;
@@ -15,8 +15,7 @@ export interface GeneratedImage {
 export const generateImage = async (prompt: string, userApiKey?: string): Promise<GeneratedImage> => {
   try {
     const ai = getGeminiClient(userApiKey);
-    const env = typeof process !== 'undefined' && process.env ? process.env : (import.meta as any).env;
-    const model = env?.VITE_GEMINI_IMAGE_MODEL || DEFAULT_GEMINI_IMAGE_MODEL;
+    const model = getGeminiImageModel();
 
     const response = await ai.models.generateContent({
       model: model,

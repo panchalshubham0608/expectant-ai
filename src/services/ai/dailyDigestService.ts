@@ -6,7 +6,7 @@ import {
   type DailyMixAllocation,
 } from '../../models/mindPuzzle';
 import { buildDailyMindPuzzlesSchema } from './mindPuzzleService';
-import { getGeminiClient, DEFAULT_GEMINI_MODEL } from './geminiCore';
+import { getGeminiClient, getGeminiModel } from './geminiCore';
 
 export type DailyDigestCategory =
   | 'baby-fact'
@@ -77,8 +77,7 @@ export const generateDailyDigest = async (
   userApiKey?: string
 ): Promise<DailyDigestResponse> => {
   const ai = getGeminiClient(userApiKey);
-  const env = typeof process !== 'undefined' && process.env ? process.env : import.meta.env;
-  const model = (env?.VITE_GEMINI_MODEL as string | undefined) || DEFAULT_GEMINI_MODEL;
+  const model = getGeminiModel();
 
   const shouldGenerateBabyNames = Boolean(
     request.babyNameContext?.trim() && request.babyNameCount && request.babyNameCount > 0

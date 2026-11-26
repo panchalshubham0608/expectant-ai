@@ -1,5 +1,5 @@
 import { SUMMARIZE_REPORT_PROMPT } from "../../prompts/summarize_report";
-import { getGeminiClient, DEFAULT_GEMINI_MODEL } from './geminiCore';
+import { getGeminiClient, getGeminiModel } from './geminiCore';
 
 import type { Report, ReportSummary, ReportMetadata, ReportHistoricalComparison, ReportType } from '../../models/report';
 
@@ -122,7 +122,7 @@ export const summarizePdfReport = async (file: File, historicalReports: Report[]
   }
 
   const ai = getGeminiClient(userApiKey);
-  const model = import.meta.env.VITE_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const model = getGeminiModel();
   const pdfData = await encodePdfToBase64(file);
 
   const contents: any[] = [

@@ -14,6 +14,7 @@ import {
   type DailyDigestCategory,
   type DailyDigestResponse,
 } from '../src/services/ai/dailyDigestService';
+import { getGeminiModel } from '../src/services/ai/geminiCore';
 import type { DailyDigest, GeneratedBabyName } from '../src/models/dailyDigest';
 import {
   countDailyMindPuzzles,
@@ -548,7 +549,7 @@ export async function generateDailyDigestsForAllUsers(
   options: RunOptions = parseRunOptions(),
 ): Promise<RunSummary> {
   console.log(
-    `Starting daily digest generation for ${options.dateId} (timezone: ${options.timeZone})...`,
+    `Starting daily digest generation for ${options.dateId} (timezone: ${options.timeZone}, model: ${redactSecrets(getGeminiModel())})...`,
   );
 
   if (options.dryRun) {
