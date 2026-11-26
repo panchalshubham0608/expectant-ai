@@ -115,6 +115,24 @@ export const parseAndValidateDateId = (rawDate: string): string => {
   return trimmed;
 };
 
+export const addDaysToDateId = (dateId: string, days: number): string => {
+  const validated = parseAndValidateDateId(dateId);
+  const [yearStr, monthStr, dayStr] = validated.split('-');
+  const year = Number.parseInt(yearStr, 10);
+  const month = Number.parseInt(monthStr, 10);
+  const day = Number.parseInt(dayStr, 10);
+  const target = new Date(Date.UTC(year, month - 1, day + days));
+  const y = String(target.getUTCFullYear()).padStart(4, '0');
+  const m = String(target.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(target.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+export const getTomorrowDateIdInTimeZone = (
+  timeZone: string = DEFAULT_TIMEZONE,
+  now: Date = new Date(),
+): string => addDaysToDateId(getDateIdInTimeZone(timeZone, now), 1);
+
 export const sanitizeContext = (value: unknown, maxLength: number): string => {
   if (typeof value !== 'string') return '';
   return value.trim().slice(0, maxLength);
@@ -227,7 +245,9 @@ export const parseRunOptions = (
   }
 
   const timeZone = env.DIGEST_TIMEZONE?.trim() || DEFAULT_TIMEZONE;
-  const dateId = rawDate ? parseAndValidateDateId(rawDate) : getDateIdInTimeZone(timeZone, now);
+  const dateId = rawDate
+    ? parseAndValidateDateId(rawDate)
+    : getTomorrowDateIdInTimeZone(timeZone, now);
 
   return { dryRun, force, failOnError, dateId, timeZone };
 };
